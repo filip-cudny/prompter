@@ -1,0 +1,9 @@
+# Optional dependencies for better multi-monitor support
+
+# macOS support
+pyobjc-framework-Cocoa>=9.0; sys_platform == "darwin"
+
+# Linux support  
+python-xlib>=0.33; sys_platform == "linux"
+
+# Windows support is handled by built-in ctypes
