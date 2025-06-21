@@ -34,6 +34,7 @@ class PromptStoreGUI:
         self.prompts = []
         self.root = None
         self.menu = None
+        self.is_executing = False
 
         self.load_prompts()
 
@@ -100,6 +101,11 @@ class PromptStoreGUI:
     def create_context_menu(self):
         self.root = tk.Tk()
         self.root.withdraw()
+        
+        # Make window focusable but invisible
+        self.root.overrideredirect(True)
+        self.root.attributes('-alpha', 0.01)  # Nearly transparent
+        self.root.attributes('-topmost', True)
 
         self.menu = tk.Menu(self.root, tearoff=0)
 
@@ -118,11 +124,13 @@ class PromptStoreGUI:
         self.menu.add_command(label="Exit", command=self.on_exit)
 
     def on_prompt_selected(self, prompt):
+        self.is_executing = True
         prompt_name = prompt.get('name', 'Unnamed Prompt')
         prompt_id = prompt.get('id')
 
         if not prompt_id:
             messagebox.showerror("Error", "Invalid prompt data")
+            self.is_executing = False
             return
 
         try:
@@ -130,6 +138,7 @@ class PromptStoreGUI:
             
             if not clipboard_content.strip():
                 messagebox.showwarning("Warning", "Clipboard is empty")
+                self.is_executing = False
                 self.root.quit()
                 return
 
@@ -146,12 +155,29 @@ class PromptStoreGUI:
         except Exception as e:
             messagebox.showerror("Error", f"Unexpected error: {str(e)}")
 
+        self.is_executing = False
         self.root.quit()
 
     def on_refresh(self):
         self.load_prompts()
         self.root.quit()
         self.run()
+
+    def check_menu_active(self):
+        """Check if menu is still active, quit if not and not executing"""
+        if not self.is_executing:
+            try:
+                # If menu is no longer posted, quit the application
+                if not self.menu.winfo_ismapped():
+                    self.root.quit()
+                    return
+            except tk.TclError:
+                # Menu was destroyed or is no longer accessible
+                self.root.quit()
+                return
+        
+        # Schedule next check
+        self.root.after(100, self.check_menu_active)
 
     def on_exit(self):
         self.root.quit()
@@ -164,21 +190,23 @@ class PromptStoreGUI:
     def show_menu_at_cursor(self):
         x, y = self.get_cursor_position()
 
-        # Create a reference window at cursor position
-        self.root.geometry(f"1x1+{x}+{y}")
+        # Position the root window at cursor
+        self.root.geometry(f"10x10+{x}+{y}")
+        self.root.deiconify()  # Show the window
+        self.root.focus_force()
         self.root.update()
 
         try:
             self.menu.tk_popup(x, y)
+            # Start checking if menu is still active
+            self.root.after(100, self.check_menu_active)
         except tk.TclError as e:
             print(f"Menu popup failed at {x}, {y}: {e}")
             try:
-                # Fallback: show menu at a slight offset
                 self.menu.tk_popup(x + 10, y + 10)
+                self.root.after(100, self.check_menu_active)
             except tk.TclError:
-                pass
-        finally:
-            self.menu.grab_release()
+                self.root.quit()
 
     def run(self):
         self.create_context_menu()
