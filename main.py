@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """GUI application for displaying and selecting prompts from a context menu."""
 
+import os
 import tkinter as tk
 from tkinter import messagebox
 import platform
+from dotenv import load_dotenv
+from api import PromptStoreAPI, APIError, create_user_message
 
 try:
     if platform.system() == "Windows":
@@ -18,15 +21,27 @@ except ImportError:
 
 class PromptStoreGUI:
     def __init__(self):
-        self.prompts = [
-            "prompt1",
-            "prompt2",
-            "prompt3",
-            "prompt4",
-            "prompt5"
-        ]
+        load_dotenv()
+
+        self.api_key = os.getenv('API_KEY')
+        self.base_url = os.getenv('BASE_URL')
+
+        if not self.api_key or not self.base_url:
+            raise ValueError("API_KEY and BASE_URL must be set in .env file")
+
+        self.api = PromptStoreAPI(self.base_url, self.api_key)
+        self.prompts = []
         self.root = None
         self.menu = None
+
+        self.load_prompts()
+
+    def load_prompts(self):
+        try:
+            self.prompts = self.api.get_prompts()
+        except APIError as e:
+            messagebox.showerror("API Error", f"Failed to load prompts: {str(e)}")
+            self.prompts = []
 
     def create_context_menu(self):
         self.root = tk.Tk()
@@ -34,18 +49,44 @@ class PromptStoreGUI:
 
         self.menu = tk.Menu(self.root, tearoff=0)
 
-        for prompt in self.prompts:
-            self.menu.add_command(
-                label=prompt,
-                command=lambda p=prompt: self.on_prompt_selected(p)
-            )
+        if not self.prompts:
+            self.menu.add_command(label="No prompts available", state='disabled')
+        else:
+            for prompt in self.prompts:
+                prompt_name = prompt.get('name', 'Unnamed Prompt')
+                self.menu.add_command(
+                    label=prompt_name,
+                    command=lambda p=prompt: self.on_prompt_selected(p)
+                )
 
         self.menu.add_separator()
+        self.menu.add_command(label="Refresh", command=self.on_refresh)
         self.menu.add_command(label="Exit", command=self.on_exit)
 
     def on_prompt_selected(self, prompt):
-        messagebox.showinfo("Selected", f"You selected: {prompt}")
+        prompt_name = prompt.get('name', 'Unnamed Prompt')
+        prompt_id = prompt.get('id')
+
+        if not prompt_id:
+            messagebox.showerror("Error", "Invalid prompt data")
+            return
+
+        try:
+            sample_message = create_user_message("Hello, this is a test message")
+            result = self.api.execute_prompt(prompt_id, [sample_message])
+
+            content = result.get('content', 'No response content')
+            messagebox.showinfo("Prompt Result", f"Prompt: {prompt_name}\n\nResult:\n{content}")
+
+        except APIError as e:
+            messagebox.showerror("Execution Error", f"Failed to execute prompt: {str(e)}")
+
         self.root.quit()
+
+    def on_refresh(self):
+        self.load_prompts()
+        self.root.quit()
+        self.run()
 
     def on_exit(self):
         self.root.quit()
