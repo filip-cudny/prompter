@@ -7,17 +7,18 @@ from tkinter import messagebox
 import platform
 from dotenv import load_dotenv
 from api import PromptStoreAPI, APIError, create_user_message
-
 try:
     if platform.system() == "Windows":
         import ctypes
         from ctypes import wintypes
     elif platform.system() == "Darwin":
         from AppKit import NSEvent, NSScreen
+        import subprocess
     elif platform.system() == "Linux":
         from Xlib import display
+        import subprocess
 except ImportError:
-    pass
+    import subprocess
 
 class PromptStoreGUI:
     def __init__(self):
@@ -35,6 +36,59 @@ class PromptStoreGUI:
         self.menu = None
 
         self.load_prompts()
+
+    def get_clipboard_content(self):
+        """Get clipboard content using platform-specific methods"""
+        try:
+            if platform.system() == "Darwin":  # macOS
+                result = subprocess.run(['pbpaste'], capture_output=True, text=True)
+                return result.stdout
+            elif platform.system() == "Linux":
+                result = subprocess.run(['xclip', '-selection', 'clipboard', '-o'], 
+                                      capture_output=True, text=True)
+                return result.stdout
+            elif platform.system() == "Windows":
+                import tkinter as tk
+                root = tk.Tk()
+                root.withdraw()
+                try:
+                    content = root.clipboard_get()
+                    root.destroy()
+                    return content
+                except tk.TclError:
+                    root.destroy()
+                    return ""
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            pass
+        
+        return ""
+
+    def set_clipboard_content(self, content):
+        """Set clipboard content using platform-specific methods"""
+        try:
+            if platform.system() == "Darwin":  # macOS
+                result = subprocess.run(['pbcopy'], input=content, text=True, capture_output=True)
+                return result.returncode == 0
+            elif platform.system() == "Linux":
+                result = subprocess.run(['xclip', '-selection', 'clipboard'], input=content, text=True, capture_output=True)
+                return result.returncode == 0
+            elif platform.system() == "Windows":
+                import tkinter as tk
+                root = tk.Tk()
+                root.withdraw()
+                try:
+                    root.clipboard_clear()
+                    root.clipboard_append(content)
+                    root.update()
+                    root.destroy()
+                    return True
+                except tk.TclError:
+                    root.destroy()
+                    return False
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            pass
+        
+        return False
 
     def load_prompts(self):
         try:
@@ -72,14 +126,25 @@ class PromptStoreGUI:
             return
 
         try:
-            sample_message = create_user_message("Hello, this is a test message")
-            result = self.api.execute_prompt(prompt_id, [sample_message])
+            clipboard_content = self.get_clipboard_content()
+            
+            if not clipboard_content.strip():
+                messagebox.showwarning("Warning", "Clipboard is empty")
+                self.root.quit()
+                return
+
+            user_message = create_user_message(clipboard_content)
+            result = self.api.execute_prompt(prompt_id, [user_message])
 
             content = result.get('content', 'No response content')
-            messagebox.showinfo("Prompt Result", f"Prompt: {prompt_name}\n\nResult:\n{content}")
+            
+            if not self.set_clipboard_content(content):
+                messagebox.showerror("Clipboard Error", f"Prompt executed but failed to copy result to clipboard.\n\nResult:\n{content}")
 
         except APIError as e:
             messagebox.showerror("Execution Error", f"Failed to execute prompt: {str(e)}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Unexpected error: {str(e)}")
 
         self.root.quit()
 

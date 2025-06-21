@@ -17,7 +17,7 @@ class PromptStoreAPI:
             })
 
     def _make_request(self, method: str, endpoint: str, params: Optional[Dict] = None,
-                     data: Optional[Dict] = None) -> Dict[str, Any]:
+                     data: Optional[Dict] = None) -> Any:
         url = f"{self.base_url}{endpoint}"
 
         try:
@@ -31,15 +31,24 @@ class PromptStoreAPI:
                 raise ValueError(f"Unsupported HTTP method: {method}")
 
             response.raise_for_status()
-            return response.json()
+
+            content_type = response.headers.get('content-type', '')
+            if 'application/json' in content_type:
+                try:
+                    return response.json()
+                except json.JSONDecodeError as e:
+                    raise APIError("Invalid JSON response") from e
+            else:
+                return response.text
 
         except requests.exceptions.RequestException as e:
             raise APIError(f"Request failed: {str(e)}") from e
-        except json.JSONDecodeError:
-            raise APIError("Invalid JSON response") from e
 
     def get_prompts(self) -> List[Dict[str, Any]]:
         response = self._make_request('GET', '/api/prompt-store', params={'type': 'prompts'})
+
+        if isinstance(response, str):
+            raise APIError("Expected JSON response for prompts")
 
         if not response.get('success'):
             raise APIError("Failed to fetch prompts")
@@ -48,6 +57,9 @@ class PromptStoreAPI:
 
     def get_presets(self) -> List[Dict[str, Any]]:
         response = self._make_request('GET', '/api/prompt-store', params={'type': 'presets'})
+
+        if isinstance(response, str):
+            raise APIError("Expected JSON response for presets")
 
         if not response.get('success'):
             raise APIError("Failed to fetch presets")
@@ -60,6 +72,9 @@ class PromptStoreAPI:
             'id': prompt_id
         }
         response = self._make_request('GET', '/api/prompt-store', params=params)
+
+        if isinstance(response, str):
+            raise APIError("Expected JSON response for prompt details")
 
         if not response.get('success'):
             raise APIError(f"Failed to fetch prompt details for ID: {prompt_id}")
@@ -93,10 +108,14 @@ class PromptStoreAPI:
 
         response = self._make_request('POST', '/api/prompt-execute', data=data)
 
-        if not response.get('success'):
-            raise APIError("Failed to execute prompt")
-
-        return response
+        if isinstance(response, str):
+            return {'content': response}
+        elif isinstance(response, dict):
+            if 'success' in response and not response.get('success'):
+                raise APIError("Failed to execute prompt")
+            return response
+        else:
+            raise APIError("Unexpected response format")
 
     def execute_prompt_with_preset(self, prompt_id: str, preset_id: str,
                                   messages: List[Dict[str, str]],
