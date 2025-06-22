@@ -83,9 +83,12 @@ class PromptStoreApp:
             # Initialize prompt provider
             self.prompt_provider = APIPromptProvider(self.api)
 
+            # Initialize notification manager early
+            self.notification_manager = NotificationManager()
+
             # Initialize core service
             self.prompt_store_service = PromptStoreService(
-                self.prompt_provider, self.clipboard_manager
+                self.prompt_provider, self.clipboard_manager, self.notification_manager
             )
 
             # Initialize GUI components first
@@ -140,9 +143,9 @@ class PromptStoreApp:
         # Initialize event handler
         self.event_handler = MenuEventHandler(self.menu_coordinator)
 
-        # Initialize notification manager for event handler
-        notification_manager = NotificationManager(self.root)
-        self.event_handler.set_notification_manager(notification_manager)
+        # Set main root for notification manager and configure event handler
+        self.notification_manager.set_main_root(self.root)
+        self.event_handler.set_notification_manager(self.notification_manager)
 
         self.menu_coordinator.set_execution_callback(
             self.event_handler.handle_execution_result

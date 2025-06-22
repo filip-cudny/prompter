@@ -9,14 +9,16 @@ from .models import (
     PromptData, PresetData, ExecutionResult, HistoryEntry, MenuItem, MenuItemType, ErrorCode
 )
 from .exceptions import DataError
+from utils.notifications import NotificationManager
 
 
 class PromptStoreService:
     """Main business logic coordinator for the prompt store."""
 
-    def __init__(self, prompt_provider, clipboard_manager):
+    def __init__(self, prompt_provider, clipboard_manager, notification_manager=None):
         self.prompt_provider = prompt_provider
         self.clipboard_manager = clipboard_manager
+        self.notification_manager = notification_manager or NotificationManager()
         self.execution_service = ExecutionService(
             prompt_provider, clipboard_manager)
         self.data_manager = DataManager(prompt_provider)
@@ -90,6 +92,21 @@ class PromptStoreService:
     def set_active_prompt(self, item: MenuItem) -> None:
         """Set the active prompt/preset."""
         self.active_prompt_service.set_active_prompt(item)
+        
+        if item.item_type == MenuItemType.PROMPT:
+            prompt_name = item.data.get("prompt_name", "Unknown Prompt") if item.data else "Unknown Prompt"
+            self.notification_manager.show_success_notification(
+                "Active Prompt Set",
+                "Ready to execute with clipboard content",
+                prompt_name
+            )
+        elif item.item_type == MenuItemType.PRESET:
+            preset_name = item.data.get("preset_name", "Unknown Preset") if item.data else "Unknown Preset"
+            self.notification_manager.show_success_notification(
+                "Active Preset Set",
+                "Ready to execute with clipboard content",
+                preset_name
+            )
 
     def execute_active_prompt(self) -> ExecutionResult:
         """Execute the active prompt/preset with current clipboard content."""
