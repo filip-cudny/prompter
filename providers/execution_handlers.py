@@ -1,19 +1,22 @@
 """Execution handlers for different types of menu items."""
 
 from typing import Optional
+import tkinter as tk
 from core.interfaces import ClipboardManager
 from core.models import MenuItem, MenuItemType, ExecutionResult
 from core.exceptions import ClipboardError
 from api import PromptStoreAPI, APIError, create_user_message
+from utils.notifications import NotificationManager, format_execution_time, truncate_text
 import time
 
 
 class PromptExecutionHandler:
     """Handler for executing prompt menu items."""
 
-    def __init__(self, api: PromptStoreAPI, clipboard_manager: ClipboardManager):
+    def __init__(self, api: PromptStoreAPI, clipboard_manager: ClipboardManager, main_root: Optional[tk.Tk] = None):
         self.api = api
         self.clipboard_manager = clipboard_manager
+        self.notification_manager = NotificationManager(main_root)
 
     def can_handle(self, item: MenuItem) -> bool:
         """Check if this handler can execute the given menu item."""
@@ -56,7 +59,7 @@ class PromptExecutionHandler:
                 )
 
             execution_time = time.time() - start_time
-            return ExecutionResult(
+            result = ExecutionResult(
                 success=True,
                 content=content,
                 execution_time=execution_time,
@@ -67,33 +70,74 @@ class PromptExecutionHandler:
                     "output_length": len(content)
                 }
             )
+            
+            prompt_name = item.data.get("prompt_name", "Unknown Prompt")
+            message = f"Processed in {format_execution_time(execution_time)}"
+            self.notification_manager.show_success_notification(
+                "Prompt Completed", 
+                message, 
+                prompt_name
+            )
+            
+            return result
 
         except APIError as e:
-            return ExecutionResult(
+            error_msg = f"Failed to execute prompt: {str(e)}"
+            result = ExecutionResult(
                 success=False,
-                error=f"Failed to execute prompt: {str(e)}",
+                error=error_msg,
                 execution_time=time.time() - start_time
             )
+            
+            prompt_name = item.data.get("prompt_name", "Unknown Prompt") if item.data else "Unknown Prompt"
+            self.notification_manager.show_error_notification(
+                "Prompt Failed",
+                truncate_text(str(e)),
+                prompt_name
+            )
+            
+            return result
         except ClipboardError as e:
-            return ExecutionResult(
+            error_msg = str(e)
+            result = ExecutionResult(
                 success=False,
-                error=str(e),
+                error=error_msg,
                 execution_time=time.time() - start_time
             )
+            
+            prompt_name = item.data.get("prompt_name", "Unknown Prompt") if item.data else "Unknown Prompt"
+            self.notification_manager.show_error_notification(
+                "Clipboard Error",
+                truncate_text(error_msg),
+                prompt_name
+            )
+            
+            return result
         except Exception as e:
-            return ExecutionResult(
+            error_msg = f"Unexpected error: {str(e)}"
+            result = ExecutionResult(
                 success=False,
-                error=f"Unexpected error: {str(e)}",
+                error=error_msg,
                 execution_time=time.time() - start_time
             )
+            
+            prompt_name = item.data.get("prompt_name", "Unknown Prompt") if item.data else "Unknown Prompt"
+            self.notification_manager.show_error_notification(
+                "Execution Error",
+                truncate_text(str(e)),
+                prompt_name
+            )
+            
+            return result
 
 
 class PresetExecutionHandler:
     """Handler for executing preset menu items."""
 
-    def __init__(self, api: PromptStoreAPI, clipboard_manager: ClipboardManager):
+    def __init__(self, api: PromptStoreAPI, clipboard_manager: ClipboardManager, main_root: Optional[tk.Tk] = None):
         self.api = api
         self.clipboard_manager = clipboard_manager
+        self.notification_manager = NotificationManager(main_root)
 
     def can_handle(self, item: MenuItem) -> bool:
         """Check if this handler can execute the given menu item."""
@@ -139,7 +183,7 @@ class PresetExecutionHandler:
                 )
 
             execution_time = time.time() - start_time
-            return ExecutionResult(
+            result = ExecutionResult(
                 success=True,
                 content=content,
                 execution_time=execution_time,
@@ -151,25 +195,65 @@ class PresetExecutionHandler:
                     "output_length": len(content)
                 }
             )
+            
+            preset_name = item.data.get("preset_name", "Unknown Preset")
+            message = f"Processed in {format_execution_time(execution_time)}"
+            self.notification_manager.show_success_notification(
+                "Preset Completed", 
+                message, 
+                preset_name
+            )
+            
+            return result
 
         except APIError as e:
-            return ExecutionResult(
+            error_msg = f"Failed to execute preset: {str(e)}"
+            result = ExecutionResult(
                 success=False,
-                error=f"Failed to execute preset: {str(e)}",
+                error=error_msg,
                 execution_time=time.time() - start_time
             )
+            
+            preset_name = item.data.get("preset_name", "Unknown Preset") if item.data else "Unknown Preset"
+            self.notification_manager.show_error_notification(
+                "Preset Failed",
+                truncate_text(str(e)),
+                preset_name
+            )
+            
+            return result
         except ClipboardError as e:
-            return ExecutionResult(
+            error_msg = str(e)
+            result = ExecutionResult(
                 success=False,
-                error=str(e),
+                error=error_msg,
                 execution_time=time.time() - start_time
             )
+            
+            preset_name = item.data.get("preset_name", "Unknown Preset") if item.data else "Unknown Preset"
+            self.notification_manager.show_error_notification(
+                "Clipboard Error",
+                truncate_text(error_msg),
+                preset_name
+            )
+            
+            return result
         except Exception as e:
-            return ExecutionResult(
+            error_msg = f"Unexpected error: {str(e)}"
+            result = ExecutionResult(
                 success=False,
-                error=f"Unexpected error: {str(e)}",
+                error=error_msg,
                 execution_time=time.time() - start_time
             )
+            
+            preset_name = item.data.get("preset_name", "Unknown Preset") if item.data else "Unknown Preset"
+            self.notification_manager.show_error_notification(
+                "Execution Error",
+                truncate_text(str(e)),
+                preset_name
+            )
+            
+            return result
 
 
 class HistoryExecutionHandler:
@@ -230,8 +314,9 @@ class HistoryExecutionHandler:
 class SystemExecutionHandler:
     """Handler for executing system menu items."""
 
-    def __init__(self, refresh_callback=None):
+    def __init__(self, refresh_callback=None, main_root: Optional[tk.Tk] = None):
         self.refresh_callback = refresh_callback
+        self.notification_manager = NotificationManager(main_root)
 
     def can_handle(self, item: MenuItem) -> bool:
         """Check if this handler can execute the given menu item."""
@@ -253,12 +338,21 @@ class SystemExecutionHandler:
             if command_type == "refresh":
                 if self.refresh_callback:
                     self.refresh_callback()
-                return ExecutionResult(
+                
+                execution_time = time.time() - start_time
+                result = ExecutionResult(
                     success=True,
                     content="Data refreshed",
-                    execution_time=time.time() - start_time,
+                    execution_time=execution_time,
                     metadata={"command": "refresh"}
                 )
+                
+                self.notification_manager.show_info_notification(
+                    "Data Refreshed",
+                    f"Completed in {format_execution_time(execution_time)}"
+                )
+                
+                return result
             else:
                 return ExecutionResult(
                     success=False,

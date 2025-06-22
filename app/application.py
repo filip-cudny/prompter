@@ -87,11 +87,11 @@ class PromptStoreApp:
                 self.prompt_provider, self.clipboard_manager
             )
 
-            # Register execution handlers
-            self._register_execution_handlers()
-
-            # Initialize GUI components
+            # Initialize GUI components first
             self._initialize_gui()
+
+            # Register execution handlers after GUI is ready
+            self._register_execution_handlers()
 
             # Initialize menu providers
             self._initialize_menu_providers()
@@ -103,11 +103,12 @@ class PromptStoreApp:
     def _register_execution_handlers(self) -> None:
         """Register execution handlers with the service."""
         handlers = [
-            PromptExecutionHandler(self.api, self.clipboard_manager),
-            PresetExecutionHandler(self.api, self.clipboard_manager),
+            PromptExecutionHandler(self.api, self.clipboard_manager, self.root),
+            PresetExecutionHandler(self.api, self.clipboard_manager, self.root),
             HistoryExecutionHandler(self.clipboard_manager),
             SystemExecutionHandler(
-                refresh_callback=self._refresh_data
+                refresh_callback=self._refresh_data,
+                main_root=self.root
             ),
         ]
 
@@ -140,6 +141,8 @@ class PromptStoreApp:
         self.menu_coordinator.set_error_callback(
             self.event_handler.handle_error
         )
+    
+
 
     def _initialize_menu_providers(self) -> None:
         """Initialize menu providers."""
