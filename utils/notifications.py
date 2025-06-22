@@ -78,7 +78,12 @@ class NotificationManager:
         finally:
             self._processing = False
 
-    def _show_snackbar_main_thread(self, msg: str, duration: int = 2000, bg_color: str = "#323232") -> None:
+    def _show_snackbar_main_thread(
+        self,
+        msg: str,
+        duration: int = 2000,
+        bg_color: str = "#323232"
+    ) -> None:
         """Show a snackbar notification on the main thread."""
         try:
             if not self.main_root:
@@ -103,9 +108,7 @@ class NotificationManager:
 
             snackbar.update_idletasks()
             w = snackbar.winfo_screenwidth()
-            h = snackbar.winfo_screenheight()
             sw = label.winfo_reqwidth()
-            sh = label.winfo_reqheight()
             x = w - sw - 20
             y = 50
             snackbar.geometry(f"+{x}+{y}")
@@ -119,7 +122,7 @@ class NotificationManager:
 
             snackbar.after(duration, destroy_snackbar)
 
-        except Exception as e:
+        except (tk.TclError, RuntimeError) as e:
             print(f"Failed to show notification: {e}")
             print(f"🔔 {msg}")
 
