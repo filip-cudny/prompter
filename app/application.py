@@ -27,6 +27,7 @@ from gui.hotkey_manager import HotkeyManager
 from utils.clipboard import SystemClipboardManager
 from utils.config import load_config, validate_config
 from utils.system import check_macos_permissions, show_macos_permissions_help
+from utils.notifications import NotificationManager
 from api import PromptStoreAPI
 
 
@@ -136,6 +137,11 @@ class PromptStoreApp:
 
         # Initialize event handler
         self.event_handler = MenuEventHandler(self.menu_coordinator)
+        
+        # Initialize notification manager for event handler
+        notification_manager = NotificationManager(self.root)
+        self.event_handler.set_notification_manager(notification_manager)
+        
         self.menu_coordinator.set_execution_callback(
             self.event_handler.handle_execution_result
         )

@@ -37,7 +37,7 @@ class NotificationManager:
 
     def show_info_notification(self, title: str, message: str) -> None:
         """Show an info notification."""
-        full_message = f"ℹ️ {title}\n{message}"
+        full_message = f"ⓘ {title}\n{message}"
         self._queue_notification(full_message, "#6A7D93", 2000)
 
     def _queue_notification(self, message: str, bg_color: str, duration: int) -> None:
@@ -82,7 +82,7 @@ class NotificationManager:
         """Show a snackbar notification on the main thread."""
         try:
             if not self.main_root:
-                print(f"🔔 {msg}")
+                print(f"ⓘ {msg}")
                 return
 
             snackbar = tk.Toplevel(self.main_root)

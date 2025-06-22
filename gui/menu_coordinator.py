@@ -8,6 +8,7 @@ from core.interfaces import MenuItemProvider
 from core.models import MenuItem, ExecutionResult, MenuItemType
 from core.services import PromptStoreService
 from .context_menu import ContextMenu, MenuBuilder, MenuPosition
+from utils.notifications import NotificationManager
 
 
 class MenuCoordinator:
@@ -202,6 +203,11 @@ class MenuEventHandler:
         self.coordinator = coordinator
         self.execution_results: List[ExecutionResult] = []
         self.max_results = 50
+        self.notification_manager: Optional[NotificationManager] = None
+
+    def set_notification_manager(self, notification_manager: NotificationManager) -> None:
+        """Set the notification manager."""
+        self.notification_manager = notification_manager
 
     def handle_execution_result(self, result: ExecutionResult) -> None:
         """Handle execution result."""
@@ -215,6 +221,13 @@ class MenuEventHandler:
             print(f"Execution successful: {result.metadata}")
         else:
             print(f"Execution failed: {result.error}")
+            
+            # Show info notification for "no previous prompt" case
+            if self.notification_manager and result.error == "No previous prompt to execute":
+                self.notification_manager.show_info_notification(
+                    "No Previous Prompt",
+                    "Execute a prompt first to use this feature"
+                )
 
     def handle_error(self, error_message: str) -> None:
         """Handle error message."""
