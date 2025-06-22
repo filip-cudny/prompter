@@ -1,7 +1,7 @@
 """Context menu GUI operations for the prompt store application."""
 
 import tkinter as tk
-from typing import List, Optional, Tuple, Dict
+from typing import List, Optional, Tuple
 from core.models import MenuItem, MenuItemType
 from core.exceptions import MenuError
 
@@ -12,8 +12,6 @@ class ContextMenu:
     def __init__(self, root: Optional[tk.Tk] = None):
         self.root = root
         self.menu: Optional[tk.Menu] = None
-        self.tooltip_window: Optional[tk.Toplevel] = None
-        self.tooltip_items: Dict[int, str] = {}
 
     def create_menu(self, items: List[MenuItem]) -> tk.Menu:
         """Create a tkinter menu from menu items."""
@@ -43,9 +41,6 @@ class ContextMenu:
             # Create anchor window at cursor position for multi-monitor support
             if self.root:
                 self._create_anchor_window(x, y)
-
-            # Bind tooltip events to menu
-            self._bind_tooltip_events()
 
             self.menu.tk_popup(x, y)
         except tk.TclError as e:
@@ -81,10 +76,6 @@ class ContextMenu:
 
     def destroy(self) -> None:
         """Destroy the menu."""
-        # Clean up tooltip
-        self._hide_tooltip()
-        self.tooltip_items.clear()
-        
         if self.menu:
             self.menu.destroy()
             self.menu = None
@@ -106,11 +97,6 @@ class ContextMenu:
                 state="disabled",
                 **config
             )
-
-        # Store tooltip text if available
-        if item.tooltip:
-            menu_index = menu.index('end')
-            self.tooltip_items[menu_index] = item.tooltip
 
         # Add separator after item if requested
         if item.separator_after:
@@ -134,102 +120,6 @@ class ContextMenu:
             config["foreground"] = "black"
 
         return config
-
-    def _bind_tooltip_events(self) -> None:
-        """Bind tooltip events to menu."""
-        if not self.menu:
-            return
-        
-        try:
-            # Bind to menu widget events
-            self.menu.bind('<Motion>', self._on_menu_motion)
-            self.menu.bind('<Leave>', self._on_menu_leave)
-            self.menu.bind('<Unmap>', self._on_menu_leave)
-        except Exception:
-            pass
-
-    def _on_menu_motion(self, event) -> None:
-        """Handle mouse motion over menu."""
-        try:
-            # Get the index of the item under the cursor
-            y = event.y
-            index = self.menu.index(f'@{y}')
-            
-            if index is not None and index in self.tooltip_items:
-                tooltip_text = self.tooltip_items[index]
-                if tooltip_text:
-                    # Calculate tooltip position
-                    menu_x = self.menu.winfo_rootx()
-                    menu_y = self.menu.winfo_rooty()
-                    menu_width = self.menu.winfo_width()
-                    
-                    self._show_tooltip(tooltip_text, menu_x + menu_width + 5, menu_y + y)
-            else:
-                self._hide_tooltip()
-        except Exception:
-            self._hide_tooltip()
-
-    def _on_menu_leave(self, event=None) -> None:
-        """Handle mouse leaving menu."""
-        self._hide_tooltip()
-
-    def _show_tooltip(self, text: str, x: int, y: int) -> None:
-        """Show tooltip at specified position."""
-        self._hide_tooltip()
-        
-        if not text:
-            return
-            
-        try:
-            self.tooltip_window = tk.Toplevel()
-            self.tooltip_window.wm_overrideredirect(True)
-            self.tooltip_window.configure(bg='#ffffe0')
-            
-            # Create label with tooltip text
-            label = tk.Label(
-                self.tooltip_window,
-                text=text,
-                justify=tk.LEFT,
-                background='#ffffe0',
-                relief=tk.SOLID,
-                borderwidth=1,
-                font=('tahoma', '8', 'normal'),
-                wraplength=400
-            )
-            label.pack()
-            
-            # Update window to get proper dimensions
-            self.tooltip_window.update_idletasks()
-            
-            # Adjust position to keep tooltip on screen
-            tooltip_width = self.tooltip_window.winfo_reqwidth()
-            tooltip_height = self.tooltip_window.winfo_reqheight()
-            screen_width = self.tooltip_window.winfo_screenwidth()
-            screen_height = self.tooltip_window.winfo_screenheight()
-            
-            # Adjust if tooltip would go off screen
-            if x + tooltip_width > screen_width:
-                x = screen_width - tooltip_width - 10
-            if y + tooltip_height > screen_height:
-                y = y - tooltip_height - 10
-            if x < 0:
-                x = 10
-            if y < 0:
-                y = 10
-            
-            self.tooltip_window.wm_geometry(f"+{x}+{y}")
-            
-        except Exception:
-            self._hide_tooltip()
-
-    def _hide_tooltip(self) -> None:
-        """Hide the tooltip window."""
-        if self.tooltip_window:
-            try:
-                self.tooltip_window.destroy()
-            except Exception:
-                pass
-            self.tooltip_window = None
 
 
 class MenuBuilder:
