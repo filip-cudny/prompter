@@ -2,12 +2,15 @@
 requests>=2.25.0
 python-dotenv>=0.19.0
 
+# Global hotkey dependencies
+pynput>=1.7.6
+
 # Optional dependencies for better multi-monitor support
 
 # macOS support
 pyobjc-framework-Cocoa>=9.0; sys_platform == "darwin"
 
-# Linux support  
+# Linux support
 python-xlib>=0.33; sys_platform == "linux"
 
-# Windows support is handled by built-in ctypes
+# windows support is handled by built-in ctypes
