@@ -1,9 +1,9 @@
 """Execution handlers for different types of menu items."""
 
 from typing import Optional
-from core.interfaces import ExecutionHandler, ClipboardManager
+from core.interfaces import ClipboardManager
 from core.models import MenuItem, MenuItemType, ExecutionResult
-from core.exceptions import ExecutionError, ClipboardError
+from core.exceptions import ClipboardError
 from api import PromptStoreAPI, APIError, create_user_message
 import time
 

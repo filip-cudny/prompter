@@ -1,9 +1,8 @@
 """Menu item providers for the prompt store application."""
 
 from typing import List, Callable
-from core.interfaces import MenuItemProvider
 from core.models import MenuItem, MenuItemType, PromptData, PresetData
-from core.services import PromptStoreService, HistoryService, DataManager
+from core.services import HistoryService, DataManager
 
 
 class PromptMenuProvider:

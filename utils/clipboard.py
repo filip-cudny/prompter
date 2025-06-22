@@ -1,12 +1,11 @@
 """Cross-platform clipboard utilities."""
 
-from core.exceptions import ClipboardError
-from core.interfaces import ClipboardManager
 import subprocess
 import platform
-from typing import Optional
 import sys
 import os
+from core.exceptions import ClipboardError
+from core.interfaces import ClipboardManager
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 

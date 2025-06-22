@@ -2,13 +2,11 @@
 
 import tkinter as tk
 from typing import List, Callable, Optional, Dict, Any
-import threading
 import time
 
 from core.interfaces import MenuItemProvider
 from core.models import MenuItem, ExecutionResult
 from core.services import PromptStoreService
-from core.exceptions import MenuError
 from .context_menu import ContextMenu, MenuBuilder, MenuPosition
 
 
