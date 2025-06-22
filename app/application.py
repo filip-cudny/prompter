@@ -104,8 +104,10 @@ class PromptStoreApp:
     def _register_execution_handlers(self) -> None:
         """Register execution handlers with the service."""
         handlers = [
-            PromptExecutionHandler(self.api, self.clipboard_manager, self.root),
-            PresetExecutionHandler(self.api, self.clipboard_manager, self.root),
+            PromptExecutionHandler(
+                self.api, self.clipboard_manager, self.root),
+            PresetExecutionHandler(
+                self.api, self.clipboard_manager, self.root),
             HistoryExecutionHandler(self.clipboard_manager),
             SystemExecutionHandler(
                 refresh_callback=self._refresh_data,
@@ -137,19 +139,17 @@ class PromptStoreApp:
 
         # Initialize event handler
         self.event_handler = MenuEventHandler(self.menu_coordinator)
-        
+
         # Initialize notification manager for event handler
         notification_manager = NotificationManager(self.root)
         self.event_handler.set_notification_manager(notification_manager)
-        
+
         self.menu_coordinator.set_execution_callback(
             self.event_handler.handle_execution_result
         )
         self.menu_coordinator.set_error_callback(
             self.event_handler.handle_error
         )
-    
-
 
     def _initialize_menu_providers(self) -> None:
         """Initialize menu providers."""
@@ -216,14 +216,14 @@ class PromptStoreApp:
                 self.event_handler.handle_execution_result(result)
         except Exception as e:
             if self.event_handler:
-                self.event_handler.handle_error(f"Failed to execute active prompt: {e}")
+                self.event_handler.handle_error(
+                    f"Failed to execute active prompt: {e}")
             else:
                 print(f"Failed to execute active prompt: {e}")
 
-
     def run(self) -> None:
         """Run the application."""
-        print("Starting Prompt Store Background Service...")
+        print("Starting Prompt Store Service...")
         print(f"Hotkey: {self.config.hotkey}")
         print("Shift+F2: Execute active prompt")
         print("Press Ctrl+C to stop\n")

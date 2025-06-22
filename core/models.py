@@ -96,7 +96,6 @@ class AppConfig:
     base_url: str
     hotkey: str = "shift+f1"
     max_history_entries: int = 10
-    auto_refresh_interval: int = 300
     enable_notifications: bool = True
     clipboard_timeout: float = 5.0
     menu_position_offset: tuple = (0, 0)

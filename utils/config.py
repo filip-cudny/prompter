@@ -15,9 +15,7 @@ class AppConfig:
     base_url: str
     hotkey: str = "shift+f1"
     max_history_entries: int = 10
-    auto_refresh_interval: int = 300
     enable_notifications: bool = True
-    clipboard_timeout: float = 5.0
     menu_position_offset: tuple = (0, 0)
     debug_mode: bool = False
 
@@ -52,10 +50,8 @@ def load_config(env_file: Optional[str] = None) -> AppConfig:
         base_url=base_url,
         hotkey=os.getenv("HOTKEY", "shift+f1"),
         max_history_entries=int(os.getenv("MAX_HISTORY_ENTRIES", "10")),
-        auto_refresh_interval=int(os.getenv("AUTO_REFRESH_INTERVAL", "300")),
         enable_notifications=os.getenv(
             "ENABLE_NOTIFICATIONS", "true").lower() == "true",
-        clipboard_timeout=float(os.getenv("CLIPBOARD_TIMEOUT", "5.0")),
         debug_mode=os.getenv("DEBUG_MODE", "false").lower() == "true",
     )
 
@@ -84,14 +80,6 @@ def validate_config(config: AppConfig) -> None:
 
     if config.max_history_entries < 1:
         raise ConfigurationError("Max history entries must be at least 1")
-
-    if config.auto_refresh_interval < 30:
-        raise ConfigurationError(
-            "Auto refresh interval must be at least 30 seconds")
-
-    if config.clipboard_timeout < 0.1:
-        raise ConfigurationError(
-            "Clipboard timeout must be at least 0.1 seconds")
 
     # Validate hotkey format
     from .system import validate_hotkey_format
