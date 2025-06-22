@@ -44,6 +44,20 @@ class PromptStoreAPI:
         except requests.exceptions.RequestException as e:
             raise APIError(f"Request failed: {str(e)}") from e
 
+    def get_all_data(self) -> Dict[str, List[Dict[str, Any]]]:
+        response = self._make_request('GET', '/api/prompt-store')
+
+        if isinstance(response, str):
+            raise APIError("Expected JSON response for prompt store data")
+
+        if not response.get('success'):
+            raise APIError("Failed to fetch prompt store data")
+
+        return {
+            'prompts': response.get('prompts', []),
+            'presets': response.get('presets', [])
+        }
+
     def get_prompts(self) -> List[Dict[str, Any]]:
         response = self._make_request('GET', '/api/prompt-store', params={'type': 'prompts'})
 

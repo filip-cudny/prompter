@@ -32,11 +32,12 @@ class PromptStoreGUI:
 
         self.api = PromptStoreAPI(self.base_url, self.api_key)
         self.prompts = []
+        self.presets = []
         self.root = None
         self.menu = None
         self.is_executing = False
 
-        self.load_prompts()
+        self.load_data()
 
     def get_clipboard_content(self):
         """Get clipboard content using platform-specific methods"""
@@ -91,12 +92,19 @@ class PromptStoreGUI:
         
         return False
 
-    def load_prompts(self):
+    def load_data(self):
         try:
-            self.prompts = self.api.get_prompts()
+            data = self.api.get_all_data()
+            self.prompts = data['prompts']
+            self.presets = data['presets']
+            
+            # Create mapping of prompt ID to prompt name for presets
+            self.prompt_id_to_name = {prompt['id']: prompt['name'] for prompt in self.prompts}
         except APIError as e:
-            messagebox.showerror("API Error", f"Failed to load prompts: {str(e)}")
+            messagebox.showerror("API Error", f"Failed to load data: {str(e)}")
             self.prompts = []
+            self.presets = []
+            self.prompt_id_to_name = {}
 
     def create_context_menu(self):
         self.root = tk.Tk()
@@ -109,14 +117,25 @@ class PromptStoreGUI:
 
         self.menu = tk.Menu(self.root, tearoff=0)
 
-        if not self.prompts:
-            self.menu.add_command(label="No prompts available", state='disabled')
+        if not self.prompts and not self.presets:
+            self.menu.add_command(label="No prompts or presets available", state='disabled')
         else:
             for prompt in self.prompts:
                 prompt_name = prompt.get('name', 'Unnamed Prompt')
                 self.menu.add_command(
                     label=prompt_name,
                     command=lambda p=prompt: self.on_prompt_selected(p)
+                )
+            
+            for preset in self.presets:
+                preset_name = preset.get('presetName', 'Unnamed Preset')
+                prompt_id = preset.get('promptId')
+                prompt_name = self.prompt_id_to_name.get(prompt_id, 'Unknown Prompt')
+                display_name = f"{preset_name} ({prompt_name})"
+                self.menu.add_command(
+                    label=display_name,
+                    command=lambda p=preset: self.on_preset_selected(p),
+                    foreground='gray'
                 )
 
         self.menu.add_separator()
@@ -158,8 +177,44 @@ class PromptStoreGUI:
         self.is_executing = False
         self.root.quit()
 
+    def on_preset_selected(self, preset):
+        self.is_executing = True
+        preset_name = preset.get('presetName', 'Unnamed Preset')
+        preset_id = preset.get('id')
+        prompt_id = preset.get('promptId')
+
+        if not preset_id or not prompt_id:
+            messagebox.showerror("Error", "Invalid preset data")
+            self.is_executing = False
+            return
+
+        try:
+            clipboard_content = self.get_clipboard_content()
+            
+            if not clipboard_content.strip():
+                messagebox.showwarning("Warning", "Clipboard is empty")
+                self.is_executing = False
+                self.root.quit()
+                return
+
+            user_message = create_user_message(clipboard_content)
+            result = self.api.execute_prompt_with_preset(prompt_id, preset_id, [user_message])
+
+            content = result.get('content', 'No response content')
+            
+            if not self.set_clipboard_content(content):
+                messagebox.showerror("Clipboard Error", f"Preset executed but failed to copy result to clipboard.\n\nResult:\n{content}")
+
+        except APIError as e:
+            messagebox.showerror("Execution Error", f"Failed to execute preset: {str(e)}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Unexpected error: {str(e)}")
+
+        self.is_executing = False
+        self.root.quit()
+
     def on_refresh(self):
-        self.load_prompts()
+        self.load_data()
         self.root.quit()
         self.run()
 
