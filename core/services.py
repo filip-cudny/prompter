@@ -6,7 +6,7 @@ from collections import deque
 
 
 from .models import (
-    PromptData, PresetData, ExecutionResult, HistoryEntry, MenuItem
+    PromptData, PresetData, ExecutionResult, HistoryEntry, MenuItem, MenuItemType
 )
 from .exceptions import DataError
 
@@ -38,27 +38,30 @@ class PromptStoreService:
     def execute_item(self, item: MenuItem) -> ExecutionResult:
         """Execute a menu item and track in history."""
         try:
-            result = self.execution_service.execute_item(item)
+            input_content = self.clipboard_manager.get_content()
+            result = self.execution_service.execute_item(item, input_content)
 
-            if result.success and item.data:
-                self.history_service.add_entry(
-                    input_content=self.clipboard_manager.get_content(),
-                    output_content=result.content,
-                    prompt_id=item.data.get("prompt_id"),
-                    preset_id=item.data.get("preset_id"),
-                    success=True
-                )
-            elif not result.success:
-                self.history_service.add_entry(
-                    input_content=self.clipboard_manager.get_content(),
-                    output_content=None,
-                    prompt_id=item.data.get(
-                        "prompt_id") if item.data else None,
-                    preset_id=item.data.get(
-                        "preset_id") if item.data else None,
-                    success=False,
-                    error=result.error
-                )
+            # Only add to history for prompt and preset executions, not history or system operations
+            if item.item_type in [MenuItemType.PROMPT, MenuItemType.PRESET]:
+                if result.success and item.data:
+                    self.history_service.add_entry(
+                        input_content=input_content,
+                        output_content=result.content,
+                        prompt_id=item.data.get("prompt_id"),
+                        preset_id=item.data.get("preset_id"),
+                        success=True
+                    )
+                elif not result.success:
+                    self.history_service.add_entry(
+                        input_content=input_content,
+                        output_content=None,
+                        prompt_id=item.data.get(
+                            "prompt_id") if item.data else None,
+                        preset_id=item.data.get(
+                            "preset_id") if item.data else None,
+                        success=False,
+                        error=result.error
+                    )
 
             return result
         except Exception as e:
@@ -89,7 +92,7 @@ class ExecutionService:
         """Register an execution handler."""
         self.handlers.append(handler)
 
-    def execute_item(self, item: MenuItem) -> ExecutionResult:
+    def execute_item(self, item: MenuItem, input_content: Optional[str] = None) -> ExecutionResult:
         """Execute a menu item using the appropriate handler."""
         if not item.enabled:
             return ExecutionResult(success=False, error="Menu item is disabled")
@@ -97,7 +100,7 @@ class ExecutionService:
         for handler in self.handlers:
             if handler.can_handle(item):
                 try:
-                    return handler.execute(item)
+                    return handler.execute(item, input_content)
                 except Exception as e:
                     return ExecutionResult(success=False, error=str(e))
 

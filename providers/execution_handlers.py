@@ -32,13 +32,17 @@ class PromptExecutionHandler:
 
             prompt_id = item.data["prompt_id"]
 
-            if self.clipboard_manager.is_empty():
-                return ExecutionResult(
-                    success=False,
-                    error="Clipboard is empty"
-                )
+            # Use provided context or fall back to clipboard
+            if context is not None:
+                clipboard_content = context
+            else:
+                if self.clipboard_manager.is_empty():
+                    return ExecutionResult(
+                        success=False,
+                        error="Clipboard is empty"
+                    )
+                clipboard_content = self.clipboard_manager.get_content()
 
-            clipboard_content = self.clipboard_manager.get_content()
             user_message = create_user_message(clipboard_content)
 
             result = self.api.execute_prompt(prompt_id, [user_message])
@@ -109,13 +113,17 @@ class PresetExecutionHandler:
             preset_id = item.data["preset_id"]
             prompt_id = item.data["prompt_id"]
 
-            if self.clipboard_manager.is_empty():
-                return ExecutionResult(
-                    success=False,
-                    error="Clipboard is empty"
-                )
+            # Use provided context or fall back to clipboard
+            if context is not None:
+                clipboard_content = context
+            else:
+                if self.clipboard_manager.is_empty():
+                    return ExecutionResult(
+                        success=False,
+                        error="Clipboard is empty"
+                    )
+                clipboard_content = self.clipboard_manager.get_content()
 
-            clipboard_content = self.clipboard_manager.get_content()
             user_message = create_user_message(clipboard_content)
 
             result = self.api.execute_prompt_with_preset(

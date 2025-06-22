@@ -143,11 +143,11 @@ class HistoryMenuProvider:
         last_output = self.history_service.get_last_output()
 
         # Last Input item
-        input_label = "Last Input"
+        input_label = "Copy last input"
         if last_input:
             preview = last_input[:30] + \
                 "..." if len(last_input) > 30 else last_input
-            input_label = f"Last Input: {preview}"
+            input_label = f"Copy last input: {preview}"
 
         input_item = MenuItem(
             id="history_last_input",
@@ -159,16 +159,17 @@ class HistoryMenuProvider:
                 "type": "last_input",
                 "content": last_input
             },
-            enabled=last_input is not None
+            enabled=last_input is not None,
+            tooltip=last_input
         )
         items.append(input_item)
 
         # Last Output item
-        output_label = "Last Output"
+        output_label = "Copy last output"
         if last_output:
             preview = last_output[:30] + \
                 "..." if len(last_output) > 30 else last_output
-            output_label = f"Last Output: {preview}"
+            output_label = f"Copy last output: {preview}"
 
         output_item = MenuItem(
             id="history_last_output",
@@ -181,7 +182,8 @@ class HistoryMenuProvider:
                 "content": last_output
             },
             enabled=last_output is not None,
-            separator_after=True
+            separator_after=True,
+            tooltip=last_output
         )
         items.append(output_item)
 
@@ -197,7 +199,7 @@ class HistoryMenuProvider:
         last_input = self.history_service.get_last_input()
         preview = last_input[:30] + \
             "..." if last_input and len(last_input) > 30 else last_input
-        label = f"Last Input: {preview}" if last_input else "Last Input"
+        label = f"Copy last input: {preview}" if last_input else "Copy last input"
 
         return MenuItem(
             id="history_last_input",
@@ -208,7 +210,8 @@ class HistoryMenuProvider:
                 "type": "last_input",
                 "content": last_input
             },
-            enabled=last_input is not None
+            enabled=last_input is not None,
+            tooltip=last_input
         )
 
     def _create_last_output_item(self) -> MenuItem:
@@ -216,7 +219,7 @@ class HistoryMenuProvider:
         last_output = self.history_service.get_last_output()
         preview = last_output[:30] + \
             "..." if last_output and len(last_output) > 30 else last_output
-        label = f"Last Output: {preview}" if last_output else "Last Output"
+        label = f"Copy last output: {preview}" if last_output else "Copy last output"
 
         return MenuItem(
             id="history_last_output",
@@ -227,7 +230,8 @@ class HistoryMenuProvider:
                 "type": "last_output",
                 "content": last_output
             },
-            enabled=last_output is not None
+            enabled=last_output is not None,
+            tooltip=last_output
         )
 
 

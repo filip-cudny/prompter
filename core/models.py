@@ -24,6 +24,7 @@ class MenuItem:
     enabled: bool = True
     separator_after: bool = False
     style: Optional[str] = None
+    tooltip: Optional[str] = None
 
 
 @dataclass
