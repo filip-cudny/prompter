@@ -107,8 +107,7 @@ class PromptStoreApp:
             PresetExecutionHandler(self.api, self.clipboard_manager),
             HistoryExecutionHandler(self.clipboard_manager),
             SystemExecutionHandler(
-                refresh_callback=self._refresh_data,
-                exit_callback=self._exit_application
+                refresh_callback=self._refresh_data
             ),
         ]
 
@@ -152,7 +151,7 @@ class PromptStoreApp:
             PromptMenuProvider(data_manager, self._execute_menu_item),
             PresetMenuProvider(data_manager, self._execute_menu_item),
             HistoryMenuProvider(history_service, self._execute_menu_item),
-            SystemMenuProvider(self._refresh_data, self._exit_application),
+            SystemMenuProvider(self._refresh_data),
         ]
 
         # Register providers with coordinator
@@ -191,9 +190,6 @@ class PromptStoreApp:
         except Exception as e:
             print(f"Failed to refresh data: {e}")
 
-    def _exit_application(self) -> None:
-        """Exit the application."""
-        self.stop()
 
     def run(self) -> None:
         """Run the application."""

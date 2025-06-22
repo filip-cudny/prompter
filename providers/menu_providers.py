@@ -232,11 +232,10 @@ class HistoryMenuProvider:
 
 
 class SystemMenuProvider:
-    """Provides system menu items (refresh, exit, etc.)."""
+    """Provides system menu items (refresh, etc.)."""
 
-    def __init__(self, refresh_callback: Callable[[], None], exit_callback: Callable[[], None]):
+    def __init__(self, refresh_callback: Callable[[], None]):
         self.refresh_callback = refresh_callback
-        self.exit_callback = exit_callback
 
     def get_menu_items(self) -> List[MenuItem]:
         """Return system menu items."""
@@ -251,16 +250,6 @@ class SystemMenuProvider:
             enabled=True
         )
         items.append(refresh_item)
-
-        exit_item = MenuItem(
-            id="system_exit",
-            label="Exit",
-            item_type=MenuItemType.SYSTEM,
-            action=self.exit_callback,
-            data={"type": "exit"},
-            enabled=True
-        )
-        items.append(exit_item)
 
         return items
 

@@ -1,14 +1,14 @@
 """Core business services for the prompt store application."""
 
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Optional
 import time
 from collections import deque
 
 
 from .models import (
-    PromptData, PresetData, ExecutionResult, HistoryEntry, MenuItem, MenuItemType
+    PromptData, PresetData, ExecutionResult, HistoryEntry, MenuItem
 )
-from .exceptions import DataError,
+from .exceptions import DataError
 
 
 class PromptStoreService:

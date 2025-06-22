@@ -222,9 +222,8 @@ class HistoryExecutionHandler:
 class SystemExecutionHandler:
     """Handler for executing system menu items."""
 
-    def __init__(self, refresh_callback=None, exit_callback=None):
+    def __init__(self, refresh_callback=None):
         self.refresh_callback = refresh_callback
-        self.exit_callback = exit_callback
 
     def can_handle(self, item: MenuItem) -> bool:
         """Check if this handler can execute the given menu item."""
@@ -251,15 +250,6 @@ class SystemExecutionHandler:
                     content="Data refreshed",
                     execution_time=time.time() - start_time,
                     metadata={"command": "refresh"}
-                )
-            elif command_type == "exit":
-                if self.exit_callback:
-                    self.exit_callback()
-                return ExecutionResult(
-                    success=True,
-                    content="Application exiting",
-                    execution_time=time.time() - start_time,
-                    metadata={"command": "exit"}
                 )
             else:
                 return ExecutionResult(
