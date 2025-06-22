@@ -5,7 +5,7 @@ from typing import List, Callable, Optional, Dict, Any
 import time
 
 from core.interfaces import MenuItemProvider
-from core.models import MenuItem, ExecutionResult
+from core.models import MenuItem, ExecutionResult, MenuItemType
 from core.services import PromptStoreService
 from .context_menu import ContextMenu, MenuBuilder, MenuPosition
 
@@ -106,6 +106,9 @@ class MenuCoordinator:
                 # Continue if one provider fails
                 continue
 
+        # Add last prompt info at the bottom
+        self._add_last_prompt_info()
+
         return self.menu_builder.build()
 
     def _wrap_menu_item(self, item: MenuItem) -> MenuItem:
@@ -159,6 +162,29 @@ class MenuCoordinator:
                 messagebox.showerror("Error", error_message)
             except Exception:
                 print(f"Error: {error_message}")
+
+    def _add_last_prompt_info(self) -> None:
+        """Add last prompt information to the menu."""
+        if self.prompt_store_service.last_prompt_service.has_last_prompt():
+            display_name = self.prompt_store_service.last_prompt_service.get_last_prompt_display_name()
+            if display_name:
+                # Truncate long names
+                if len(display_name) > 30:
+                    display_name = display_name[:27] + "..."
+                
+                last_prompt_item = MenuItem(
+                    id="last_prompt_info",
+                    label=f"Last prompt: {display_name}",
+                    item_type=MenuItemType.SYSTEM,
+                    action=lambda: None,  # No action, just informational
+                    enabled=False,  # Disabled, just for display
+                    separator_after=False,
+                    style="disabled"
+                )
+                
+                # Add with separator before
+                self.menu_builder.add_separator()
+                self.menu_builder.add_items([last_prompt_item])
 
     def cleanup(self) -> None:
         """Clean up resources."""

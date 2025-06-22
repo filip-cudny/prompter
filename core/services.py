@@ -21,6 +21,7 @@ class PromptStoreService:
             prompt_provider, clipboard_manager)
         self.data_manager = DataManager(prompt_provider)
         self.history_service = HistoryService()
+        self.last_prompt_service = LastPromptService()
 
     def refresh_data(self) -> None:
         """Refresh all data from providers."""
@@ -43,7 +44,10 @@ class PromptStoreService:
 
             # Only add to history for prompt and preset executions, not history or system operations
             if item.item_type in [MenuItemType.PROMPT, MenuItemType.PRESET]:
+                # Track last executed prompt/preset
                 if result.success and item.data:
+                    self.last_prompt_service.set_last_prompt(item)
+                    
                     self.history_service.add_entry(
                         input_content=input_content,
                         output_content=result.content,
@@ -78,6 +82,18 @@ class PromptStoreService:
     def get_last_output(self) -> Optional[str]:
         """Get the last output from history."""
         return self.history_service.get_last_output()
+
+    def get_last_prompt(self) -> Optional[MenuItem]:
+        """Get the last executed prompt/preset."""
+        return self.last_prompt_service.get_last_prompt()
+
+    def execute_last_prompt(self) -> ExecutionResult:
+        """Execute the last prompt/preset with current clipboard content."""
+        last_prompt = self.last_prompt_service.get_last_prompt()
+        if not last_prompt:
+            return ExecutionResult(success=False, error="No previous prompt to execute")
+        
+        return self.execute_item(last_prompt)
 
 
 class ExecutionService:
@@ -240,3 +256,37 @@ class HistoryService:
             if entry.id == entry_id:
                 return entry
         return None
+
+
+class LastPromptService:
+    """Service for tracking the last executed prompt or preset."""
+
+    def __init__(self):
+        self._last_prompt: Optional[MenuItem] = None
+
+    def set_last_prompt(self, item: MenuItem) -> None:
+        """Set the last executed prompt/preset."""
+        if item.item_type in [MenuItemType.PROMPT, MenuItemType.PRESET]:
+            self._last_prompt = item
+
+    def get_last_prompt(self) -> Optional[MenuItem]:
+        """Get the last executed prompt/preset."""
+        return self._last_prompt
+
+    def get_last_prompt_display_name(self) -> Optional[str]:
+        """Get a display name for the last executed prompt/preset."""
+        if not self._last_prompt:
+            return None
+        
+        if self._last_prompt.item_type == MenuItemType.PRESET:
+            return self._last_prompt.data.get("preset_name", "Unknown Preset")
+        else:
+            return self._last_prompt.data.get("prompt_name", "Unknown Prompt")
+
+    def has_last_prompt(self) -> bool:
+        """Check if there is a last executed prompt/preset."""
+        return self._last_prompt is not None
+
+    def clear_last_prompt(self) -> None:
+        """Clear the last executed prompt/preset."""
+        self._last_prompt = None

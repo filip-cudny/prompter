@@ -85,18 +85,12 @@ class ContextMenu:
         # Configure item appearance based on type and style
         config = self._get_item_config(item)
 
-        if item.enabled:
-            menu.add_command(
-                label=item.label,
-                command=item.action,
-                **config
-            )
-        else:
-            menu.add_command(
-                label=item.label,
-                state="disabled",
-                **config
-            )
+        # Add the command with appropriate state
+        menu.add_command(
+            label=item.label,
+            command=item.action if item.enabled else None,
+            **config
+        )
 
         # Add separator after item if requested
         if item.separator_after:
@@ -110,6 +104,8 @@ class ContextMenu:
         if item.style:
             if item.style == "gray":
                 config["foreground"] = "gray"
+            elif item.style == "disabled":
+                config["foreground"] = "gray"
 
         # Apply type-based configuration
         if item.item_type == MenuItemType.PRESET:
@@ -118,6 +114,11 @@ class ContextMenu:
             config["foreground"] = "blue"
         elif item.item_type == MenuItemType.SYSTEM:
             config["foreground"] = "black"
+
+        # Set state and appearance for disabled items
+        if not item.enabled:
+            config["state"] = "disabled"
+            config["foreground"] = "gray"
 
         return config
 

@@ -126,6 +126,7 @@ class PromptStoreApp:
         # Initialize hotkey manager
         self.hotkey_manager = HotkeyManager(self.config.hotkey)
         self.hotkey_manager.set_callback(self._on_hotkey_pressed)
+        self.hotkey_manager.set_f2_callback(self._on_f2_hotkey_pressed)
 
         # Initialize menu coordinator
         self.menu_coordinator = MenuCoordinator(self.prompt_store_service)
@@ -179,6 +180,14 @@ class PromptStoreApp:
         except queue.Full:
             pass  # Ignore if queue is full
 
+    def _on_f2_hotkey_pressed(self) -> None:
+        """Handle Shift+F2 hotkey press event."""
+        # Put F2 hotkey event in queue for main thread to process
+        try:
+            self.hotkey_queue.put_nowait("execute_last_prompt")
+        except queue.Full:
+            pass  # Ignore if queue is full
+
     def _execute_menu_item(self, item) -> None:
         """Execute a menu item (placeholder for provider callbacks)."""
         # This is handled by the menu coordinator's wrapped actions
@@ -193,11 +202,24 @@ class PromptStoreApp:
         except Exception as e:
             print(f"Failed to refresh data: {e}")
 
+    def _execute_last_prompt(self) -> None:
+        """Execute the last prompt with current clipboard content."""
+        try:
+            result = self.prompt_store_service.execute_last_prompt()
+            if self.event_handler:
+                self.event_handler.handle_execution_result(result)
+        except Exception as e:
+            if self.event_handler:
+                self.event_handler.handle_error(f"Failed to execute last prompt: {e}")
+            else:
+                print(f"Failed to execute last prompt: {e}")
+
 
     def run(self) -> None:
         """Run the application."""
         print("Starting Prompt Store Background Service...")
         print(f"Hotkey: {self.config.hotkey}")
+        print("Shift+F2: Execute last prompt")
         print("Press Ctrl+C to stop\n")
 
         # Check platform-specific permissions
@@ -248,6 +270,8 @@ class PromptStoreApp:
                     event = self.hotkey_queue.get_nowait()
                     if event == "show_menu" and self.menu_coordinator:
                         self.menu_coordinator.show_menu()
+                    elif event == "execute_last_prompt":
+                        self._execute_last_prompt()
                 except queue.Empty:
                     break
         except Exception as e:

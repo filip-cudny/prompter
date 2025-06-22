@@ -14,13 +14,20 @@ class HotkeyListener:
         self.listener: Optional[keyboard.Listener] = None
         self.pressed_keys: Set[Key] = set()
         self.hotkey_pressed = False
+        self.f2_hotkey_pressed = False
         self.hotkey_callback: Optional[Callable[[], None]] = None
+        self.f2_hotkey_callback: Optional[Callable[[], None]] = None
         self.running = False
         self.reset_timer: Optional[threading.Timer] = None
+        self.f2_reset_timer: Optional[threading.Timer] = None
 
     def set_hotkey_callback(self, callback: Callable[[], None]) -> None:
         """Set the callback function for hotkey press."""
         self.hotkey_callback = callback
+
+    def set_f2_hotkey_callback(self, callback: Callable[[], None]) -> None:
+        """Set the callback function for Shift+F2 hotkey press."""
+        self.f2_hotkey_callback = callback
 
     def start(self) -> None:
         """Start the hotkey listener."""
@@ -46,12 +53,17 @@ class HotkeyListener:
             self.reset_timer.cancel()
             self.reset_timer = None
 
+        if self.f2_reset_timer:
+            self.f2_reset_timer.cancel()
+            self.f2_reset_timer = None
+
         if self.listener:
             self.listener.stop()
             self.listener = None
 
         self.pressed_keys.clear()
         self.hotkey_pressed = False
+        self.f2_hotkey_pressed = False
 
     def _on_press(self, key: Key) -> None:
         """Handle key press events."""
@@ -59,6 +71,8 @@ class HotkeyListener:
 
         if self._is_shift_f1_pressed():
             self._trigger_hotkey()
+        elif self._is_shift_f2_pressed():
+            self._trigger_f2_hotkey()
 
     def _on_release(self, key: Key) -> None:
         """Handle key release events."""
@@ -75,6 +89,16 @@ class HotkeyListener:
         f1_pressed = Key.f1 in self.pressed_keys
         return shift_pressed and f1_pressed
 
+    def _is_shift_f2_pressed(self) -> bool:
+        """Check if Shift+F2 combination is pressed."""
+        shift_pressed = (
+            Key.shift in self.pressed_keys
+            or Key.shift_l in self.pressed_keys
+            or Key.shift_r in self.pressed_keys
+        )
+        f2_pressed = Key.f2 in self.pressed_keys
+        return shift_pressed and f2_pressed
+
     def _trigger_hotkey(self) -> None:
         """Trigger hotkey callback if not already triggered."""
         if not self.hotkey_pressed:
@@ -87,10 +111,27 @@ class HotkeyListener:
             self.reset_timer = threading.Timer(1.0, self._reset_hotkey_flag)
             self.reset_timer.start()
 
+    def _trigger_f2_hotkey(self) -> None:
+        """Trigger F2 hotkey callback if not already triggered."""
+        if not self.f2_hotkey_pressed:
+            self.f2_hotkey_pressed = True
+
+            if self.f2_hotkey_callback:
+                self.f2_hotkey_callback()
+
+            # Reset flag after 1 second to prevent rapid firing
+            self.f2_reset_timer = threading.Timer(1.0, self._reset_f2_hotkey_flag)
+            self.f2_reset_timer.start()
+
     def _reset_hotkey_flag(self) -> None:
         """Reset hotkey flag to prevent rapid firing."""
         self.hotkey_pressed = False
         self.reset_timer = None
+
+    def _reset_f2_hotkey_flag(self) -> None:
+        """Reset F2 hotkey flag to prevent rapid firing."""
+        self.f2_hotkey_pressed = False
+        self.f2_reset_timer = None
 
 
 class HotkeyManager:
@@ -100,12 +141,18 @@ class HotkeyManager:
         self.hotkey = hotkey.lower()
         self.listener = HotkeyListener()
         self.callback: Optional[Callable[[], None]] = None
+        self.f2_callback: Optional[Callable[[], None]] = None
         self.running = False
 
     def set_callback(self, callback: Callable[[], None]) -> None:
         """Set the callback function for hotkey activation."""
         self.callback = callback
         self.listener.set_hotkey_callback(callback)
+
+    def set_f2_callback(self, callback: Callable[[], None]) -> None:
+        """Set the callback function for Shift+F2 hotkey activation."""
+        self.f2_callback = callback
+        self.listener.set_f2_hotkey_callback(callback)
 
     def start(self) -> None:
         """Start hotkey detection."""
