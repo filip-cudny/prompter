@@ -190,7 +190,7 @@ class PromptStoreApp:
         """Handle Shift+F2 hotkey press event."""
         # Put F2 hotkey event in queue for main thread to process
         try:
-            self.hotkey_queue.put_nowait("execute_last_prompt")
+            self.hotkey_queue.put_nowait("execute_active_prompt")
         except queue.Full:
             pass  # Ignore if queue is full
 
@@ -208,24 +208,24 @@ class PromptStoreApp:
         except Exception as e:
             print(f"Failed to refresh data: {e}")
 
-    def _execute_last_prompt(self) -> None:
-        """Execute the last prompt with current clipboard content."""
+    def _execute_active_prompt(self) -> None:
+        """Execute the active prompt with current clipboard content."""
         try:
-            result = self.prompt_store_service.execute_last_prompt()
+            result = self.prompt_store_service.execute_active_prompt()
             if self.event_handler:
                 self.event_handler.handle_execution_result(result)
         except Exception as e:
             if self.event_handler:
-                self.event_handler.handle_error(f"Failed to execute last prompt: {e}")
+                self.event_handler.handle_error(f"Failed to execute active prompt: {e}")
             else:
-                print(f"Failed to execute last prompt: {e}")
+                print(f"Failed to execute active prompt: {e}")
 
 
     def run(self) -> None:
         """Run the application."""
         print("Starting Prompt Store Background Service...")
         print(f"Hotkey: {self.config.hotkey}")
-        print("Shift+F2: Execute last prompt")
+        print("Shift+F2: Execute active prompt")
         print("Press Ctrl+C to stop\n")
 
         # Check platform-specific permissions
@@ -276,8 +276,8 @@ class PromptStoreApp:
                     event = self.hotkey_queue.get_nowait()
                     if event == "show_menu" and self.menu_coordinator:
                         self.menu_coordinator.show_menu()
-                    elif event == "execute_last_prompt":
-                        self._execute_last_prompt()
+                    elif event == "execute_active_prompt":
+                        self._execute_active_prompt()
                 except queue.Empty:
                     break
         except Exception as e:

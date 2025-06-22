@@ -1,5 +1,6 @@
 """Data models and types for the prompt store application."""
 
+from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, Any, List, Optional, Callable
 from enum import Enum
@@ -11,6 +12,16 @@ class MenuItemType(Enum):
     PRESET = "preset"
     HISTORY = "history"
     SYSTEM = "system"
+
+
+class ErrorCode(Enum):
+    """Error codes for execution results."""
+    NO_ACTIVE_PROMPT = "no_active_prompt"
+    CLIPBOARD_ERROR = "clipboard_error"
+    API_ERROR = "api_error"
+    VALIDATION_ERROR = "validation_error"
+    TIMEOUT_ERROR = "timeout_error"
+    UNKNOWN_ERROR = "unknown_error"
 
 
 @dataclass
@@ -25,6 +36,7 @@ class MenuItem:
     separator_after: bool = False
     style: Optional[str] = None
     tooltip: Optional[str] = None
+    submenu_items: Optional[List[MenuItem]] = None
 
 
 @dataclass
@@ -59,6 +71,7 @@ class ExecutionResult:
     success: bool
     content: Optional[str] = None
     error: Optional[str] = None
+    error_code: Optional[ErrorCode] = None
     execution_time: Optional[float] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 

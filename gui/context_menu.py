@@ -28,9 +28,22 @@ class ContextMenu:
             return self.menu
 
         for i, item in enumerate(items):
-            self._add_menu_item(self.menu, item, i)
+            if item.submenu_items:
+                self.create_submenu(self.menu, item.label, item.submenu_items)
+            else:
+                self._add_menu_item(self.menu, item, i)
 
         return self.menu
+
+    def create_submenu(self, parent_menu: tk.Menu, label: str, submenu_items: List[MenuItem]) -> tk.Menu:
+        """Create a submenu with the given items."""
+        submenu = tk.Menu(parent_menu, tearoff=0)
+        
+        for i, item in enumerate(submenu_items):
+            self._add_menu_item(submenu, item, i)
+        
+        parent_menu.add_cascade(label=label, menu=submenu)
+        return submenu
 
     def show_at_position(self, x: int, y: int) -> None:
         """Show the menu at the specified position."""

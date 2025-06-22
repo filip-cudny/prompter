@@ -3,7 +3,7 @@
 from typing import Optional
 import tkinter as tk
 from core.interfaces import ClipboardManager
-from core.models import MenuItem, MenuItemType, ExecutionResult
+from core.models import MenuItem, MenuItemType, ExecutionResult, ErrorCode
 from core.exceptions import ClipboardError
 from api import PromptStoreAPI, APIError, create_user_message
 from utils.notifications import NotificationManager, format_execution_time, truncate_text
@@ -30,7 +30,8 @@ class PromptExecutionHandler:
             if not item.data or not item.data.get("prompt_id"):
                 return ExecutionResult(
                     success=False,
-                    error="Invalid prompt data"
+                    error="Invalid prompt data",
+                    error_code=ErrorCode.VALIDATION_ERROR
                 )
 
             prompt_id = item.data["prompt_id"]
@@ -42,7 +43,8 @@ class PromptExecutionHandler:
                 if self.clipboard_manager.is_empty():
                     return ExecutionResult(
                         success=False,
-                        error="Clipboard is empty"
+                        error="Clipboard is empty",
+                        error_code=ErrorCode.CLIPBOARD_ERROR
                     )
                 clipboard_content = self.clipboard_manager.get_content()
 
@@ -54,8 +56,8 @@ class PromptExecutionHandler:
             if not self.clipboard_manager.set_content(content):
                 return ExecutionResult(
                     success=False,
-                    error=f"Prompt executed but failed to copy result to clipboard.\n\nResult:\n{
-                        content}"
+                    error=f"Prompt executed but failed to copy result to clipboard.\n\nResult:\n{content}",
+                    error_code=ErrorCode.CLIPBOARD_ERROR
                 )
 
             execution_time = time.time() - start_time
@@ -86,6 +88,7 @@ class PromptExecutionHandler:
             result = ExecutionResult(
                 success=False,
                 error=error_msg,
+                error_code=ErrorCode.API_ERROR,
                 execution_time=time.time() - start_time
             )
             
@@ -102,6 +105,7 @@ class PromptExecutionHandler:
             result = ExecutionResult(
                 success=False,
                 error=error_msg,
+                error_code=ErrorCode.CLIPBOARD_ERROR,
                 execution_time=time.time() - start_time
             )
             
@@ -118,6 +122,7 @@ class PromptExecutionHandler:
             result = ExecutionResult(
                 success=False,
                 error=error_msg,
+                error_code=ErrorCode.UNKNOWN_ERROR,
                 execution_time=time.time() - start_time
             )
             
@@ -151,7 +156,8 @@ class PresetExecutionHandler:
             if not item.data or not item.data.get("preset_id") or not item.data.get("prompt_id"):
                 return ExecutionResult(
                     success=False,
-                    error="Invalid preset data"
+                    error="Invalid preset data",
+                    error_code=ErrorCode.VALIDATION_ERROR
                 )
 
             preset_id = item.data["preset_id"]
@@ -164,7 +170,8 @@ class PresetExecutionHandler:
                 if self.clipboard_manager.is_empty():
                     return ExecutionResult(
                         success=False,
-                        error="Clipboard is empty"
+                        error="Clipboard is empty",
+                        error_code=ErrorCode.CLIPBOARD_ERROR
                     )
                 clipboard_content = self.clipboard_manager.get_content()
 
@@ -178,8 +185,8 @@ class PresetExecutionHandler:
             if not self.clipboard_manager.set_content(content):
                 return ExecutionResult(
                     success=False,
-                    error=f"Preset executed but failed to copy result to clipboard.\n\nResult:\n{
-                        content}"
+                    error=f"Preset executed but failed to copy result to clipboard.\n\nResult:\n{content}",
+                    error_code=ErrorCode.CLIPBOARD_ERROR
                 )
 
             execution_time = time.time() - start_time
@@ -211,6 +218,7 @@ class PresetExecutionHandler:
             result = ExecutionResult(
                 success=False,
                 error=error_msg,
+                error_code=ErrorCode.API_ERROR,
                 execution_time=time.time() - start_time
             )
             
@@ -227,6 +235,7 @@ class PresetExecutionHandler:
             result = ExecutionResult(
                 success=False,
                 error=error_msg,
+                error_code=ErrorCode.CLIPBOARD_ERROR,
                 execution_time=time.time() - start_time
             )
             
@@ -243,6 +252,7 @@ class PresetExecutionHandler:
             result = ExecutionResult(
                 success=False,
                 error=error_msg,
+                error_code=ErrorCode.UNKNOWN_ERROR,
                 execution_time=time.time() - start_time
             )
             
@@ -274,7 +284,8 @@ class HistoryExecutionHandler:
             if not item.data or not item.data.get("type") or not item.data.get("content"):
                 return ExecutionResult(
                     success=False,
-                    error="Invalid history data or no content available"
+                    error="Invalid history data or no content available",
+                    error_code=ErrorCode.VALIDATION_ERROR
                 )
 
             content = item.data["content"]
@@ -283,7 +294,8 @@ class HistoryExecutionHandler:
             if not self.clipboard_manager.set_content(content):
                 return ExecutionResult(
                     success=False,
-                    error=f"Failed to copy {history_type} to clipboard"
+                    error=f"Failed to copy {history_type} to clipboard",
+                    error_code=ErrorCode.CLIPBOARD_ERROR
                 )
 
             execution_time = time.time() - start_time
@@ -301,12 +313,14 @@ class HistoryExecutionHandler:
             return ExecutionResult(
                 success=False,
                 error=str(e),
+                error_code=ErrorCode.CLIPBOARD_ERROR,
                 execution_time=time.time() - start_time
             )
         except Exception as e:
             return ExecutionResult(
                 success=False,
                 error=f"Unexpected error: {str(e)}",
+                error_code=ErrorCode.UNKNOWN_ERROR,
                 execution_time=time.time() - start_time
             )
 
@@ -330,7 +344,8 @@ class SystemExecutionHandler:
             if not item.data or not item.data.get("type"):
                 return ExecutionResult(
                     success=False,
-                    error="Invalid system command"
+                    error="Invalid system command",
+                    error_code=ErrorCode.VALIDATION_ERROR
                 )
 
             command_type = item.data["type"]
@@ -356,12 +371,14 @@ class SystemExecutionHandler:
             else:
                 return ExecutionResult(
                     success=False,
-                    error=f"Unknown system command: {command_type}"
+                    error=f"Unknown system command: {command_type}",
+                    error_code=ErrorCode.VALIDATION_ERROR
                 )
 
         except Exception as e:
             return ExecutionResult(
                 success=False,
                 error=f"System command failed: {str(e)}",
+                error_code=ErrorCode.UNKNOWN_ERROR,
                 execution_time=time.time() - start_time
             )

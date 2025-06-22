@@ -5,7 +5,7 @@ from typing import List, Callable, Optional, Dict, Any
 import time
 
 from core.interfaces import MenuItemProvider
-from core.models import MenuItem, ExecutionResult, MenuItemType
+from core.models import MenuItem, ExecutionResult, MenuItemType, ErrorCode
 from core.services import PromptStoreService
 from .context_menu import ContextMenu, MenuBuilder, MenuPosition
 from utils.notifications import NotificationManager
@@ -95,6 +95,7 @@ class MenuCoordinator:
         self.menu_builder.clear()
 
         # Collect items from all providers
+        # Build menu items from all providers
         for provider in self.providers:
             try:
                 items = provider.get_menu_items()
@@ -107,10 +108,21 @@ class MenuCoordinator:
                 # Continue if one provider fails
                 continue
 
-        # Add last prompt info at the bottom
-        self._add_last_prompt_info()
+        # Add active prompt info at the bottom
+        self._add_active_prompt_info()
 
-        return self.menu_builder.build()
+        built_items = self.menu_builder.build()
+
+        # Handle submenu creation after building
+        self._prepare_submenus(built_items)
+
+        return built_items
+
+    def _prepare_submenus(self, items: List[MenuItem]) -> None:
+        """Prepare submenu items for context menu display."""
+        # This method will be called by context menu when creating the menu
+        # Store submenu information for later use
+        pass
 
     def _wrap_menu_item(self, item: MenuItem) -> MenuItem:
         """Wrap menu item action to handle execution."""
@@ -164,28 +176,90 @@ class MenuCoordinator:
             except Exception:
                 print(f"Error: {error_message}")
 
-    def _add_last_prompt_info(self) -> None:
-        """Add last prompt information to the menu."""
-        if self.prompt_store_service.last_prompt_service.has_last_prompt():
-            display_name = self.prompt_store_service.last_prompt_service.get_last_prompt_display_name()
-            if display_name:
+    def _add_active_prompt_info(self) -> None:
+        """Add active prompt selector to the menu."""
+        # Get active prompt display name
+        display_name = "None"
+        if self.prompt_store_service.active_prompt_service.has_active_prompt():
+            active_name = self.prompt_store_service.active_prompt_service.get_active_prompt_display_name()
+            if active_name:
                 # Truncate long names
-                if len(display_name) > 30:
-                    display_name = display_name[:27] + "..."
-                
-                last_prompt_item = MenuItem(
-                    id="last_prompt_info",
-                    label=f"Last prompt: {display_name}",
+                if len(active_name) > 30:
+                    display_name = active_name[:27] + "..."
+                else:
+                    display_name = active_name
+
+        # Create active prompt selector item
+        active_prompt_item = MenuItem(
+            id="active_prompt_selector",
+            label=f"Active Prompt: {display_name}",
+            item_type=MenuItemType.SYSTEM,
+            action=None,  # No direct action, submenu will handle it
+            enabled=True,
+            separator_after=False,
+            style="normal"
+        )
+
+        # Store submenu items for this menu item
+        active_prompt_item.submenu_items = self._get_prompt_selector_items()
+
+        # Add with separator before
+        self.menu_builder.add_separator()
+        self.menu_builder.add_items([active_prompt_item])
+
+    def _get_prompt_selector_items(self) -> List[MenuItem]:
+        """Get prompt selector submenu items."""
+        try:
+            # Get all available prompts
+            available_prompts = self.prompt_store_service.get_all_available_prompts()
+
+            if not available_prompts:
+                return [MenuItem(
+                    id="no_prompts",
+                    label="No prompts available",
                     item_type=MenuItemType.SYSTEM,
-                    action=lambda: None,  # No action, just informational
-                    enabled=False,  # Disabled, just for display
-                    separator_after=False,
-                    style="disabled"
+                    action=lambda: None,
+                    enabled=False
+                )]
+
+            # Create submenu items
+            submenu_items = []
+            for prompt_item in available_prompts:
+                # Create wrapper action to set active prompt
+                def make_set_active_action(item):
+                    def set_active():
+                        self.prompt_store_service.set_active_prompt(item)
+                        # Show confirmation
+                        if self.execution_callback:
+                            result = ExecutionResult(
+                                success=True,
+                                content=f"Active prompt set to: {item.label}",
+                                metadata={
+                                    "action": "set_active_prompt", "prompt": item.label}
+                            )
+                            self.execution_callback(result)
+                    return set_active
+
+                submenu_item = MenuItem(
+                    id=f"select_{prompt_item.id}",
+                    label=prompt_item.label,
+                    item_type=prompt_item.item_type,
+                    action=make_set_active_action(prompt_item),
+                    enabled=True,
+                    separator_after=False
                 )
-                
-                # Add with separator before
-                self.menu_builder.add_separator()
-                self.menu_builder.add_items([last_prompt_item])
+                submenu_items.append(submenu_item)
+
+            return submenu_items
+
+        except Exception as e:
+            return [MenuItem(
+                id="error_prompts",
+                label=f"Error loading prompts: {str(e)}",
+                item_type=MenuItemType.SYSTEM,
+                action=lambda: None,
+                enabled=False
+            )]
 
     def cleanup(self) -> None:
         """Clean up resources."""
@@ -221,12 +295,12 @@ class MenuEventHandler:
             print(f"Execution successful: {result.metadata}")
         else:
             print(f"Execution failed: {result.error}")
-            
-            # Show info notification for "no previous prompt" case
-            if self.notification_manager and result.error == "No previous prompt to execute":
+
+            # Show info notification for "no active prompt" case
+            if self.notification_manager and result.error_code == ErrorCode.NO_ACTIVE_PROMPT:
                 self.notification_manager.show_info_notification(
-                    "No Previous Prompt",
-                    "Execute a prompt first to use this feature"
+                    "No Default Prompt",
+                    "Select an active prompt first using the menu"
                 )
 
     def handle_error(self, error_message: str) -> None:

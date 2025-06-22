@@ -6,7 +6,7 @@ from collections import deque
 
 
 from .models import (
-    PromptData, PresetData, ExecutionResult, HistoryEntry, MenuItem, MenuItemType
+    PromptData, PresetData, ExecutionResult, HistoryEntry, MenuItem, MenuItemType, ErrorCode
 )
 from .exceptions import DataError
 
@@ -21,7 +21,7 @@ class PromptStoreService:
             prompt_provider, clipboard_manager)
         self.data_manager = DataManager(prompt_provider)
         self.history_service = HistoryService()
-        self.last_prompt_service = LastPromptService()
+        self.active_prompt_service = ActivePromptService()
 
     def refresh_data(self) -> None:
         """Refresh all data from providers."""
@@ -44,9 +44,9 @@ class PromptStoreService:
 
             # Only add to history for prompt and preset executions, not history or system operations
             if item.item_type in [MenuItemType.PROMPT, MenuItemType.PRESET]:
-                # Track last executed prompt/preset
+                # Track active prompt/preset
                 if result.success and item.data:
-                    self.last_prompt_service.set_last_prompt(item)
+                    self.active_prompt_service.update_active_on_execution(item)
                     
                     self.history_service.add_entry(
                         input_content=input_content,
@@ -83,17 +83,65 @@ class PromptStoreService:
         """Get the last output from history."""
         return self.history_service.get_last_output()
 
-    def get_last_prompt(self) -> Optional[MenuItem]:
-        """Get the last executed prompt/preset."""
-        return self.last_prompt_service.get_last_prompt()
+    def get_active_prompt(self) -> Optional[MenuItem]:
+        """Get the active prompt/preset."""
+        return self.active_prompt_service.get_active_prompt()
 
-    def execute_last_prompt(self) -> ExecutionResult:
-        """Execute the last prompt/preset with current clipboard content."""
-        last_prompt = self.last_prompt_service.get_last_prompt()
-        if not last_prompt:
-            return ExecutionResult(success=False, error="No previous prompt to execute")
+    def set_active_prompt(self, item: MenuItem) -> None:
+        """Set the active prompt/preset."""
+        self.active_prompt_service.set_active_prompt(item)
+
+    def execute_active_prompt(self) -> ExecutionResult:
+        """Execute the active prompt/preset with current clipboard content."""
+        active_prompt = self.active_prompt_service.get_active_prompt()
+        if not active_prompt:
+            return ExecutionResult(
+                success=False, 
+                error="No default prompt selected",
+                error_code=ErrorCode.NO_ACTIVE_PROMPT
+            )
         
-        return self.execute_item(last_prompt)
+        return self.execute_item(active_prompt)
+
+    def get_all_available_prompts(self) -> List[MenuItem]:
+        """Get all available prompts and presets as menu items."""
+        items = []
+        
+        # Add prompts
+        for prompt in self.get_prompts():
+            item = MenuItem(
+                id=f"prompt_{prompt.id}",
+                label=prompt.name,
+                item_type=MenuItemType.PROMPT,
+                action=lambda p=prompt: self.set_active_prompt(MenuItem(
+                    id=f"prompt_{p.id}",
+                    label=p.name,
+                    item_type=MenuItemType.PROMPT,
+                    action=None,
+                    data={"prompt_id": p.id, "prompt_name": p.name}
+                )),
+                data={"prompt_id": prompt.id, "prompt_name": prompt.name}
+            )
+            items.append(item)
+        
+        # Add presets
+        for preset in self.get_presets():
+            item = MenuItem(
+                id=f"preset_{preset.id}",
+                label=preset.preset_name,
+                item_type=MenuItemType.PRESET,
+                action=lambda p=preset: self.set_active_prompt(MenuItem(
+                    id=f"preset_{p.id}",
+                    label=p.preset_name,
+                    item_type=MenuItemType.PRESET,
+                    action=None,
+                    data={"preset_id": p.id, "preset_name": p.preset_name}
+                )),
+                data={"preset_id": preset.id, "preset_name": preset.preset_name}
+            )
+            items.append(item)
+        
+        return items
 
 
 class ExecutionService:
@@ -258,35 +306,40 @@ class HistoryService:
         return None
 
 
-class LastPromptService:
-    """Service for tracking the last executed prompt or preset."""
+class ActivePromptService:
+    """Service for tracking the actively selected prompt or preset."""
 
     def __init__(self):
-        self._last_prompt: Optional[MenuItem] = None
+        self._active_prompt: Optional[MenuItem] = None
 
-    def set_last_prompt(self, item: MenuItem) -> None:
-        """Set the last executed prompt/preset."""
+    def set_active_prompt(self, item: MenuItem) -> None:
+        """Set the active prompt/preset."""
         if item.item_type in [MenuItemType.PROMPT, MenuItemType.PRESET]:
-            self._last_prompt = item
+            self._active_prompt = item
 
-    def get_last_prompt(self) -> Optional[MenuItem]:
-        """Get the last executed prompt/preset."""
-        return self._last_prompt
+    def get_active_prompt(self) -> Optional[MenuItem]:
+        """Get the active prompt/preset."""
+        return self._active_prompt
 
-    def get_last_prompt_display_name(self) -> Optional[str]:
-        """Get a display name for the last executed prompt/preset."""
-        if not self._last_prompt:
+    def get_active_prompt_display_name(self) -> Optional[str]:
+        """Get a display name for the active prompt/preset."""
+        if not self._active_prompt:
             return None
         
-        if self._last_prompt.item_type == MenuItemType.PRESET:
-            return self._last_prompt.data.get("preset_name", "Unknown Preset")
+        if self._active_prompt.item_type == MenuItemType.PRESET:
+            return self._active_prompt.data.get("preset_name", "Unknown Preset")
         else:
-            return self._last_prompt.data.get("prompt_name", "Unknown Prompt")
+            return self._active_prompt.data.get("prompt_name", "Unknown Prompt")
 
-    def has_last_prompt(self) -> bool:
-        """Check if there is a last executed prompt/preset."""
-        return self._last_prompt is not None
+    def has_active_prompt(self) -> bool:
+        """Check if there is an active prompt/preset."""
+        return self._active_prompt is not None
 
-    def clear_last_prompt(self) -> None:
-        """Clear the last executed prompt/preset."""
-        self._last_prompt = None
+    def clear_active_prompt(self) -> None:
+        """Clear the active prompt/preset."""
+        self._active_prompt = None
+
+    def update_active_on_execution(self, item: MenuItem) -> None:
+        """Update active prompt when a prompt/preset is executed."""
+        if item.item_type in [MenuItemType.PROMPT, MenuItemType.PRESET]:
+            self._active_prompt = item
