@@ -35,13 +35,15 @@ class ContextMenu:
 
         return self.menu
 
-    def create_submenu(self, parent_menu: tk.Menu, label: str, submenu_items: List[MenuItem]) -> tk.Menu:
+    def create_submenu(
+        self, parent_menu: tk.Menu, label: str, submenu_items: List[MenuItem]
+    ) -> tk.Menu:
         """Create a submenu with the given items."""
         submenu = tk.Menu(parent_menu, tearoff=0)
-        
+
         for i, item in enumerate(submenu_items):
             self._add_menu_item(submenu, item, i)
-        
+
         parent_menu.add_cascade(label=label, menu=submenu)
         return submenu
 
@@ -61,8 +63,7 @@ class ContextMenu:
             try:
                 self.menu.tk_popup(x + 10, y + 10)
             except tk.TclError:
-                raise MenuError(
-                    f"Failed to show menu at position {x}, {y}: {e}")
+                raise MenuError(f"Failed to show menu at position {x}, {y}: {e}")
 
     def _create_anchor_window(self, x: int, y: int) -> None:
         """Create a temporary anchor window to help with multi-monitor positioning."""
@@ -100,9 +101,7 @@ class ContextMenu:
 
         # Add the command with appropriate state
         menu.add_command(
-            label=item.label,
-            command=item.action if item.enabled else None,
-            **config
+            label=item.label, command=item.action if item.enabled else None, **config
         )
 
         # Add separator after item if requested
@@ -122,9 +121,9 @@ class ContextMenu:
 
         # Apply type-based configuration
         if item.item_type == MenuItemType.PRESET:
-            config["foreground"] = "gray"
+            config["foreground"] = "black"
         elif item.item_type == MenuItemType.HISTORY:
-            config["foreground"] = "blue"
+            config["foreground"] = "black"
         elif item.item_type == MenuItemType.SYSTEM:
             config["foreground"] = "black"
 
@@ -143,17 +142,17 @@ class MenuBuilder:
         self.items: List[MenuItem] = []
         self.separators: List[int] = []
 
-    def add_items(self, items: List[MenuItem]) -> 'MenuBuilder':
+    def add_items(self, items: List[MenuItem]) -> "MenuBuilder":
         """Add menu items to the builder."""
         self.items.extend(items)
         return self
 
-    def add_separator(self) -> 'MenuBuilder':
+    def add_separator(self) -> "MenuBuilder":
         """Add a separator at the current position."""
         self.separators.append(len(self.items))
         return self
 
-    def add_items_with_separator(self, items: List[MenuItem]) -> 'MenuBuilder':
+    def add_items_with_separator(self, items: List[MenuItem]) -> "MenuBuilder":
         """Add menu items with a separator before them."""
         if self.items:  # Only add separator if there are existing items
             self.add_separator()
@@ -177,23 +176,23 @@ class MenuBuilder:
 
         return self.items
 
-    def clear(self) -> 'MenuBuilder':
+    def clear(self) -> "MenuBuilder":
         """Clear all items and separators."""
         self.items.clear()
         self.separators.clear()
         return self
 
-    def filter_enabled(self) -> 'MenuBuilder':
+    def filter_enabled(self) -> "MenuBuilder":
         """Remove disabled items from the builder."""
         self.items = [item for item in self.items if item.enabled]
         return self
 
-    def sort_by_label(self) -> 'MenuBuilder':
+    def sort_by_label(self) -> "MenuBuilder":
         """Sort items by label."""
         self.items.sort(key=lambda item: item.label.lower())
         return self
 
-    def group_by_type(self) -> 'MenuBuilder':
+    def group_by_type(self) -> "MenuBuilder":
         """Group items by type."""
         # Sort items by type, keeping original order within each type
         type_order = {
@@ -203,10 +202,9 @@ class MenuBuilder:
             MenuItemType.SYSTEM: 3,
         }
 
-        self.items.sort(key=lambda item: (
-            type_order.get(item.item_type, 999),
-            item.label.lower()
-        ))
+        self.items.sort(
+            key=lambda item: (type_order.get(item.item_type, 999), item.label.lower())
+        )
         return self
 
 
@@ -255,10 +253,12 @@ class MenuPosition:
             # AppKit not available, try alternative method
             try:
                 import subprocess
+
                 result = subprocess.run(
-                    ['cliclick', 'p'], capture_output=True, text=True)
+                    ["cliclick", "p"], capture_output=True, text=True
+                )
                 if result.returncode == 0:
-                    coords = result.stdout.strip().split(',')
+                    coords = result.stdout.strip().split(",")
                     if len(coords) == 2:
                         return int(coords[0]), int(coords[1])
             except Exception:
@@ -276,7 +276,7 @@ class MenuPosition:
             from ctypes import wintypes
 
             # Check if required Windows API is available
-            if hasattr(ctypes, 'windll') and hasattr(ctypes.windll, 'user32'):
+            if hasattr(ctypes, "windll") and hasattr(ctypes.windll, "user32"):
                 # Get cursor position using Windows API
                 point = wintypes.POINT()
                 ctypes.windll.user32.GetCursorPos(ctypes.byref(point))
@@ -303,18 +303,20 @@ class MenuPosition:
             # Xlib not available, try alternative methods
             try:
                 import subprocess
+
                 # Try xdotool first
                 result = subprocess.run(
-                    ['xdotool', 'getmouselocation'], capture_output=True, text=True)
+                    ["xdotool", "getmouselocation"], capture_output=True, text=True
+                )
                 if result.returncode == 0:
                     output = result.stdout.strip()
                     # Parse "x:123 y:456 screen:0 window:..."
                     parts = output.split()
                     x = y = None
                     for part in parts:
-                        if part.startswith('x:'):
+                        if part.startswith("x:"):
                             x = int(part[2:])
-                        elif part.startswith('y:'):
+                        elif part.startswith("y:"):
                             y = int(part[2:])
                     if x is not None and y is not None:
                         return x, y
@@ -351,7 +353,9 @@ class MenuPosition:
         return 0, 0
 
     @staticmethod
-    def adjust_for_screen_bounds(x: int, y: int, menu_width: int = 200, menu_height: int = 300) -> Tuple[int, int]:
+    def adjust_for_screen_bounds(
+        x: int, y: int, menu_width: int = 200, menu_height: int = 300
+    ) -> Tuple[int, int]:
         """Adjust menu position to ensure it fits on screen with multi-monitor support."""
 
         try:
@@ -404,7 +408,9 @@ class MenuPosition:
             return x, y
 
     @staticmethod
-    def _get_screen_bounds_at_position(x: int, y: int) -> Optional[Tuple[int, int, int, int]]:
+    def _get_screen_bounds_at_position(
+        x: int, y: int
+    ) -> Optional[Tuple[int, int, int, int]]:
         """Get screen bounds (x, y, width, height) for the screen containing the given position."""
         import platform
 
@@ -443,12 +449,12 @@ class MenuPosition:
                 screen_height = int(frame.size.height)
 
                 # Check if point is within this screen (macOS coordinates)
-                if (screen_x <= x < screen_x + screen_width and
-                        screen_y <= mac_y < screen_y + screen_height):
-
+                if (
+                    screen_x <= x < screen_x + screen_width
+                    and screen_y <= mac_y < screen_y + screen_height
+                ):
                     # Convert back to top-left origin for return
-                    top_left_y = int(main_screen_height -
-                                     screen_y - screen_height)
+                    top_left_y = int(main_screen_height - screen_y - screen_height)
                     return (screen_x, top_left_y, screen_width, screen_height)
 
             # If not found, return main screen bounds
@@ -459,12 +465,16 @@ class MenuPosition:
             # AppKit not available, fallback to system_profiler or default
             try:
                 import subprocess
+
                 result = subprocess.run(
-                    ['system_profiler', 'SPDisplaysDataType'], capture_output=True, text=True)
+                    ["system_profiler", "SPDisplaysDataType"],
+                    capture_output=True,
+                    text=True,
+                )
                 if result.returncode == 0:
                     # Basic parsing - this is a fallback, may not be perfect
                     output = result.stdout
-                    if 'Resolution:' in output:
+                    if "Resolution:" in output:
                         # This is a very basic fallback
                         return (0, 0, 1920, 1080)  # Default assumption
             except Exception:
@@ -474,20 +484,23 @@ class MenuPosition:
             return None
 
     @staticmethod
-    def _get_screen_bounds_windows(x: int, y: int) -> Optional[Tuple[int, int, int, int]]:
+    def _get_screen_bounds_windows(
+        x: int, y: int
+    ) -> Optional[Tuple[int, int, int, int]]:
         """Get screen bounds on Windows for the screen containing the position."""
         try:
             import ctypes
             from ctypes import wintypes
 
             # Check if required Windows API is available
-            if not (hasattr(ctypes, 'windll') and hasattr(ctypes.windll, 'user32')):
+            if not (hasattr(ctypes, "windll") and hasattr(ctypes.windll, "user32")):
                 return None
 
             # Get monitor handle for the point
             point = wintypes.POINT(x, y)
             monitor = ctypes.windll.user32.MonitorFromPoint(
-                point, 2)  # MONITOR_DEFAULTTONEAREST
+                point, 2
+            )  # MONITOR_DEFAULTTONEAREST
 
             if monitor:
                 # Get monitor info
@@ -496,7 +509,7 @@ class MenuPosition:
                         ("cbSize", wintypes.DWORD),
                         ("rcMonitor", wintypes.RECT),
                         ("rcWork", wintypes.RECT),
-                        ("dwFlags", wintypes.DWORD)
+                        ("dwFlags", wintypes.DWORD),
                     ]
 
                 mi = MONITORINFO()
@@ -504,7 +517,12 @@ class MenuPosition:
 
                 if ctypes.windll.user32.GetMonitorInfoW(monitor, ctypes.byref(mi)):
                     rect = mi.rcMonitor
-                    return (rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top)
+                    return (
+                        rect.left,
+                        rect.top,
+                        rect.right - rect.left,
+                        rect.bottom - rect.top,
+                    )
         except (ImportError, AttributeError, OSError):
             pass
         except Exception:
@@ -525,30 +543,38 @@ class MenuPosition:
             # Try to get screen resources for multi-monitor info
             try:
                 import subprocess
-                result = subprocess.run(
-                    ['xrandr'], capture_output=True, text=True)
+
+                result = subprocess.run(["xrandr"], capture_output=True, text=True)
                 if result.returncode == 0:
-                    lines = result.stdout.split('\n')
+                    lines = result.stdout.split("\n")
                     for line in lines:
-                        if ' connected ' in line and '+' in line:
+                        if " connected " in line and "+" in line:
                             # Parse screen geometry: "1920x1080+1920+0"
                             parts = line.split()
                             for part in parts:
-                                if 'x' in part and '+' in part:
+                                if "x" in part and "+" in part:
                                     try:
                                         # Extract dimensions and position
-                                        geom = part.split('+')
+                                        geom = part.split("+")
                                         if len(geom) >= 3:
-                                            dims = geom[0].split('x')
-                                            width, height = int(
-                                                dims[0]), int(dims[1])
-                                            offset_x, offset_y = int(
-                                                geom[1]), int(geom[2])
+                                            dims = geom[0].split("x")
+                                            width, height = int(dims[0]), int(dims[1])
+                                            offset_x, offset_y = (
+                                                int(geom[1]),
+                                                int(geom[2]),
+                                            )
 
                                             # Check if point is within this screen
-                                            if (offset_x <= x < offset_x + width and
-                                                    offset_y <= y < offset_y + height):
-                                                return (offset_x, offset_y, width, height)
+                                            if (
+                                                offset_x <= x < offset_x + width
+                                                and offset_y <= y < offset_y + height
+                                            ):
+                                                return (
+                                                    offset_x,
+                                                    offset_y,
+                                                    width,
+                                                    height,
+                                                )
                                     except (ValueError, IndexError):
                                         continue
             except Exception:
@@ -563,27 +589,35 @@ class MenuPosition:
             # Xlib not available, try xrandr directly
             try:
                 import subprocess
-                result = subprocess.run(
-                    ['xrandr'], capture_output=True, text=True)
+
+                result = subprocess.run(["xrandr"], capture_output=True, text=True)
                 if result.returncode == 0:
-                    lines = result.stdout.split('\n')
+                    lines = result.stdout.split("\n")
                     for line in lines:
-                        if ' connected ' in line and '+' in line:
+                        if " connected " in line and "+" in line:
                             parts = line.split()
                             for part in parts:
-                                if 'x' in part and '+' in part:
+                                if "x" in part and "+" in part:
                                     try:
-                                        geom = part.split('+')
+                                        geom = part.split("+")
                                         if len(geom) >= 3:
-                                            dims = geom[0].split('x')
-                                            width, height = int(
-                                                dims[0]), int(dims[1])
-                                            offset_x, offset_y = int(
-                                                geom[1]), int(geom[2])
+                                            dims = geom[0].split("x")
+                                            width, height = int(dims[0]), int(dims[1])
+                                            offset_x, offset_y = (
+                                                int(geom[1]),
+                                                int(geom[2]),
+                                            )
 
-                                            if (offset_x <= x < offset_x + width and
-                                                    offset_y <= y < offset_y + height):
-                                                return (offset_x, offset_y, width, height)
+                                            if (
+                                                offset_x <= x < offset_x + width
+                                                and offset_y <= y < offset_y + height
+                                            ):
+                                                return (
+                                                    offset_x,
+                                                    offset_y,
+                                                    width,
+                                                    height,
+                                                )
                                     except (ValueError, IndexError):
                                         continue
             except Exception:

@@ -6,7 +6,13 @@ from collections import deque
 
 
 from .models import (
-    PromptData, PresetData, ExecutionResult, HistoryEntry, MenuItem, MenuItemType, ErrorCode
+    PromptData,
+    PresetData,
+    ExecutionResult,
+    HistoryEntry,
+    MenuItem,
+    MenuItemType,
+    ErrorCode,
 )
 from .exceptions import DataError
 from utils.notifications import NotificationManager
@@ -19,8 +25,7 @@ class PromptStoreService:
         self.prompt_provider = prompt_provider
         self.clipboard_manager = clipboard_manager
         self.notification_manager = notification_manager or NotificationManager()
-        self.execution_service = ExecutionService(
-            prompt_provider, clipboard_manager)
+        self.execution_service = ExecutionService(prompt_provider, clipboard_manager)
         self.data_manager = DataManager(prompt_provider)
         self.history_service = HistoryService()
         self.active_prompt_service = ActivePromptService()
@@ -49,24 +54,22 @@ class PromptStoreService:
                 # Track active prompt/preset
                 if result.success and item.data:
                     self.active_prompt_service.update_active_on_execution(item)
-                    
+
                     self.history_service.add_entry(
                         input_content=input_content,
                         output_content=result.content,
                         prompt_id=item.data.get("prompt_id"),
                         preset_id=item.data.get("preset_id"),
-                        success=True
+                        success=True,
                     )
                 elif not result.success:
                     self.history_service.add_entry(
                         input_content=input_content,
                         output_content=None,
-                        prompt_id=item.data.get(
-                            "prompt_id") if item.data else None,
-                        preset_id=item.data.get(
-                            "preset_id") if item.data else None,
+                        prompt_id=item.data.get("prompt_id") if item.data else None,
+                        preset_id=item.data.get("preset_id") if item.data else None,
                         success=False,
-                        error=result.error
+                        error=result.error,
                     )
 
             return result
@@ -92,20 +95,28 @@ class PromptStoreService:
     def set_active_prompt(self, item: MenuItem) -> None:
         """Set the active prompt/preset."""
         self.active_prompt_service.set_active_prompt(item)
-        
+
         if item.item_type == MenuItemType.PROMPT:
-            prompt_name = item.data.get("prompt_name", "Unknown Prompt") if item.data else "Unknown Prompt"
+            prompt_name = (
+                item.data.get("prompt_name", "Unknown Prompt")
+                if item.data
+                else "Unknown Prompt"
+            )
             self.notification_manager.show_success_notification(
                 "Active Prompt Set",
                 "Ready to execute with clipboard content",
-                prompt_name
+                prompt_name,
             )
         elif item.item_type == MenuItemType.PRESET:
-            preset_name = item.data.get("preset_name", "Unknown Preset") if item.data else "Unknown Preset"
+            preset_name = (
+                item.data.get("preset_name", "Unknown Preset")
+                if item.data
+                else "Unknown Preset"
+            )
             self.notification_manager.show_success_notification(
                 "Active Preset Set",
                 "Ready to execute with clipboard content",
-                preset_name
+                preset_name,
             )
 
     def execute_active_prompt(self) -> ExecutionResult:
@@ -113,51 +124,63 @@ class PromptStoreService:
         active_prompt = self.active_prompt_service.get_active_prompt()
         if not active_prompt:
             return ExecutionResult(
-                success=False, 
+                success=False,
                 error="No default prompt selected",
-                error_code=ErrorCode.NO_ACTIVE_PROMPT
+                error_code=ErrorCode.NO_ACTIVE_PROMPT,
             )
-        
+
         return self.execute_item(active_prompt)
 
     def get_all_available_prompts(self) -> List[MenuItem]:
         """Get all available prompts and presets as menu items."""
         items = []
-        
+
         # Add prompts
         for prompt in self.get_prompts():
             item = MenuItem(
                 id=f"prompt_{prompt.id}",
                 label=prompt.name,
                 item_type=MenuItemType.PROMPT,
-                action=lambda p=prompt: self.set_active_prompt(MenuItem(
-                    id=f"prompt_{p.id}",
-                    label=p.name,
-                    item_type=MenuItemType.PROMPT,
-                    action=None,
-                    data={"prompt_id": p.id, "prompt_name": p.name}
-                )),
-                data={"prompt_id": prompt.id, "prompt_name": prompt.name}
+                action=lambda p=prompt: self.set_active_prompt(
+                    MenuItem(
+                        id=f"prompt_{p.id}",
+                        label=p.name,
+                        item_type=MenuItemType.PROMPT,
+                        action=None,
+                        data={"prompt_id": p.id, "prompt_name": p.name},
+                    )
+                ),
+                data={"prompt_id": prompt.id, "prompt_name": prompt.name},
             )
             items.append(item)
-        
+
         # Add presets
         for preset in self.get_presets():
             item = MenuItem(
                 id=f"preset_{preset.id}",
                 label=preset.preset_name,
                 item_type=MenuItemType.PRESET,
-                action=lambda p=preset: self.set_active_prompt(MenuItem(
-                    id=f"preset_{p.id}",
-                    label=p.preset_name,
-                    item_type=MenuItemType.PRESET,
-                    action=None,
-                    data={"preset_id": p.id, "preset_name": p.preset_name}
-                )),
-                data={"preset_id": preset.id, "preset_name": preset.preset_name}
+                action=lambda p=preset: self.set_active_prompt(
+                    MenuItem(
+                        id=f"preset_{p.id}",
+                        label=p.preset_name,
+                        item_type=MenuItemType.PRESET,
+                        action=None,
+                        data={
+                            "preset_id": p.id,
+                            "preset_name": p.preset_name,
+                            "prompt_id": p.prompt_id,
+                        },
+                    )
+                ),
+                data={
+                    "preset_id": preset.id,
+                    "preset_name": preset.preset_name,
+                    "prompt_id": preset.prompt_id,
+                },
             )
             items.append(item)
-        
+
         return items
 
 
@@ -173,7 +196,9 @@ class ExecutionService:
         """Register an execution handler."""
         self.handlers.append(handler)
 
-    def execute_item(self, item: MenuItem, input_content: Optional[str] = None) -> ExecutionResult:
+    def execute_item(
+        self, item: MenuItem, input_content: Optional[str] = None
+    ) -> ExecutionResult:
         """Execute a menu item using the appropriate handler."""
         if not item.enabled:
             return ExecutionResult(success=False, error="Menu item is disabled")
@@ -185,7 +210,9 @@ class ExecutionService:
                 except Exception as e:
                     return ExecutionResult(success=False, error=str(e))
 
-        return ExecutionResult(success=False, error="No handler found for this item type")
+        return ExecutionResult(
+            success=False, error="No handler found for this item type"
+        )
 
 
 class DataManager:
@@ -279,7 +306,7 @@ class HistoryService:
         prompt_id: Optional[str] = None,
         preset_id: Optional[str] = None,
         success: bool = True,
-        error: Optional[str] = None
+        error: Optional[str] = None,
     ) -> None:
         """Add a new history entry."""
         entry = HistoryEntry(
@@ -290,7 +317,7 @@ class HistoryService:
             prompt_id=prompt_id,
             preset_id=preset_id,
             success=success,
-            error=error
+            error=error,
         )
         self._history.append(entry)
 
@@ -342,7 +369,7 @@ class ActivePromptService:
         """Get a display name for the active prompt/preset."""
         if not self._active_prompt:
             return None
-        
+
         if self._active_prompt.item_type == MenuItemType.PRESET:
             return self._active_prompt.data.get("preset_name", "Unknown Preset")
         else:

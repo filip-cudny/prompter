@@ -5,6 +5,9 @@ from typing import Optional, Dict, List, Any
 import requests
 
 
+DEFAULT_TIMEOUT = 60
+
+
 class PromptStoreAPI:
     def __init__(self, base_url: str, api_key: Optional[str] = None):
         self.base_url = base_url.rstrip("/")
@@ -30,11 +33,15 @@ class PromptStoreAPI:
 
         try:
             if method.upper() == "GET":
-                response = self.session.get(url, params=params)
+                response = self.session.get(url, params=params, timeout=DEFAULT_TIMEOUT)
             elif method.upper() == "POST":
-                response = self.session.post(url, params=params, json=data)
+                response = self.session.post(
+                    url, params=params, json=data, timeout=DEFAULT_TIMEOUT
+                )
             elif method.upper() == "DELETE":
-                response = self.session.delete(url, params=params)
+                response = self.session.delete(
+                    url, params=params, timeout=DEFAULT_TIMEOUT
+                )
             else:
                 raise ValueError(f"Unsupported HTTP method: {method}")
 
@@ -49,6 +56,12 @@ class PromptStoreAPI:
             else:
                 return response.text
 
+        except requests.exceptions.Timeout as e:
+            raise APIError(f"Request timed out after 30 seconds: {str(e)}") from e
+        except requests.exceptions.ConnectionError as e:
+            raise APIError(f"Connection error: {str(e)}") from e
+        except requests.exceptions.HTTPError as e:
+            raise APIError(f"HTTP error {e.response.status_code}: {str(e)}") from e
         except requests.exceptions.RequestException as e:
             raise APIError(f"Request failed: {str(e)}") from e
 
@@ -94,15 +107,13 @@ class PromptStoreAPI:
 
     def get_prompt_details(self, prompt_id: str) -> Dict[str, Any]:
         params = {"type": "prompt-details", "id": prompt_id}
-        response = self._make_request(
-            "GET", "/api/prompt-store", params=params)
+        response = self._make_request("GET", "/api/prompt-store", params=params)
 
         if isinstance(response, str):
             raise APIError("Expected JSON response for prompt details")
 
         if not response.get("success"):
-            raise APIError(
-                f"Failed to fetch prompt details for ID: {prompt_id}")
+            raise APIError(f"Failed to fetch prompt details for ID: {prompt_id}")
 
         return {
             "prompt": response.get("prompt"),
@@ -120,8 +131,7 @@ class PromptStoreAPI:
         placeholder_values: Optional[Dict[str, str]] = None,
         preset_id: Optional[str] = None,
     ) -> Dict[str, Any]:
-        data = {"promptId": prompt_id,
-                "messages": messages, "streaming": streaming}
+        data = {"promptId": prompt_id, "messages": messages, "streaming": streaming}
 
         if context:
             data["context"] = context

@@ -8,7 +8,9 @@ from core.services import HistoryService, DataManager
 class PromptMenuProvider:
     """Provides menu items for prompts."""
 
-    def __init__(self, data_manager: DataManager, execute_callback: Callable[[MenuItem], None]):
+    def __init__(
+        self, data_manager: DataManager, execute_callback: Callable[[MenuItem], None]
+    ):
         self.data_manager = data_manager
         self.execute_callback = execute_callback
 
@@ -25,13 +27,14 @@ class PromptMenuProvider:
                     label=prompt.name,
                     item_type=MenuItemType.PROMPT,
                     action=lambda p=prompt: self.execute_callback(
-                        self._create_prompt_item(p)),
+                        self._create_prompt_item(p)
+                    ),
                     data={
                         "prompt_id": prompt.id,
                         "prompt_name": prompt.name,
-                        "type": "prompt"
+                        "type": "prompt",
                     },
-                    enabled=True
+                    enabled=True,
                 )
                 items.append(item)
 
@@ -52,19 +55,17 @@ class PromptMenuProvider:
             label=prompt.name,
             item_type=MenuItemType.PROMPT,
             action=lambda: None,  # Will be handled by execution handler
-            data={
-                "prompt_id": prompt.id,
-                "prompt_name": prompt.name,
-                "type": "prompt"
-            },
-            enabled=True
+            data={"prompt_id": prompt.id, "prompt_name": prompt.name, "type": "prompt"},
+            enabled=True,
         )
 
 
 class PresetMenuProvider:
     """Provides menu items for presets."""
 
-    def __init__(self, data_manager: DataManager, execute_callback: Callable[[MenuItem], None]):
+    def __init__(
+        self, data_manager: DataManager, execute_callback: Callable[[MenuItem], None]
+    ):
         self.data_manager = data_manager
         self.execute_callback = execute_callback
 
@@ -76,8 +77,7 @@ class PresetMenuProvider:
             presets = self.data_manager.get_presets()
 
             for preset in presets:
-                prompt_name = self.data_manager.get_prompt_name(
-                    preset.prompt_id)
+                prompt_name = self.data_manager.get_prompt_name(preset.prompt_id)
                 display_name = f"{preset.preset_name} ({prompt_name})"
 
                 item = MenuItem(
@@ -85,15 +85,15 @@ class PresetMenuProvider:
                     label=display_name,
                     item_type=MenuItemType.PRESET,
                     action=lambda p=preset: self.execute_callback(
-                        self._create_preset_item(p)),
+                        self._create_preset_item(p)
+                    ),
                     data={
                         "preset_id": preset.id,
                         "preset_name": preset.preset_name,
                         "prompt_id": preset.prompt_id,
-                        "type": "preset"
+                        "type": "preset",
                     },
                     enabled=True,
-                    style="gray"
                 )
                 items.append(item)
 
@@ -121,17 +121,20 @@ class PresetMenuProvider:
                 "preset_id": preset.id,
                 "preset_name": preset.preset_name,
                 "prompt_id": preset.prompt_id,
-                "type": "preset"
+                "type": "preset",
             },
             enabled=True,
-            style="gray"
         )
 
 
 class HistoryMenuProvider:
     """Provides menu items for history (last input/output)."""
 
-    def __init__(self, history_service: HistoryService, execute_callback: Callable[[MenuItem], None]):
+    def __init__(
+        self,
+        history_service: HistoryService,
+        execute_callback: Callable[[MenuItem], None],
+    ):
         self.history_service = history_service
         self.execute_callback = execute_callback
 
@@ -143,47 +146,37 @@ class HistoryMenuProvider:
         last_output = self.history_service.get_last_output()
 
         # Last Input item
-        input_label = "Copy last input"
+        input_label = "⎘ Copy last input"
         if last_input:
-            preview = last_input[:30] + \
-                "..." if len(last_input) > 30 else last_input
-            input_label = f"Copy last input: {preview}"
+            preview = last_input[:30] + "..." if len(last_input) > 30 else last_input
+            input_label = f"⎘ Copy last input: {preview}"
 
         input_item = MenuItem(
             id="history_last_input",
             label=input_label,
             item_type=MenuItemType.HISTORY,
-            action=lambda: self.execute_callback(
-                self._create_last_input_item()),
-            data={
-                "type": "last_input",
-                "content": last_input
-            },
+            action=lambda: self.execute_callback(self._create_last_input_item()),
+            data={"type": "last_input", "content": last_input},
             enabled=last_input is not None,
-            tooltip=last_input
+            tooltip=last_input,
         )
         items.append(input_item)
 
         # Last Output item
-        output_label = "Copy last output"
+        output_label = "⎘ Copy last output"
         if last_output:
-            preview = last_output[:30] + \
-                "..." if len(last_output) > 30 else last_output
-            output_label = f"Copy last output: {preview}"
+            preview = last_output[:30] + "..." if len(last_output) > 30 else last_output
+            output_label = f"⎘ Copy last output: {preview}"
 
         output_item = MenuItem(
             id="history_last_output",
             label=output_label,
             item_type=MenuItemType.HISTORY,
-            action=lambda: self.execute_callback(
-                self._create_last_output_item()),
-            data={
-                "type": "last_output",
-                "content": last_output
-            },
+            action=lambda: self.execute_callback(self._create_last_output_item()),
+            data={"type": "last_output", "content": last_output},
             enabled=last_output is not None,
             separator_after=True,
-            tooltip=last_output
+            tooltip=last_output,
         )
         items.append(output_item)
 
@@ -197,41 +190,43 @@ class HistoryMenuProvider:
     def _create_last_input_item(self) -> MenuItem:
         """Create a menu item for last input."""
         last_input = self.history_service.get_last_input()
-        preview = last_input[:30] + \
-            "..." if last_input and len(last_input) > 30 else last_input
-        label = f"Copy last input: {preview}" if last_input else "Copy last input"
+        preview = (
+            last_input[:30] + "..."
+            if last_input and len(last_input) > 30
+            else last_input
+        )
+        label = f"⎘ Copy last input: {preview}" if last_input else "⎘ Copy last input"
 
         return MenuItem(
             id="history_last_input",
             label=label,
             item_type=MenuItemType.HISTORY,
             action=lambda: None,  # Will be handled by execution handler
-            data={
-                "type": "last_input",
-                "content": last_input
-            },
+            data={"type": "last_input", "content": last_input},
             enabled=last_input is not None,
-            tooltip=last_input
+            tooltip=last_input,
         )
 
     def _create_last_output_item(self) -> MenuItem:
         """Create a menu item for last output."""
         last_output = self.history_service.get_last_output()
-        preview = last_output[:30] + \
-            "..." if last_output and len(last_output) > 30 else last_output
-        label = f"Copy last output: {preview}" if last_output else "Copy last output"
+        preview = (
+            last_output[:30] + "..."
+            if last_output and len(last_output) > 30
+            else last_output
+        )
+        label = (
+            f"⎘ Copy last output: {preview}" if last_output else "⎘ Copy last output"
+        )
 
         return MenuItem(
             id="history_last_output",
             label=label,
             item_type=MenuItemType.HISTORY,
             action=lambda: None,  # Will be handled by execution handler
-            data={
-                "type": "last_output",
-                "content": last_output
-            },
+            data={"type": "last_output", "content": last_output},
             enabled=last_output is not None,
-            tooltip=last_output
+            tooltip=last_output,
         )
 
 
@@ -251,7 +246,7 @@ class SystemMenuProvider:
             item_type=MenuItemType.SYSTEM,
             action=self.refresh_callback,
             data={"type": "refresh"},
-            enabled=True
+            enabled=True,
         )
         items.append(refresh_item)
 
