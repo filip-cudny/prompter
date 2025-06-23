@@ -22,21 +22,21 @@ class NotificationWidget(QLabel):
                 border-radius: 8px;
                 font-family: Arial;
                 font-size: 13px;
+                border: 1px solid rgba(255, 255, 255, 0.1);
             }}
         """)
         self.setWordWrap(True)
         self.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
-        self.setAttribute(Qt.WA_TranslucentBackground)
-        
+
         # Set up opacity effect for animations
         self.opacity_effect = QGraphicsOpacityEffect()
         self.setGraphicsEffect(self.opacity_effect)
         self.opacity_effect.setOpacity(0.0)
-        
+
         # Animation for fade in/out
         self.fade_animation = QPropertyAnimation(self.opacity_effect, b"opacity")
-        
+
         # Timer for auto-hide
         self.hide_timer = QTimer()
         self.hide_timer.setSingleShot(True)
@@ -50,11 +50,11 @@ class NotificationWidget(QLabel):
         x = screen.width() - self.width() - 20
         y = 50
         self.move(x, y)
-        
+
         # Show and fade in
         self.show()
         self.fade_in()
-        
+
         # Set timer to fade out
         self.hide_timer.start(duration)
 
@@ -85,7 +85,9 @@ class PyQtNotificationManager:
         self._processing = False
         self.active_notifications: List[NotificationWidget] = []
 
-    def show_success_notification(self, title: str, message: str, prompt_name: Optional[str] = None) -> None:
+    def show_success_notification(
+        self, title: str, message: str, prompt_name: Optional[str] = None
+    ) -> None:
         """Show a success notification."""
         if prompt_name:
             full_message = f"✔ {title} - {prompt_name}\n{message}"
@@ -94,7 +96,9 @@ class PyQtNotificationManager:
 
         self._queue_notification(full_message, "#6B7A4A", 2000)
 
-    def show_error_notification(self, title: str, message: str, prompt_name: Optional[str] = None) -> None:
+    def show_error_notification(
+        self, title: str, message: str, prompt_name: Optional[str] = None
+    ) -> None:
         """Show an error notification."""
         if prompt_name:
             full_message = f"✗ {title} - {prompt_name}\n{message}"
@@ -111,11 +115,9 @@ class PyQtNotificationManager:
     def _queue_notification(self, message: str, bg_color: str, duration: int) -> None:
         """Queue a notification to be shown."""
         try:
-            self.notification_queue.put_nowait({
-                'message': message,
-                'bg_color': bg_color,
-                'duration': duration
-            })
+            self.notification_queue.put_nowait(
+                {"message": message, "bg_color": bg_color, "duration": duration}
+            )
             self._schedule_process_queue()
         except queue.Full:
             pass
@@ -137,16 +139,18 @@ class PyQtNotificationManager:
                 try:
                     notification_data = self.notification_queue.get_nowait()
                     self._show_notification(
-                        notification_data['message'],
-                        notification_data['duration'],
-                        notification_data['bg_color']
+                        notification_data["message"],
+                        notification_data["duration"],
+                        notification_data["bg_color"],
                     )
                 except queue.Empty:
                     break
         finally:
             self._processing = False
 
-    def _show_notification(self, message: str, duration: int = 2000, bg_color: str = "#323232") -> None:
+    def _show_notification(
+        self, message: str, duration: int = 2000, bg_color: str = "#323232"
+    ) -> None:
         """Show a notification widget."""
         try:
             if not self.app:
@@ -154,19 +158,21 @@ class PyQtNotificationManager:
                 return
 
             # Clean up old notifications
-            self.active_notifications = [n for n in self.active_notifications if n.isVisible()]
+            self.active_notifications = [
+                n for n in self.active_notifications if n.isVisible()
+            ]
 
             # Create and show new notification
             notification = NotificationWidget(message, bg_color)
             self.active_notifications.append(notification)
-            
+
             # Adjust position if there are other notifications
             if len(self.active_notifications) > 1:
                 screen = QApplication.desktop().screenGeometry()
                 y_offset = 50 + (len(self.active_notifications) - 1) * 80
                 x = screen.width() - notification.sizeHint().width() - 20
                 notification.move(x, y_offset)
-            
+
             notification.show_notification(duration)
 
         except (RuntimeError, Exception) as e:
@@ -190,4 +196,4 @@ def truncate_text(text: str, max_length: int = 100) -> str:
     """Truncate text for notification display."""
     if len(text) <= max_length:
         return text
-    return text[:max_length - 3] + "..."
+    return text[: max_length - 3] + "..."
