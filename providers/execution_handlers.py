@@ -1,14 +1,14 @@
 """Execution handlers for different types of menu items."""
 
 from typing import Optional
-import tkinter as tk
 import logging
+from PyQt5.QtWidgets import QApplication
 from core.interfaces import ClipboardManager
 from core.models import MenuItem, MenuItemType, ExecutionResult, ErrorCode
 from core.exceptions import ClipboardError
 from api import PromptStoreAPI, APIError, create_user_message
-from utils.notifications import (
-    NotificationManager,
+from utils.pyqt_notifications import (
+    PyQtNotificationManager,
     format_execution_time,
     truncate_text,
 )
@@ -24,11 +24,11 @@ class PromptExecutionHandler:
         self,
         api: PromptStoreAPI,
         clipboard_manager: ClipboardManager,
-        main_root: Optional[tk.Tk] = None,
+        app: Optional[QApplication] = None,
     ):
         self.api = api
         self.clipboard_manager = clipboard_manager
-        self.notification_manager = NotificationManager(main_root)
+        self.notification_manager = PyQtNotificationManager(app)
 
     def can_handle(self, item: MenuItem) -> bool:
         """Check if this handler can execute the given menu item."""
@@ -180,11 +180,11 @@ class PresetExecutionHandler:
         self,
         api: PromptStoreAPI,
         clipboard_manager: ClipboardManager,
-        main_root: Optional[tk.Tk] = None,
+        app: Optional[QApplication] = None,
     ):
         self.api = api
         self.clipboard_manager = clipboard_manager
-        self.notification_manager = NotificationManager(main_root)
+        self.notification_manager = PyQtNotificationManager(app)
 
     def can_handle(self, item: MenuItem) -> bool:
         """Check if this handler can execute the given menu item."""
@@ -403,9 +403,9 @@ class HistoryExecutionHandler:
 class SystemExecutionHandler:
     """Handler for executing system menu items."""
 
-    def __init__(self, refresh_callback=None, main_root: Optional[tk.Tk] = None):
+    def __init__(self, refresh_callback=None, app: Optional[QApplication] = None):
         self.refresh_callback = refresh_callback
-        self.notification_manager = NotificationManager(main_root)
+        self.notification_manager = PyQtNotificationManager(app)
 
     def can_handle(self, item: MenuItem) -> bool:
         """Check if this handler can execute the given menu item."""

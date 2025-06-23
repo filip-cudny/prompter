@@ -15,7 +15,7 @@ from .models import (
     ErrorCode,
 )
 from .exceptions import DataError
-from utils.notifications import NotificationManager
+from utils.pyqt_notifications import PyQtNotificationManager
 
 
 class PromptStoreService:
@@ -24,7 +24,7 @@ class PromptStoreService:
     def __init__(self, prompt_provider, clipboard_manager, notification_manager=None):
         self.prompt_provider = prompt_provider
         self.clipboard_manager = clipboard_manager
-        self.notification_manager = notification_manager or NotificationManager()
+        self.notification_manager = notification_manager or PyQtNotificationManager()
         self.execution_service = ExecutionService(prompt_provider, clipboard_manager)
         self.data_manager = DataManager(prompt_provider)
         self.history_service = HistoryService()
