@@ -74,8 +74,7 @@ class PromptStoreApp:
         """Initialize all application components."""
         try:
             # Initialize API client
-            self.api = PromptStoreAPI(
-                self.config.base_url, self.config.api_key)
+            self.api = PromptStoreAPI(self.config.base_url, self.config.api_key)
 
             # Initialize clipboard manager
             self.clipboard_manager = SystemClipboardManager()
@@ -107,20 +106,16 @@ class PromptStoreApp:
     def _register_execution_handlers(self) -> None:
         """Register execution handlers with the service."""
         handlers = [
-            PromptExecutionHandler(
-                self.api, self.clipboard_manager, self.root),
-            PresetExecutionHandler(
-                self.api, self.clipboard_manager, self.root),
+            PromptExecutionHandler(self.api, self.clipboard_manager, self.root),
+            PresetExecutionHandler(self.api, self.clipboard_manager, self.root),
             HistoryExecutionHandler(self.clipboard_manager),
             SystemExecutionHandler(
-                refresh_callback=self._refresh_data,
-                main_root=self.root
+                refresh_callback=self._refresh_data, main_root=self.root
             ),
         ]
 
         for handler in handlers:
-            self.prompt_store_service.execution_service.register_handler(
-                handler)
+            self.prompt_store_service.execution_service.register_handler(handler)
 
     def _initialize_gui(self) -> None:
         """Initialize GUI components."""
@@ -137,8 +132,7 @@ class PromptStoreApp:
         # Initialize menu coordinator
         self.menu_coordinator = MenuCoordinator(self.prompt_store_service)
         self.menu_coordinator.set_root(self.root)
-        self.menu_coordinator.set_menu_position_offset(
-            self.config.menu_position_offset)
+        self.menu_coordinator.set_menu_position_offset(self.config.menu_position_offset)
 
         # Initialize event handler
         self.event_handler = MenuEventHandler(self.menu_coordinator)
@@ -150,9 +144,7 @@ class PromptStoreApp:
         self.menu_coordinator.set_execution_callback(
             self.event_handler.handle_execution_result
         )
-        self.menu_coordinator.set_error_callback(
-            self.event_handler.handle_error
-        )
+        self.menu_coordinator.set_error_callback(self.event_handler.handle_error)
 
     def _initialize_menu_providers(self) -> None:
         """Initialize menu providers."""
@@ -173,6 +165,7 @@ class PromptStoreApp:
 
     def _setup_signal_handlers(self) -> None:
         """Setup signal handlers for graceful shutdown."""
+
         def signal_handler(signum, frame):
             print(f"\nReceived signal {signum}, shutting down...")
             self.stop()
@@ -219,8 +212,7 @@ class PromptStoreApp:
                 self.event_handler.handle_execution_result(result)
         except Exception as e:
             if self.event_handler:
-                self.event_handler.handle_error(
-                    f"Failed to execute active prompt: {e}")
+                self.event_handler.handle_error(f"Failed to execute active prompt: {e}")
             else:
                 print(f"Failed to execute active prompt: {e}")
 
@@ -315,10 +307,11 @@ class PromptStoreApp:
             "hotkey": self.config.hotkey if self.config else None,
             "api_url": self.config.base_url if self.config else None,
             "providers_count": len(self.menu_providers),
-            "hotkey_active": self.hotkey_manager.is_running() if self.hotkey_manager else False,
+            "hotkey_active": self.hotkey_manager.is_running()
+            if self.hotkey_manager
+            else False,
             "last_execution_results": (
-                self.event_handler.get_recent_results(
-                    5) if self.event_handler else []
+                self.event_handler.get_recent_results(5) if self.event_handler else []
             ),
         }
 
@@ -342,7 +335,8 @@ class PromptStoreApp:
             # Update menu position offset
             if self.menu_coordinator:
                 self.menu_coordinator.set_menu_position_offset(
-                    self.config.menu_position_offset)
+                    self.config.menu_position_offset
+                )
 
             # Restart if was running
             if was_running:
