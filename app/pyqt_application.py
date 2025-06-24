@@ -5,7 +5,7 @@ import signal
 import platform
 from typing import Optional, List
 from PyQt5.QtWidgets import QApplication, QSystemTrayIcon, QMenu, QAction
-from PyQt5.QtCore import QTimer, pyqtSignal, QObject
+from PyQt5.QtCore import QTimer, pyqtSignal, QObject, QSocketNotifier
 from PyQt5.QtGui import QIcon, QPixmap, QPainter
 from PyQt5.QtCore import Qt
 
@@ -226,15 +226,29 @@ class PromptStoreApp(QObject):
 
     def _setup_signal_handlers(self) -> None:
         """Setup signal handlers for graceful shutdown."""
-        def signal_handler(signum, _frame):
-            print(f"\nReceived signal {signum}, shutting down...")
-            self.stop()
-
-        signal.signal(signal.SIGINT, signal_handler)
-        signal.signal(signal.SIGTERM, signal_handler)
+        # Set up Unix signal handling using Qt's mechanism
+        if hasattr(signal, 'SIGINT'):
+            signal.signal(signal.SIGINT, self._unix_signal_handler)
+        if hasattr(signal, 'SIGTERM'):
+            signal.signal(signal.SIGTERM, self._unix_signal_handler)
+        
+        # Enable keyboard interrupt processing
+        QTimer.singleShot(0, self._enable_keyboard_interrupt)
 
         # Connect Qt signal
         self.shutdown_requested.connect(self.stop)
+
+    def _unix_signal_handler(self, signum, _frame):
+        """Handle Unix signals by emitting Qt signal."""
+        print(f"\nReceived signal {signum}, shutting down...")
+        self.shutdown_requested.emit()
+
+    def _enable_keyboard_interrupt(self):
+        """Enable keyboard interrupt handling by processing events periodically."""
+        # Create a timer that processes events to allow Ctrl+C to work
+        self.interrupt_timer = QTimer()
+        self.interrupt_timer.timeout.connect(lambda: None)  # Just process events
+        self.interrupt_timer.start(100)  # Check every 100ms
 
     def _tray_activated(self, reason):
         """Handle system tray activation."""
@@ -342,6 +356,10 @@ class PromptStoreApp(QObject):
             
         self.running = False
         print("Stopping application...")
+
+        # Stop interrupt timer
+        if hasattr(self, 'interrupt_timer'):
+            self.interrupt_timer.stop()
 
         # Stop hotkey manager
         if self.hotkey_manager:
