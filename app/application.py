@@ -220,7 +220,7 @@ class PromptStoreApp:
         """Run the application."""
         print("Starting Prompt Store Service...")
         print(f"Hotkey: {self.config.hotkey}")
-        print("Shift+F2: Execute active prompt")
+        print("Shift+F1: Execute active prompt")
         print("Press Ctrl+C to stop\n")
 
         # Check platform-specific permissions

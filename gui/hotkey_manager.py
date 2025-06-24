@@ -16,12 +16,12 @@ class HotkeyConfig:
         system = platform.system().lower()
         
         if system == 'darwin':  # macOS
-            self.context_menu_hotkey = 'cmd+f1'
-            self.re_execute_hotkey = 'cmd+f2'
+            self.context_menu_hotkey = 'cmd+f2'
+            self.re_execute_hotkey = 'cmd+f1'
             self.modifier_keys = [Key.cmd, Key.cmd_l, Key.cmd_r]
         else:  # Linux and others
-            self.context_menu_hotkey = 'ctrl+f1'
-            self.re_execute_hotkey = 'ctrl+f2'
+            self.context_menu_hotkey = 'ctrl+f2'
+            self.re_execute_hotkey = 'ctrl+f1'
             self.modifier_keys = [Key.ctrl, Key.ctrl_l, Key.ctrl_r]
 
 
@@ -105,16 +105,16 @@ class HotkeyListener:
         modifier_pressed = any(
             mod in self.pressed_keys for mod in HOTKEY_CONFIG.modifier_keys
         )
-        f2_pressed = Key.f2 in self.pressed_keys
-        return modifier_pressed and f2_pressed
+        f1_pressed = Key.f1 in self.pressed_keys
+        return modifier_pressed and f1_pressed
 
     def _is_context_menu_hotkey_pressed(self) -> bool:
         """Check if context menu hotkey combination is pressed."""
         modifier_pressed = any(
             mod in self.pressed_keys for mod in HOTKEY_CONFIG.modifier_keys
         )
-        f1_pressed = Key.f1 in self.pressed_keys
-        return modifier_pressed and f1_pressed
+        f2_pressed = Key.f2 in self.pressed_keys
+        return modifier_pressed and f2_pressed
 
     def _trigger_re_execute_hotkey(self) -> None:
         """Trigger re-execute hotkey callback if not already triggered."""

@@ -60,12 +60,12 @@ python main.py --config /path/to/config.json
 ### Hotkeys (Unchanged)
 
 - **macOS**: 
-  - `Cmd+F1`: Show context menu
-  - `Cmd+F2`: Execute active prompt
+  - `Cmd+F1`: Execute active prompt
+  - `Cmd+F2`: Show context menu
   
 - **Linux/Windows**:
-  - `Ctrl+F1`: Show context menu  
-  - `Ctrl+F2`: Execute active prompt
+  - `Ctrl+F1`: Execute active prompt  
+  - `Ctrl+F2`: Show context menu
 
 ### New Features
 

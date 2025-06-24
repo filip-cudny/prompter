@@ -1,8 +1,7 @@
-"""Execution handlers for different types of menu items."""
+"""PyQt5-specific execution handlers that accept shared notification manager."""
 
 from typing import Optional
 import logging
-from PyQt5.QtWidgets import QApplication
 from core.interfaces import ClipboardManager
 from core.models import MenuItem, MenuItemType, ExecutionResult, ErrorCode
 from core.exceptions import ClipboardError
@@ -17,18 +16,18 @@ import time
 logger = logging.getLogger(__name__)
 
 
-class PromptExecutionHandler:
-    """Handler for executing prompt menu items."""
+class PyQtPromptExecutionHandler:
+    """PyQt5 handler for executing prompt menu items with shared notification manager."""
 
     def __init__(
         self,
         api: PromptStoreAPI,
         clipboard_manager: ClipboardManager,
-        app: Optional[QApplication] = None,
+        notification_manager: Optional[PyQtNotificationManager] = None,
     ):
         self.api = api
         self.clipboard_manager = clipboard_manager
-        self.notification_manager = PyQtNotificationManager(app)
+        self.notification_manager = notification_manager or PyQtNotificationManager()
 
     def can_handle(self, item: MenuItem) -> bool:
         """Check if this handler can execute the given menu item."""
@@ -79,8 +78,8 @@ class PromptExecutionHandler:
                 f"Executing prompt {prompt_id} with input length: {len(clipboard_content)}"
             )
 
-            result = self.api.execute_prompt(prompt_id, [user_message])
-            content = result.get("content", "No response content")
+            api_result = self.api.execute_prompt(prompt_id, [user_message])
+            content = api_result.get("content", "No response content")
             logger.debug(f"API response received (length: {len(content)})")
 
             if not self.clipboard_manager.set_content(content):
@@ -95,7 +94,7 @@ class PromptExecutionHandler:
                 f"Prompt execution successful: {prompt_name} (ID: {prompt_id}) - input: {len(clipboard_content)} chars, output: {len(content)} chars, time: {execution_time:.2f}s"
             )
 
-            result = ExecutionResult(
+            execution_result = ExecutionResult(
                 success=True,
                 content=content,
                 execution_time=execution_time,
@@ -112,7 +111,7 @@ class PromptExecutionHandler:
                 "Prompt Completed", message, prompt_name
             )
 
-            return result
+            return execution_result
 
         except APIError as e:
             error_msg = f"Failed to execute prompt: {str(e)}"
@@ -121,7 +120,7 @@ class PromptExecutionHandler:
                 f"API error executing prompt {prompt_name} (ID: {prompt_id}): {str(e)} (execution time: {execution_time:.2f}s)"
             )
 
-            result = ExecutionResult(
+            execution_result = ExecutionResult(
                 success=False,
                 error=error_msg,
                 error_code=ErrorCode.API_ERROR,
@@ -132,7 +131,7 @@ class PromptExecutionHandler:
                 "Prompt Failed", truncate_text(str(e)), prompt_name
             )
 
-            return result
+            return execution_result
         except ClipboardError as e:
             error_msg = str(e)
             execution_time = time.time() - start_time
@@ -140,7 +139,7 @@ class PromptExecutionHandler:
                 f"Clipboard error executing prompt {prompt_name} (ID: {prompt_id}): {error_msg} (execution time: {execution_time:.2f}s)"
             )
 
-            result = ExecutionResult(
+            execution_result = ExecutionResult(
                 success=False,
                 error=error_msg,
                 error_code=ErrorCode.CLIPBOARD_ERROR,
@@ -151,7 +150,7 @@ class PromptExecutionHandler:
                 "Clipboard Error", truncate_text(error_msg), prompt_name
             )
 
-            return result
+            return execution_result
         except Exception as e:
             error_msg = f"Unexpected error: {str(e)}"
             execution_time = time.time() - start_time
@@ -159,7 +158,7 @@ class PromptExecutionHandler:
                 f"Unexpected error executing prompt {prompt_name} (ID: {prompt_id}): {str(e)} (execution time: {execution_time:.2f}s)"
             )
 
-            result = ExecutionResult(
+            execution_result = ExecutionResult(
                 success=False,
                 error=error_msg,
                 error_code=ErrorCode.UNKNOWN_ERROR,
@@ -170,21 +169,21 @@ class PromptExecutionHandler:
                 "Execution Error", truncate_text(str(e)), prompt_name
             )
 
-            return result
+            return execution_result
 
 
-class PresetExecutionHandler:
-    """Handler for executing preset menu items."""
+class PyQtPresetExecutionHandler:
+    """PyQt5 handler for executing preset menu items with shared notification manager."""
 
     def __init__(
         self,
         api: PromptStoreAPI,
         clipboard_manager: ClipboardManager,
-        app: Optional[QApplication] = None,
+        notification_manager: Optional[PyQtNotificationManager] = None,
     ):
         self.api = api
         self.clipboard_manager = clipboard_manager
-        self.notification_manager = PyQtNotificationManager(app)
+        self.notification_manager = notification_manager or PyQtNotificationManager()
 
     def can_handle(self, item: MenuItem) -> bool:
         """Check if this handler can execute the given menu item."""
@@ -202,15 +201,11 @@ class PresetExecutionHandler:
         prompt_id = item.data.get("prompt_id") if item.data else None
 
         logger.info(
-            f"Starting preset execution: {preset_name} (Preset ID: {preset_id}, Prompt ID: {prompt_id})"
+            f"Starting preset execution: {preset_name} (ID: {preset_id}, Prompt ID: {prompt_id})"
         )
 
         try:
-            if (
-                not item.data
-                or not item.data.get("preset_id")
-                or not item.data.get("prompt_id")
-            ):
+            if not item.data or not item.data.get("preset_id"):
                 logger.error(f"Invalid preset data for item: {item}")
                 return ExecutionResult(
                     success=False,
@@ -219,7 +214,14 @@ class PresetExecutionHandler:
                 )
 
             preset_id = item.data["preset_id"]
-            prompt_id = item.data["prompt_id"]
+            
+            if not prompt_id:
+                logger.error(f"No prompt_id found for preset: {preset_name}")
+                return ExecutionResult(
+                    success=False,
+                    error="Invalid preset data: missing prompt_id",
+                    error_code=ErrorCode.VALIDATION_ERROR,
+                )
 
             # Use provided context or fall back to clipboard
             if context is not None:
@@ -240,13 +242,11 @@ class PresetExecutionHandler:
 
             user_message = create_user_message(clipboard_content)
             logger.debug(
-                f"Executing preset {preset_id} with prompt {prompt_id}, input length: {len(clipboard_content)}"
+                f"Executing preset {preset_id} with input length: {len(clipboard_content)}"
             )
 
-            result = self.api.execute_prompt_with_preset(
-                prompt_id, preset_id, [user_message], context
-            )
-            content = result.get("content", "No response content")
+            api_result = self.api.execute_prompt(prompt_id, [user_message])
+            content = api_result.get("content", "No response content")
             logger.debug(f"API response received (length: {len(content)})")
 
             if not self.clipboard_manager.set_content(content):
@@ -258,17 +258,17 @@ class PresetExecutionHandler:
 
             execution_time = time.time() - start_time
             logger.info(
-                f"Preset execution successful: {preset_name} (Preset ID: {preset_id}, Prompt ID: {prompt_id}) - input: {len(clipboard_content)} chars, output: {len(content)} chars, time: {execution_time:.2f}s"
+                f"Preset execution successful: {preset_name} (ID: {preset_id}) - input: {len(clipboard_content)} chars, output: {len(content)} chars, time: {execution_time:.2f}s"
             )
 
-            result = ExecutionResult(
+            execution_result = ExecutionResult(
                 success=True,
                 content=content,
                 execution_time=execution_time,
                 metadata={
                     "preset_id": preset_id,
                     "preset_name": item.data.get("preset_name"),
-                    "prompt_id": prompt_id,
+                    "prompt_id": item.data.get("prompt_id"),
                     "input_length": len(clipboard_content),
                     "output_length": len(content),
                 },
@@ -279,16 +279,16 @@ class PresetExecutionHandler:
                 "Preset Completed", message, preset_name
             )
 
-            return result
+            return execution_result
 
         except APIError as e:
             error_msg = f"Failed to execute preset: {str(e)}"
             execution_time = time.time() - start_time
             logger.error(
-                f"API error executing preset {preset_name} (Preset ID: {preset_id}, Prompt ID: {prompt_id}): {str(e)} (execution time: {execution_time:.2f}s)"
+                f"API error executing preset {preset_name} (ID: {preset_id}): {str(e)} (execution time: {execution_time:.2f}s)"
             )
 
-            result = ExecutionResult(
+            execution_result = ExecutionResult(
                 success=False,
                 error=error_msg,
                 error_code=ErrorCode.API_ERROR,
@@ -299,15 +299,15 @@ class PresetExecutionHandler:
                 "Preset Failed", truncate_text(str(e)), preset_name
             )
 
-            return result
+            return execution_result
         except ClipboardError as e:
             error_msg = str(e)
             execution_time = time.time() - start_time
             logger.error(
-                f"Clipboard error executing preset {preset_name} (Preset ID: {preset_id}, Prompt ID: {prompt_id}): {error_msg} (execution time: {execution_time:.2f}s)"
+                f"Clipboard error executing preset {preset_name} (ID: {preset_id}): {error_msg} (execution time: {execution_time:.2f}s)"
             )
 
-            result = ExecutionResult(
+            execution_result = ExecutionResult(
                 success=False,
                 error=error_msg,
                 error_code=ErrorCode.CLIPBOARD_ERROR,
@@ -318,15 +318,15 @@ class PresetExecutionHandler:
                 "Clipboard Error", truncate_text(error_msg), preset_name
             )
 
-            return result
+            return execution_result
         except Exception as e:
             error_msg = f"Unexpected error: {str(e)}"
             execution_time = time.time() - start_time
             logger.exception(
-                f"Unexpected error executing preset {preset_name} (Preset ID: {preset_id}, Prompt ID: {prompt_id}): {str(e)} (execution time: {execution_time:.2f}s)"
+                f"Unexpected error executing preset {preset_name} (ID: {preset_id}): {str(e)} (execution time: {execution_time:.2f}s)"
             )
 
-            result = ExecutionResult(
+            execution_result = ExecutionResult(
                 success=False,
                 error=error_msg,
                 error_code=ErrorCode.UNKNOWN_ERROR,
@@ -337,11 +337,11 @@ class PresetExecutionHandler:
                 "Execution Error", truncate_text(str(e)), preset_name
             )
 
-            return result
+            return execution_result
 
 
-class HistoryExecutionHandler:
-    """Handler for executing history menu items."""
+class PyQtHistoryExecutionHandler:
+    """PyQt5 handler for executing history menu items."""
 
     def __init__(self, clipboard_manager: ClipboardManager):
         self.clipboard_manager = clipboard_manager
@@ -355,55 +355,56 @@ class HistoryExecutionHandler:
         start_time = time.time()
 
         try:
-            if (
-                not item.data
-                or not item.data.get("type")
-                or not item.data.get("content")
-            ):
+            if not item.data:
                 return ExecutionResult(
                     success=False,
-                    error="Invalid history data or no content available",
+                    error="No history data available",
                     error_code=ErrorCode.VALIDATION_ERROR,
                 )
 
-            content = item.data["content"]
-            history_type = item.data["type"]
+            content_type = item.data.get("content_type")
+            content = item.data.get("content", "")
+
+            if not content:
+                return ExecutionResult(
+                    success=False,
+                    error="History item has no content",
+                    error_code=ErrorCode.VALIDATION_ERROR,
+                )
 
             if not self.clipboard_manager.set_content(content):
                 return ExecutionResult(
                     success=False,
-                    error=f"Failed to copy {history_type} to clipboard",
+                    error="Failed to copy history item to clipboard",
                     error_code=ErrorCode.CLIPBOARD_ERROR,
                 )
 
             execution_time = time.time() - start_time
+            logger.info(f"History item copied to clipboard: {content_type}")
+
             return ExecutionResult(
                 success=True,
-                content=content,
+                content=f"Copied {content_type} to clipboard",
                 execution_time=execution_time,
-                metadata={"history_type": history_type, "content_length": len(content)},
+                metadata={"content_type": content_type, "content_length": len(content)},
             )
 
-        except ClipboardError as e:
-            return ExecutionResult(
-                success=False,
-                error=str(e),
-                error_code=ErrorCode.CLIPBOARD_ERROR,
-                execution_time=time.time() - start_time,
-            )
         except Exception as e:
+            execution_time = time.time() - start_time
+            logger.error(f"Error executing history item: {str(e)}")
+
             return ExecutionResult(
                 success=False,
-                error=f"Unexpected error: {str(e)}",
+                error=f"Failed to copy history item: {str(e)}",
                 error_code=ErrorCode.UNKNOWN_ERROR,
-                execution_time=time.time() - start_time,
+                execution_time=execution_time,
             )
 
 
-class SystemExecutionHandler:
-    """Handler for executing system menu items."""
+class PyQtSystemExecutionHandler:
+    """PyQt5 handler for executing system menu items with shared notification manager."""
 
-    def __init__(self, refresh_callback=None, notification_manager=None):
+    def __init__(self, refresh_callback=None, notification_manager: Optional[PyQtNotificationManager] = None):
         self.refresh_callback = refresh_callback
         self.notification_manager = notification_manager or PyQtNotificationManager()
 
@@ -416,44 +417,49 @@ class SystemExecutionHandler:
         start_time = time.time()
 
         try:
-            if not item.data or not item.data.get("type"):
-                return ExecutionResult(
-                    success=False,
-                    error="Invalid system command",
-                    error_code=ErrorCode.VALIDATION_ERROR,
-                )
-
-            command_type = item.data["type"]
-
-            if command_type == "refresh":
+            if item.id == "refresh_data":
                 if self.refresh_callback:
                     self.refresh_callback()
-
-                execution_time = time.time() - start_time
-                result = ExecutionResult(
-                    success=True,
-                    content="Data refreshed",
-                    execution_time=execution_time,
-                    metadata={"command": "refresh"},
-                )
-
-                self.notification_manager.show_info_notification(
-                    "Data Refreshed",
-                    f"Completed in {format_execution_time(execution_time)}",
-                )
-
-                return result
+                    execution_time = time.time() - start_time
+                    
+                    self.notification_manager.show_success_notification(
+                        "Data Refreshed", 
+                        "All data has been refreshed successfully"
+                    )
+                    
+                    return ExecutionResult(
+                        success=True,
+                        content="Data refreshed successfully",
+                        execution_time=execution_time,
+                        metadata={"action": "refresh_data"},
+                    )
+                else:
+                    return ExecutionResult(
+                        success=False,
+                        error="No refresh callback available",
+                        error_code=ErrorCode.VALIDATION_ERROR,
+                    )
             else:
                 return ExecutionResult(
                     success=False,
-                    error=f"Unknown system command: {command_type}",
+                    error=f"Unknown system action: {item.id}",
                     error_code=ErrorCode.VALIDATION_ERROR,
                 )
 
         except Exception as e:
-            return ExecutionResult(
+            execution_time = time.time() - start_time
+            logger.error(f"Error executing system item {item.id}: {str(e)}")
+
+            execution_result = ExecutionResult(
                 success=False,
-                error=f"System command failed: {str(e)}",
+                error=f"System action failed: {str(e)}",
                 error_code=ErrorCode.UNKNOWN_ERROR,
-                execution_time=time.time() - start_time,
+                execution_time=execution_time,
             )
+
+            self.notification_manager.show_error_notification(
+                "System Error", 
+                truncate_text(str(e))
+            )
+
+            return execution_result

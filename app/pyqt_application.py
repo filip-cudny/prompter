@@ -18,11 +18,11 @@ from providers.menu_providers import (
     SystemMenuProvider,
 )
 from providers.prompt_providers import APIPromptProvider
-from providers.execution_handlers import (
-    PromptExecutionHandler,
-    PresetExecutionHandler,
-    HistoryExecutionHandler,
-    SystemExecutionHandler,
+from providers.pyqt_execution_handlers import (
+    PyQtPromptExecutionHandler,
+    PyQtPresetExecutionHandler,
+    PyQtHistoryExecutionHandler,
+    PyQtSystemExecutionHandler,
 )
 from gui.pyqt_menu_coordinator import PyQtMenuCoordinator, PyQtMenuEventHandler
 from gui.pyqt_hotkey_manager import PyQtHotkeyManager
@@ -126,11 +126,11 @@ class PromptStoreApp(QObject):
             raise RuntimeError("Required services not initialized")
             
         handlers = [
-            PromptExecutionHandler(self.api, self.clipboard_manager, self.app),
-            PresetExecutionHandler(self.api, self.clipboard_manager, self.app),
-            HistoryExecutionHandler(self.clipboard_manager),
-            SystemExecutionHandler(
-                refresh_callback=self._refresh_data, app=self.app
+            PyQtPromptExecutionHandler(self.api, self.clipboard_manager, self.notification_manager),
+            PyQtPresetExecutionHandler(self.api, self.clipboard_manager, self.notification_manager),
+            PyQtHistoryExecutionHandler(self.clipboard_manager),
+            PyQtSystemExecutionHandler(
+                refresh_callback=self._refresh_data, notification_manager=self.notification_manager
             ),
         ]
 
@@ -144,8 +144,8 @@ class PromptStoreApp(QObject):
             
         # Initialize hotkey manager
         self.hotkey_manager = PyQtHotkeyManager(self.config.hotkey)
-        self.hotkey_manager.connect_context_menu_callback(self._on_hotkey_pressed)
-        self.hotkey_manager.connect_re_execute_callback(self._on_f2_hotkey_pressed)
+        self.hotkey_manager.connect_context_menu_callback(self._on_f2_hotkey_pressed)
+        self.hotkey_manager.connect_re_execute_callback(self._on_f1_hotkey_pressed)
 
         # Initialize menu coordinator
         self.menu_coordinator = PyQtMenuCoordinator(self.prompt_store_service, self.app)
@@ -246,9 +246,14 @@ class PromptStoreApp(QObject):
         if self.menu_coordinator:
             self.menu_coordinator.show_menu()
 
-    def _on_f2_hotkey_pressed(self) -> None:
-        """Handle F2 hotkey press event for executing active prompt."""
+    def _on_f1_hotkey_pressed(self) -> None:
+        """Handle F1 hotkey press event for executing active prompt."""
         self._execute_active_prompt()
+
+    def _on_f2_hotkey_pressed(self) -> None:
+        """Handle F2 hotkey press event for showing context menu."""
+        if self.menu_coordinator:
+            self.menu_coordinator.show_menu()
 
     def _execute_menu_item(self, item) -> None:
         """Execute a menu item (placeholder for provider callbacks)."""
@@ -272,8 +277,14 @@ class PromptStoreApp(QObject):
             if not self.prompt_store_service:
                 print("Prompt store service not initialized")
                 return
-                
+            
             result = self.prompt_store_service.execute_active_prompt()
+            
+            # Clear menu cache and refresh providers so history updates are reflected
+            if self.menu_coordinator:
+                self.menu_coordinator._clear_menu_cache()
+                self.menu_coordinator.refresh_providers()
+            
             if self.event_handler:
                 self.event_handler.handle_execution_result(result)
         except Exception as e:
@@ -288,8 +299,8 @@ class PromptStoreApp(QObject):
         system = platform.system()
         hotkey_f1 = "Cmd+F1" if system == "Darwin" else "Ctrl+F1"
         hotkey_f2 = "Cmd+F2" if system == "Darwin" else "Ctrl+F2"
-        print(f"Context Menu: {hotkey_f1}")
-        print(f"Execute Active Prompt: {hotkey_f2}")
+        print(f"Execute Active Prompt: {hotkey_f1}")
+        print(f"Context Menu: {hotkey_f2}")
         print("Press Ctrl+C to stop\n")
 
         # Check platform-specific permissions

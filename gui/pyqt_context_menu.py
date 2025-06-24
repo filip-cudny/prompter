@@ -104,8 +104,12 @@ class PyQtContextMenu:
             if not item.enabled and not self._should_show_disabled_item(item):
                 continue
 
-            action = self._create_action(menu, item)
-            menu.addAction(action)
+            # Check if item has submenu
+            if hasattr(item, 'submenu_items') and item.submenu_items:
+                self.create_submenu(menu, item.label, item.submenu_items)
+            else:
+                action = self._create_action(menu, item)
+                menu.addAction(action)
 
             if hasattr(item, 'separator_after') and item.separator_after:
                 menu.addSeparator()
