@@ -50,7 +50,7 @@ class NotificationWidget(QLabel):
         self.hide_timer.setSingleShot(True)
         self.hide_timer.timeout.connect(self.fade_out)
 
-    def show_notification(self, duration: int = 2000, target_screen_geometry=None):
+    def show_notification(self, duration: int = 2000, target_screen_geometry=None, notification_index: int = 0):
         """Show the notification with fade-in animation."""
         # Position the notification at top-right of screen
         self.adjustSize()
@@ -61,7 +61,7 @@ class NotificationWidget(QLabel):
             screen_geometry = QApplication.desktop().screenGeometry()
 
         x = screen_geometry.x() + screen_geometry.width() - self.width() - 20
-        y = screen_geometry.y() + 50
+        y = screen_geometry.y() + 50 + (notification_index * 80)
         self.move(x, y)
 
         # Show and fade in
@@ -233,21 +233,9 @@ class PyQtNotificationManager:
             notification = NotificationWidget(message, bg_color)
             self.active_notifications.append(notification)
 
-            # Adjust position if there are other notifications
-            if len(self.active_notifications) > 1:
-                y_offset = (
-                    active_screen.y() + 50 + (len(self.active_notifications) - 1) * 80
-                )
-                x = (
-                    active_screen.x()
-                    + active_screen.width()
-                    - notification.sizeHint().width()
-                    - 20
-                )
-                notification.move(x, y_offset)
-                notification.show_notification(duration)
-            else:
-                notification.show_notification(duration, active_screen)
+            # Always use the active screen geometry for positioning
+            notification_index = len(self.active_notifications) - 1
+            notification.show_notification(duration, active_screen, notification_index)
 
         except (RuntimeError, Exception) as e:
             print(f"Failed to show notification: {e}")
