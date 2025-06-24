@@ -113,6 +113,11 @@ class PromptStoreApp(QObject):
                 self.prompt_provider, self.clipboard_manager, self.notification_manager
             )
 
+            # Set menu refresh callback for prompt store service
+            self.prompt_store_service.set_menu_refresh_callback(
+                self._refresh_menu_after_execution
+            )
+
             # Initialize GUI components
             self._initialize_gui()
 
@@ -147,6 +152,8 @@ class PromptStoreApp(QObject):
                 self.clipboard_manager,
                 self.notification_manager,
                 self.set_recording_indicator,
+                self.prompt_store_service.speech_history_service,
+                self._refresh_menu_after_speech,
             ),
         ]
 
@@ -193,7 +200,12 @@ class PromptStoreApp(QObject):
             PromptMenuProvider(data_manager, self._execute_menu_item),
             PresetMenuProvider(data_manager, self._execute_menu_item),
             HistoryMenuProvider(history_service, self._execute_menu_item),
-            SystemMenuProvider(self._refresh_data, self._speech_to_text),
+            SystemMenuProvider(
+                self._refresh_data,
+                self._speech_to_text,
+                self.prompt_store_service.speech_history_service,
+                self._execute_menu_item,
+            ),
         ]
 
         # Register providers with coordinator
@@ -336,11 +348,28 @@ class PromptStoreApp(QObject):
         except Exception as e:
             print(f"Failed to refresh data: {e}")
 
+    def _refresh_menu_after_speech(self) -> None:
+        """Refresh menu immediately after speech-to-text completion."""
+        try:
+            if self.menu_coordinator:
+                self.menu_coordinator.refresh_providers()
+        except Exception as e:
+            print(f"Failed to refresh menu after speech: {e}")
+
+    def _refresh_menu_after_execution(self) -> None:
+        """Refresh menu immediately after prompt/preset execution."""
+        try:
+            if self.menu_coordinator:
+                self.menu_coordinator.refresh_providers()
+        except Exception as e:
+            print(f"Failed to refresh menu after execution: {e}")
+
     def _speech_to_text(self) -> None:
         """Handle speech-to-text action."""
-        if self.menu_coordinator:
+        try:
             from core.models import MenuItem, MenuItemType
 
+            # Create speech-to-text menu item
             speech_item = MenuItem(
                 id="system_speech_to_text",
                 label="Speech to Text",
@@ -349,21 +378,31 @@ class PromptStoreApp(QObject):
                 data={"type": "speech_to_text"},
                 enabled=True,
             )
-            self.menu_coordinator._execute_menu_item(speech_item)
 
-            # Update recording indicator
-            try:
-                speech_handler = None
-                for handler in self.prompt_store_service.execution_service.handlers:
-                    if hasattr(handler, "speech_service") and handler.speech_service:
-                        speech_handler = handler
-                        break
+            # Execute the speech item through the prompt store service
+            if self.prompt_store_service:
+                result = self.prompt_store_service.execute_item(speech_item)
 
-                if speech_handler and speech_handler.speech_service:
-                    is_recording = speech_handler.speech_service.is_recording()
-                    self.set_recording_indicator(is_recording)
-            except:
-                pass
+                # Handle the result through the event handler if available
+                if hasattr(self, "event_handler") and self.event_handler:
+                    self.event_handler.handle_execution_result(result)
+                elif not result.success:
+                    # Fallback error handling
+                    if self.notification_manager:
+                        self.notification_manager.show_error_notification(
+                            "Speech Error", result.error or "Unknown error occurred"
+                        )
+                    else:
+                        print(f"Speech-to-text error: {result.error}")
+
+        except Exception as e:
+            error_msg = f"Failed to execute speech-to-text: {e}"
+            if self.notification_manager:
+                self.notification_manager.show_error_notification(
+                    "Speech Error", error_msg
+                )
+            else:
+                print(error_msg)
 
     def _execute_active_prompt(self) -> None:
         """Execute the active prompt with current clipboard content."""

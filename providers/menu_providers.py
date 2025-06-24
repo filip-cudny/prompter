@@ -41,7 +41,6 @@ class PromptMenuProvider:
         except Exception:
             # If loading fails, return empty list
             pass
-
         return items
 
     def refresh(self) -> None:
@@ -236,9 +235,13 @@ class SystemMenuProvider:
         self,
         refresh_callback: Callable[[], None],
         speech_callback: Callable[[], None] = None,
+        speech_history_service=None,
+        execute_callback: Callable[[MenuItem], None] = None,
     ):
         self.refresh_callback = refresh_callback
         self.speech_callback = speech_callback
+        self.speech_history_service = speech_history_service
+        self.execute_callback = execute_callback
 
     def get_menu_items(self) -> List[MenuItem]:
         """Return system menu items."""
@@ -256,6 +259,32 @@ class SystemMenuProvider:
             )
             items.append(speech_item)
 
+        # Last Speech Output item - always show, matching input/output button pattern
+        last_transcription = None
+        if self.speech_history_service:
+            last_transcription = self.speech_history_service.get_last_transcription()
+
+        speech_output_label = "⎘ Copy last speech output"
+        if last_transcription:
+            preview = (
+                last_transcription[:30] + "..."
+                if len(last_transcription) > 30
+                else last_transcription
+            )
+            speech_output_label = f"⎘ Copy last speech output: {preview}"
+
+        speech_output_item = MenuItem(
+            id="speech_last_output",
+            label=speech_output_label,
+            item_type=MenuItemType.SPEECH,
+            action=lambda: self.execute_callback(self._create_last_speech_item()),
+            data={"type": "last_speech_output", "content": last_transcription},
+            enabled=last_transcription is not None,
+            separator_after=True,
+            tooltip=last_transcription,
+        )
+        items.append(speech_output_item)
+
         refresh_item = MenuItem(
             id="system_refresh",
             label="Refresh",
@@ -271,3 +300,30 @@ class SystemMenuProvider:
     def refresh(self) -> None:
         """Refresh the provider's data."""
         # System items don't need refresh
+
+    def _create_last_speech_item(self) -> MenuItem:
+        """Create a menu item for last speech transcription."""
+        last_transcription = None
+        if self.speech_history_service:
+            last_transcription = self.speech_history_service.get_last_transcription()
+
+        preview = (
+            last_transcription[:30] + "..."
+            if last_transcription and len(last_transcription) > 30
+            else last_transcription
+        )
+        label = (
+            f"⎘ Copy last speech output: {preview}"
+            if last_transcription
+            else "⎘ Copy last speech output"
+        )
+
+        return MenuItem(
+            id="speech_last_output",
+            label=label,
+            item_type=MenuItemType.SPEECH,
+            action=lambda: None,  # Will be handled by execution handler
+            data={"type": "last_speech_output", "content": last_transcription},
+            enabled=last_transcription is not None,
+            tooltip=last_transcription,
+        )

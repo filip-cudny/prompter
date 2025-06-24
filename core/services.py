@@ -29,11 +29,17 @@ class PromptStoreService:
         self.data_manager = DataManager(prompt_provider)
         self.history_service = HistoryService()
         self.active_prompt_service = ActivePromptService()
+        self.speech_history_service = SpeechHistoryService()
+        self.menu_refresh_callback = None
 
     def refresh_data(self) -> None:
         """Refresh all data from providers."""
         self.prompt_provider.refresh()
         self.data_manager.refresh()
+
+    def set_menu_refresh_callback(self, callback):
+        """Set callback to refresh menu after operations."""
+        self.menu_refresh_callback = callback
 
     def get_prompts(self) -> List[PromptData]:
         """Get all available prompts."""
@@ -72,6 +78,10 @@ class PromptStoreService:
                         error=result.error,
                     )
 
+                # Refresh menu after adding history entry
+                if self.menu_refresh_callback:
+                    self.menu_refresh_callback()
+
             return result
         except Exception as e:
             return ExecutionResult(success=False, error=str(e))
@@ -87,6 +97,14 @@ class PromptStoreService:
     def get_last_output(self) -> Optional[str]:
         """Get the last output from history."""
         return self.history_service.get_last_output()
+
+    def get_last_speech_transcription(self) -> Optional[str]:
+        """Get the last speech transcription."""
+        return self.speech_history_service.get_last_transcription()
+
+    def add_speech_transcription(self, transcription: str) -> None:
+        """Add a speech transcription to history."""
+        self.speech_history_service.add_transcription(transcription)
 
     def get_active_prompt(self) -> Optional[MenuItem]:
         """Get the active prompt/preset."""
@@ -387,3 +405,34 @@ class ActivePromptService:
         """Update active prompt when a prompt/preset is executed."""
         if item.item_type in [MenuItemType.PROMPT, MenuItemType.PRESET]:
             self._active_prompt = item
+
+
+class SpeechHistoryService:
+    """Service for tracking speech transcriptions."""
+
+    def __init__(self, max_entries: int = 10):
+        self.max_entries = max_entries
+        self._transcriptions: deque = deque(maxlen=max_entries)
+
+    def add_transcription(self, transcription: str) -> None:
+        """Add a new transcription to history."""
+        if transcription and transcription.strip():
+            self._transcriptions.append(transcription.strip())
+
+    def get_last_transcription(self) -> Optional[str]:
+        """Get the most recent transcription."""
+        if self._transcriptions:
+            return self._transcriptions[-1]
+        return None
+
+    def get_all_transcriptions(self) -> List[str]:
+        """Get all transcriptions, most recent first."""
+        return list(reversed(self._transcriptions))
+
+    def clear_history(self) -> None:
+        """Clear all transcriptions."""
+        self._transcriptions.clear()
+
+    def has_transcriptions(self) -> bool:
+        """Check if there are any transcriptions."""
+        return len(self._transcriptions) > 0

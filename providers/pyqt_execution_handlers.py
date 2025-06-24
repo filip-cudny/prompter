@@ -475,10 +475,14 @@ class PyQtSpeechExecutionHandler:
         clipboard_manager: ClipboardManager,
         notification_manager: Optional[PyQtNotificationManager] = None,
         recording_indicator_callback: Optional[Callable[[bool], None]] = None,
+        speech_history_service=None,
+        menu_refresh_callback: Optional[Callable[[], None]] = None,
     ):
         self.clipboard_manager = clipboard_manager
         self.notification_manager = notification_manager or PyQtNotificationManager()
         self.recording_indicator_callback = recording_indicator_callback
+        self.speech_history_service = speech_history_service
+        self.menu_refresh_callback = menu_refresh_callback
         self.speech_service = None
         self._initialize_speech_service()
 
@@ -515,6 +519,11 @@ class PyQtSpeechExecutionHandler:
         start_time = time.time()
 
         try:
+            # Handle speech history items
+            if item.data and item.data.get("type") == "last_speech_output":
+                return self._handle_speech_history_item(item, start_time)
+
+            # Handle speech-to-text recording
             if not self.speech_service:
                 error_msg = "Speech-to-text service not available. Please configure LOCAL_OPENAI_API_KEY and install PyAudio."
 
@@ -582,6 +591,14 @@ class PyQtSpeechExecutionHandler:
         """Handle transcription completion."""
         try:
             if transcription:
+                # Store transcription in speech history
+                if self.speech_history_service:
+                    self.speech_history_service.add_transcription(transcription)
+
+                # Refresh menu immediately after adding transcription
+                if self.menu_refresh_callback:
+                    self.menu_refresh_callback()
+
                 success = self.clipboard_manager.set_content(transcription)
                 if success:
                     preview = truncate_text(transcription, 80)
@@ -600,9 +617,51 @@ class PyQtSpeechExecutionHandler:
                     "No Speech Detected", "No speech was detected in the recording"
                 )
         except Exception as e:
-            pass  # Error handling transcription
             self.notification_manager.show_error_notification(
                 "Transcription Error", f"Failed to process transcription: {str(e)}"
+            )
+
+    def _handle_speech_history_item(
+        self, item: MenuItem, start_time: float
+    ) -> ExecutionResult:
+        """Handle speech history menu items."""
+        try:
+            content = item.data.get("content") if item.data else None
+
+            if not content:
+                return ExecutionResult(
+                    success=False,
+                    error="No speech transcription content available",
+                    execution_time=time.time() - start_time,
+                )
+
+            # Copy to clipboard
+            success = self.clipboard_manager.set_content(content)
+
+            if success:
+                preview = truncate_text(content, 80)
+                self.notification_manager.show_success_notification(
+                    "Speech Output Copied ✓",
+                    f'Copied speech transcription to clipboard:\n"{preview}"',
+                )
+
+                return ExecutionResult(
+                    success=True,
+                    content=content,
+                    execution_time=time.time() - start_time,
+                )
+            else:
+                return ExecutionResult(
+                    success=False,
+                    error="Failed to copy speech transcription to clipboard",
+                    execution_time=time.time() - start_time,
+                )
+
+        except Exception as e:
+            return ExecutionResult(
+                success=False,
+                error=f"Failed to handle speech history item: {str(e)}",
+                execution_time=time.time() - start_time,
             )
 
     def _on_speech_error(self, error_msg: str) -> None:

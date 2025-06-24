@@ -36,7 +36,8 @@ class OpenAIClient:
         """
         try:
             transcription = self.client.audio.transcriptions.create(
-                model=model, file=audio_file
+                model=model,
+                file=audio_file,
             )
             return transcription.text.strip()
 
