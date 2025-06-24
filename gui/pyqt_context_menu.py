@@ -145,8 +145,11 @@ class PyQtContextMenu:
 
     def _should_show_disabled_item(self, item: MenuItem) -> bool:
         """Determine if a disabled item should still be shown."""
-        # Show disabled history items so users can see what's available
-        return item.item_type == MenuItemType.HISTORY
+        # Show disabled history and speech items so users can see what's available
+        return (
+            item.item_type == MenuItemType.HISTORY
+            or item.item_type == MenuItemType.SPEECH
+        )
 
 
 class PyQtMenuBuilder:
