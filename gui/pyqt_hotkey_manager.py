@@ -11,23 +11,24 @@ from core.exceptions import HotkeyError
 
 class HotkeySignals(QObject):
     """Qt signals for thread-safe communication between pynput and Qt."""
+
     re_execute_hotkey_pressed = pyqtSignal()
     context_menu_hotkey_pressed = pyqtSignal()
 
 
 class HotkeyConfig:
     """Configuration for platform-specific hotkeys."""
-    
+
     def __init__(self):
         system = platform.system().lower()
-        
-        if system == 'darwin':  # macOS
-            self.context_menu_hotkey = 'cmd+f2'
-            self.re_execute_hotkey = 'cmd+f1'
+
+        if system == "darwin":  # macOS
+            self.context_menu_hotkey = "cmd+f2"
+            self.re_execute_hotkey = "cmd+f1"
             self.modifier_keys = [Key.cmd, Key.cmd_l, Key.cmd_r]
         else:  # Linux and others
-            self.context_menu_hotkey = 'ctrl+f2'
-            self.re_execute_hotkey = 'ctrl+f1'
+            self.context_menu_hotkey = "ctrl+f2"
+            self.re_execute_hotkey = "ctrl+f1"
             self.modifier_keys = [Key.ctrl, Key.ctrl_l, Key.ctrl_r]
 
 
@@ -62,9 +63,7 @@ class PyQtHotkeyListener:
 
         try:
             self.listener = keyboard.Listener(
-                on_press=self._on_press,
-                on_release=self._on_release,
-                suppress=False
+                on_press=self._on_press, on_release=self._on_release, suppress=False
             )
             self.listener.start()
             self.running = True
@@ -126,7 +125,9 @@ class PyQtHotkeyListener:
         if not self.re_execute_hotkey_pressed:
             self.re_execute_hotkey_pressed = True
             self.signals.re_execute_hotkey_pressed.emit()
-            self.re_execute_reset_timer = threading.Timer(1.0, self._reset_re_execute_hotkey_flag)
+            self.re_execute_reset_timer = threading.Timer(
+                1.0, self._reset_re_execute_hotkey_flag
+            )
             self.re_execute_reset_timer.start()
 
     def _trigger_context_menu_hotkey(self) -> None:
@@ -134,7 +135,9 @@ class PyQtHotkeyListener:
         if not self.context_menu_hotkey_pressed:
             self.context_menu_hotkey_pressed = True
             self.signals.context_menu_hotkey_pressed.emit()
-            self.context_menu_reset_timer = threading.Timer(1.0, self._reset_context_menu_hotkey_flag)
+            self.context_menu_reset_timer = threading.Timer(
+                1.0, self._reset_context_menu_hotkey_flag
+            )
             self.context_menu_reset_timer.start()
 
     def _reset_re_execute_hotkey_flag(self) -> None:
@@ -207,19 +210,76 @@ class PyQtHotkeyManager:
         if not hotkey:
             return False
 
-        parts = hotkey.lower().split('+')
+        parts = hotkey.lower().split("+")
         if len(parts) < 2:
             return False
 
-        valid_modifiers = {'shift', 'ctrl', 'alt', 'cmd', 'meta', 'super'}
+        valid_modifiers = {"shift", "ctrl", "alt", "cmd", "meta", "super"}
         valid_keys = {
-            'f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8', 'f9', 'f10', 'f11', 'f12',
-            'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
-            'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
-            '1', '2', '3', '4', '5', '6', '7', '8', '9', '0',
-            'space', 'tab', 'enter', 'return', 'esc', 'escape',
-            'up', 'down', 'left', 'right',
-            'home', 'end', 'page_up', 'page_down', 'insert', 'delete',
+            "f1",
+            "f2",
+            "f3",
+            "f4",
+            "f5",
+            "f6",
+            "f7",
+            "f8",
+            "f9",
+            "f10",
+            "f11",
+            "f12",
+            "a",
+            "b",
+            "c",
+            "d",
+            "e",
+            "f",
+            "g",
+            "h",
+            "i",
+            "j",
+            "k",
+            "l",
+            "m",
+            "n",
+            "o",
+            "p",
+            "q",
+            "r",
+            "s",
+            "t",
+            "u",
+            "v",
+            "w",
+            "x",
+            "y",
+            "z",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "0",
+            "space",
+            "tab",
+            "enter",
+            "return",
+            "esc",
+            "escape",
+            "up",
+            "down",
+            "left",
+            "right",
+            "home",
+            "end",
+            "page_up",
+            "page_down",
+            "insert",
+            "delete",
         }
 
         for modifier in parts[:-1]:
