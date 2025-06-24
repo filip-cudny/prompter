@@ -214,7 +214,7 @@ class PyQtPresetExecutionHandler:
                 )
 
             preset_id = item.data["preset_id"]
-            
+
             if not prompt_id:
                 logger.error(f"No prompt_id found for preset: {preset_name}")
                 return ExecutionResult(
@@ -404,7 +404,11 @@ class PyQtHistoryExecutionHandler:
 class PyQtSystemExecutionHandler:
     """PyQt5 handler for executing system menu items with shared notification manager."""
 
-    def __init__(self, refresh_callback=None, notification_manager: Optional[PyQtNotificationManager] = None):
+    def __init__(
+        self,
+        refresh_callback=None,
+        notification_manager: Optional[PyQtNotificationManager] = None,
+    ):
         self.refresh_callback = refresh_callback
         self.notification_manager = notification_manager or PyQtNotificationManager()
 
@@ -421,12 +425,11 @@ class PyQtSystemExecutionHandler:
                 if self.refresh_callback:
                     self.refresh_callback()
                     execution_time = time.time() - start_time
-                    
+
                     self.notification_manager.show_success_notification(
-                        "Data Refreshed", 
-                        "All data has been refreshed successfully"
+                        "Data Refreshed", "All data has been refreshed successfully"
                     )
-                    
+
                     return ExecutionResult(
                         success=True,
                         content="Data refreshed successfully",
@@ -458,8 +461,7 @@ class PyQtSystemExecutionHandler:
             )
 
             self.notification_manager.show_error_notification(
-                "System Error", 
-                truncate_text(str(e))
+                "System Error", truncate_text(str(e))
             )
 
             return execution_result
@@ -483,15 +485,21 @@ class PyQtSpeechExecutionHandler:
     def _initialize_speech_service(self) -> None:
         """Initialize speech-to-text service."""
         try:
-            from services.speech_to_text import SpeechToTextService
+            from utils.speech_to_text import SpeechToTextService
             from utils.config import load_config
-            
+
             config = load_config()
             if config.openai_api_key:
                 self.speech_service = SpeechToTextService(config.openai_api_key)
-                self.speech_service.set_recording_started_callback(self._on_recording_started)
-                self.speech_service.set_recording_stopped_callback(self._on_recording_stopped)
-                self.speech_service.set_transcription_callback(self._on_transcription_complete)
+                self.speech_service.set_recording_started_callback(
+                    self._on_recording_started
+                )
+                self.speech_service.set_recording_stopped_callback(
+                    self._on_recording_stopped
+                )
+                self.speech_service.set_transcription_callback(
+                    self._on_transcription_complete
+                )
                 self.speech_service.set_error_callback(self._on_speech_error)
             else:
                 pass  # OpenAI API key not configured for speech-to-text
@@ -508,13 +516,12 @@ class PyQtSpeechExecutionHandler:
 
         try:
             if not self.speech_service:
-                error_msg = "Speech-to-text service not available. Please configure OPENAI_API_KEY and install PyAudio."
-                
+                error_msg = "Speech-to-text service not available. Please configure LOCAL_OPENAI_API_KEY and install PyAudio."
+
                 self.notification_manager.show_error_notification(
-                    "Speech-to-Text Error",
-                    error_msg
+                    "Speech-to-Text Error", error_msg
                 )
-                
+
                 return ExecutionResult(
                     success=False,
                     error=error_msg,
@@ -524,7 +531,7 @@ class PyQtSpeechExecutionHandler:
 
             # Toggle recording
             self.speech_service.toggle_recording()
-            
+
             return ExecutionResult(
                 success=True,
                 content="Speech recording toggled",
@@ -533,13 +540,13 @@ class PyQtSpeechExecutionHandler:
 
         except Exception as e:
             execution_time = time.time() - start_time
-            
+
             # Provide more specific error messages
             error_msg = str(e)
             if "PyAudio" in error_msg:
                 error_msg = "PyAudio is not installed. Please install it with: pip install pyaudio"
             elif "OpenAI" in error_msg:
-                error_msg = "OpenAI API key not configured. Please set OPENAI_API_KEY environment variable."
+                error_msg = "OpenAI API key not configured. Please set LOCAL_OPENAI_API_KEY environment variable."
 
             execution_result = ExecutionResult(
                 success=False,
@@ -549,8 +556,7 @@ class PyQtSpeechExecutionHandler:
             )
 
             self.notification_manager.show_error_notification(
-                "Speech Error", 
-                truncate_text(error_msg)
+                "Speech Error", truncate_text(error_msg)
             )
 
             return execution_result
@@ -559,7 +565,7 @@ class PyQtSpeechExecutionHandler:
         """Handle recording started event."""
         self.notification_manager.show_info_notification(
             "Recording Started",
-            "Recording audio... Click Speech to Text again to stop."
+            "Recording audio... Click Speech to Text again to stop.",
         )
         if self.recording_indicator_callback:
             self.recording_indicator_callback(True)
@@ -567,8 +573,7 @@ class PyQtSpeechExecutionHandler:
     def _on_recording_stopped(self) -> None:
         """Handle recording stopped event."""
         self.notification_manager.show_info_notification(
-            "Processing Audio",
-            "Transcribing audio, please wait..."
+            "Processing Audio", "Transcribing audio, please wait..."
         )
         if self.recording_indicator_callback:
             self.recording_indicator_callback(False)
@@ -581,29 +586,22 @@ class PyQtSpeechExecutionHandler:
                 if success:
                     preview = truncate_text(transcription, 100)
                     self.notification_manager.show_success_notification(
-                        "Transcription Complete",
-                        f"Text copied to clipboard: {preview}"
+                        "Transcription Complete", f"Text copied to clipboard: {preview}"
                     )
                 else:
                     self.notification_manager.show_error_notification(
-                        "Clipboard Error",
-                        "Failed to copy transcription to clipboard"
+                        "Clipboard Error", "Failed to copy transcription to clipboard"
                     )
             else:
                 self.notification_manager.show_warning_notification(
-                    "No Speech Detected",
-                    "No speech was detected in the recording"
+                    "No Speech Detected", "No speech was detected in the recording"
                 )
         except Exception as e:
             pass  # Error handling transcription
             self.notification_manager.show_error_notification(
-                "Transcription Error",
-                f"Failed to process transcription: {str(e)}"
+                "Transcription Error", f"Failed to process transcription: {str(e)}"
             )
 
     def _on_speech_error(self, error_msg: str) -> None:
         """Handle speech service errors."""
-        self.notification_manager.show_error_notification(
-            "Speech Error",
-            error_msg
-        )
+        self.notification_manager.show_error_notification("Speech Error", error_msg)

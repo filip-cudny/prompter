@@ -11,6 +11,7 @@ from core.exceptions import ConfigurationError
 @dataclass
 class AppConfig:
     """Application configuration."""
+
     api_key: str
     base_url: str
     openai_api_key: Optional[str] = None
@@ -25,7 +26,7 @@ class AppConfig:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'AppConfig':
+    def from_dict(cls, data: Dict[str, Any]) -> "AppConfig":
         """Create config from dictionary."""
         return cls(**data)
 
@@ -49,11 +50,11 @@ def load_config(env_file: Optional[str] = None) -> AppConfig:
     config = AppConfig(
         api_key=api_key,
         base_url=base_url,
-        openai_api_key=os.getenv("OPENAI_API_KEY"),
+        openai_api_key=os.getenv("LOCAL_OPENAI_API_KEY"),
         hotkey=os.getenv("HOTKEY", "shift+f1"),
         max_history_entries=int(os.getenv("MAX_HISTORY_ENTRIES", "10")),
-        enable_notifications=os.getenv(
-            "ENABLE_NOTIFICATIONS", "true").lower() == "true",
+        enable_notifications=os.getenv("ENABLE_NOTIFICATIONS", "true").lower()
+        == "true",
         debug_mode=os.getenv("DEBUG_MODE", "false").lower() == "true",
     )
 
@@ -76,15 +77,15 @@ def validate_config(config: AppConfig) -> None:
     if not config.base_url.strip():
         raise ConfigurationError("Base URL cannot be empty")
 
-    if not config.base_url.startswith(('http://', 'https://')):
-        raise ConfigurationError(
-            "Base URL must start with http:// or https://")
+    if not config.base_url.startswith(("http://", "https://")):
+        raise ConfigurationError("Base URL must start with http:// or https://")
 
     if config.max_history_entries < 1:
         raise ConfigurationError("Max history entries must be at least 1")
 
     # Validate hotkey format
     from .system import validate_hotkey_format
+
     if not validate_hotkey_format(config.hotkey):
         raise ConfigurationError(f"Invalid hotkey format: {config.hotkey}")
 
