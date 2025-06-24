@@ -11,7 +11,7 @@ from .pyqt_context_menu import PyQtContextMenu, PyQtMenuBuilder
 
 class PyQtMenuCoordinator(QObject):
     """Coordinates menu providers and handles menu display using PyQt5."""
-    
+
     # Qt signals for thread-safe communication
     execution_completed = pyqtSignal(object)  # ExecutionResult
     execution_error = pyqtSignal(str)
@@ -22,18 +22,18 @@ class PyQtMenuCoordinator(QObject):
         self.providers = []
         self.context_menu = PyQtContextMenu()
         self.app = QApplication.instance()
-        
+
         # Callbacks
         self.execution_callback: Optional[Callable[[ExecutionResult], None]] = None
         self.error_callback: Optional[Callable[[str], None]] = None
-        
+
         # Menu state
         self.last_menu_items: List[MenuItem] = []
         self.menu_cache: Dict[str, List[MenuItem]] = {}
         self.cache_timeout = 30000  # 30 seconds
         self.cache_timer = QTimer()
         self.cache_timer.timeout.connect(self._clear_menu_cache)
-        
+
         # Connect internal signals
         self.execution_completed.connect(self._handle_execution_result)
         self.execution_error.connect(self._handle_error)
@@ -49,7 +49,9 @@ class PyQtMenuCoordinator(QObject):
             self.providers.remove(provider)
             self._clear_menu_cache()
 
-    def set_execution_callback(self, callback: Callable[[ExecutionResult], None]) -> None:
+    def set_execution_callback(
+        self, callback: Callable[[ExecutionResult], None]
+    ) -> None:
         """Set callback for execution results."""
         self.execution_callback = callback
 
@@ -71,7 +73,7 @@ class PyQtMenuCoordinator(QObject):
 
             self.last_menu_items = items
             self.context_menu.show_at_cursor(items)
-            
+
         except (RuntimeError, Exception) as e:
             self._handle_error(f"Failed to show menu: {str(e)}")
 
@@ -85,7 +87,7 @@ class PyQtMenuCoordinator(QObject):
 
             self.last_menu_items = items
             self.context_menu.show_at_position(items, position)
-            
+
         except (RuntimeError, Exception) as e:
             self._handle_error(f"Failed to show menu at position: {str(e)}")
 
@@ -93,7 +95,7 @@ class PyQtMenuCoordinator(QObject):
         """Refresh all providers and clear cache."""
         try:
             for provider in self.providers:
-                if hasattr(provider, 'refresh'):
+                if hasattr(provider, "refresh"):
                     provider.refresh()
             self._clear_menu_cache()
         except (RuntimeError, Exception) as e:
@@ -103,24 +105,24 @@ class PyQtMenuCoordinator(QObject):
         """Clean up resources."""
         if self.cache_timer.isActive():
             self.cache_timer.stop()
-        
+
         if self.context_menu:
             self.context_menu.destroy()
-        
+
         self.providers.clear()
         self._clear_menu_cache()
 
     def _get_all_menu_items(self) -> List[MenuItem]:
         """Get all menu items from providers with caching."""
         cache_key = "all_items"
-        
+
         # Check cache first
         if cache_key in self.menu_cache:
             return self.menu_cache[cache_key]
 
         # Build menu items
         builder = PyQtMenuBuilder()
-        
+
         try:
             # Get items from each provider
             for provider in self.providers:
@@ -131,45 +133,49 @@ class PyQtMenuCoordinator(QObject):
                         wrapped_items = self._wrap_provider_items(provider_items)
                         builder.add_items_with_separator(wrapped_items)
                 except (RuntimeError, Exception) as e:
-                    print(f"Error getting items from provider {provider.__class__.__name__}: {e}")
+                    print(
+                        f"Error getting items from provider {provider.__class__.__name__}: {e}"
+                    )
                     continue
 
             items = builder.build()
-            
+
             # Add active prompt info at the bottom
             self._add_active_prompt_info(items)
-            
+
             # Cache the items
             self.menu_cache[cache_key] = items
             self._start_cache_timer()
-            
+
             return items
-            
+
         except Exception as e:
             raise MenuError(f"Failed to build menu items: {str(e)}") from e
 
     def _wrap_provider_items(self, items: List[MenuItem]) -> List[MenuItem]:
         """Wrap provider items to handle execution through the service."""
         wrapped_items = []
-        
+
         for item in items:
             # Create a new item with wrapped action
             wrapped_item = MenuItem(
                 id=item.id,
                 label=item.label,
                 item_type=item.item_type,
-                action=lambda captured_item=item: self._execute_menu_item(captured_item),
+                action=lambda captured_item=item: self._execute_menu_item(
+                    captured_item
+                ),
                 data=item.data,
                 enabled=item.enabled,
-                tooltip=getattr(item, 'tooltip', None)
+                tooltip=getattr(item, "tooltip", None),
             )
-            
+
             # Copy separator info if present
-            if hasattr(item, 'separator_after'):
+            if hasattr(item, "separator_after"):
                 wrapped_item.separator_after = item.separator_after
-                
+
             wrapped_items.append(wrapped_item)
-            
+
         return wrapped_items
 
     def _execute_menu_item(self, item: MenuItem) -> None:
@@ -177,10 +183,10 @@ class PyQtMenuCoordinator(QObject):
         try:
             # Execute the item using the service
             result = self.prompt_store_service.execute_item(item)
-            
+
             # Emit signal for thread-safe handling
             self.execution_completed.emit(result)
-            
+
         except (RuntimeError, Exception) as e:
             error_msg = f"Failed to execute menu item '{item.label}': {str(e)}"
             self.execution_error.emit(error_msg)
@@ -227,7 +233,7 @@ class PyQtMenuCoordinator(QObject):
         return {
             "cached_keys": list(self.menu_cache.keys()),
             "cache_active": self.cache_timer.isActive(),
-            "cache_timeout": self.cache_timeout
+            "cache_timeout": self.cache_timeout,
         }
 
     def _add_active_prompt_info(self, all_items: List[MenuItem]) -> None:
@@ -253,7 +259,7 @@ class PyQtMenuCoordinator(QObject):
             item_type=MenuItemType.SYSTEM,
             action=lambda: None,  # No direct action, submenu will handle it
             enabled=True,
-            separator_after=False
+            separator_after=False,
         )
 
         # Set submenu items
@@ -261,11 +267,11 @@ class PyQtMenuCoordinator(QObject):
 
         # Add separator before active prompt item if there are other items
         if all_items:
-            if hasattr(all_items[-1], 'separator_after'):
+            if hasattr(all_items[-1], "separator_after"):
                 all_items[-1].separator_after = True
             else:
                 # Add separator attribute to the last item
-                setattr(all_items[-1], 'separator_after', True)
+                setattr(all_items[-1], "separator_after", True)
 
         all_items.append(active_prompt_item)
 
@@ -277,19 +283,22 @@ class PyQtMenuCoordinator(QObject):
             presets = self.prompt_store_service.get_presets()
 
             if not prompts and not presets:
-                return [MenuItem(
-                    id="no_prompts",
-                    label="No prompts available",
-                    item_type=MenuItemType.SYSTEM,
-                    action=lambda: None,
-                    enabled=False
-                )]
+                return [
+                    MenuItem(
+                        id="no_prompts",
+                        label="No prompts available",
+                        item_type=MenuItemType.SYSTEM,
+                        action=lambda: None,
+                        enabled=False,
+                    )
+                ]
 
             # Create submenu items
             submenu_items = []
-            
+
             # Add prompts
             for prompt in prompts:
+
                 def make_set_active_action(p):
                     def set_active():
                         # Create MenuItem with proper data structure
@@ -298,19 +307,17 @@ class PyQtMenuCoordinator(QObject):
                             label=p.name,
                             item_type=MenuItemType.PROMPT,
                             action=lambda: None,
-                            data={"prompt_id": p.id, "prompt_name": p.name}
+                            data={"prompt_id": p.id, "prompt_name": p.name},
                         )
                         self.prompt_store_service.set_active_prompt(active_item)
                         # Show confirmation through execution result
                         result = ExecutionResult(
                             success=True,
                             content=f"Active prompt set to: {p.name}",
-                            metadata={
-                                "action": "set_active_prompt", 
-                                "prompt": p.name
-                            }
+                            metadata={"action": "set_active_prompt", "prompt": p.name},
                         )
                         self.execution_completed.emit(result)
+
                     return set_active
 
                 submenu_item = MenuItem(
@@ -319,12 +326,13 @@ class PyQtMenuCoordinator(QObject):
                     item_type=MenuItemType.PROMPT,
                     action=make_set_active_action(prompt),
                     enabled=True,
-                    separator_after=False
+                    separator_after=False,
                 )
                 submenu_items.append(submenu_item)
 
             # Add presets
             for preset in presets:
+
                 def make_set_active_preset_action(p):
                     def set_active():
                         # Create MenuItem with proper data structure
@@ -336,8 +344,8 @@ class PyQtMenuCoordinator(QObject):
                             data={
                                 "preset_id": p.id,
                                 "preset_name": p.preset_name,
-                                "prompt_id": p.prompt_id
-                            }
+                                "prompt_id": p.prompt_id,
+                            },
                         )
                         self.prompt_store_service.set_active_prompt(active_item)
                         # Show confirmation through execution result
@@ -345,11 +353,12 @@ class PyQtMenuCoordinator(QObject):
                             success=True,
                             content=f"Active prompt set to: {p.preset_name}",
                             metadata={
-                                "action": "set_active_prompt", 
-                                "prompt": p.preset_name
-                            }
+                                "action": "set_active_prompt",
+                                "prompt": p.preset_name,
+                            },
                         )
                         self.execution_completed.emit(result)
+
                     return set_active
 
                 submenu_item = MenuItem(
@@ -358,20 +367,22 @@ class PyQtMenuCoordinator(QObject):
                     item_type=MenuItemType.PRESET,
                     action=make_set_active_preset_action(preset),
                     enabled=True,
-                    separator_after=False
+                    separator_after=False,
                 )
                 submenu_items.append(submenu_item)
 
             return submenu_items
 
         except Exception as e:
-            return [MenuItem(
-                id="error_prompts",
-                label=f"Error loading prompts: {str(e)}",
-                item_type=MenuItemType.SYSTEM,
-                action=lambda: None,
-                enabled=False
-            )]
+            return [
+                MenuItem(
+                    id="error_prompts",
+                    label=f"Error loading prompts: {str(e)}",
+                    item_type=MenuItemType.SYSTEM,
+                    action=lambda: None,
+                    enabled=False,
+                )
+            ]
 
 
 class PyQtMenuEventHandler:
@@ -399,7 +410,7 @@ class PyQtMenuEventHandler:
                 self._handle_success_result(result)
             else:
                 self._handle_error_result(result)
-                
+
         except (RuntimeError, Exception) as e:
             print(f"Error handling execution result: {e}")
 
@@ -408,12 +419,11 @@ class PyQtMenuEventHandler:
         try:
             if self.notification_manager:
                 self.notification_manager.show_error_notification(
-                    "Execution Error",
-                    error_message
+                    "Execution Error", error_message
                 )
             else:
                 print(f"Execution error: {error_message}")
-                
+
         except (RuntimeError, Exception) as e:
             print(f"Error handling error message: {e}")
 
@@ -433,13 +443,12 @@ class PyQtMenuEventHandler:
             # Get prompt/preset name from metadata if available
             prompt_name = None
             if result.metadata:
-                prompt_name = (result.metadata.get('prompt_name') or 
-                             result.metadata.get('preset_name'))
-            
+                prompt_name = result.metadata.get("prompt_name") or result.metadata.get(
+                    "preset_name"
+                )
+
             self.notification_manager.show_error_notification(
-                "Execution Failed",
-                result.error,
-                prompt_name
+                "Execution Failed", result.error, prompt_name
             )
         else:
             print(f"Execution failed: {result.error}")

@@ -6,6 +6,7 @@ import sys
 import os
 from core.exceptions import ClipboardError
 from core.interfaces import ClipboardManager
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
@@ -53,8 +54,7 @@ class SystemClipboardManager(ClipboardManager):
 
     def _get_content_macos(self) -> str:
         """Get clipboard content on macOS."""
-        result = subprocess.run(
-            ["pbpaste"], capture_output=True, text=True, timeout=5)
+        result = subprocess.run(["pbpaste"], capture_output=True, text=True, timeout=5)
         if result.returncode != 0:
             raise ClipboardError(f"pbpaste failed: {result.stderr}")
         return result.stdout
@@ -73,7 +73,7 @@ class SystemClipboardManager(ClipboardManager):
                 ["xclip", "-selection", "clipboard", "-o"],
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=5,
             )
             if result.returncode != 0:
                 raise ClipboardError(f"xclip failed: {result.stderr}")
@@ -84,14 +84,15 @@ class SystemClipboardManager(ClipboardManager):
                     ["xsel", "--clipboard", "--output"],
                     capture_output=True,
                     text=True,
-                    timeout=5
+                    timeout=5,
                 )
                 if result.returncode != 0:
                     raise ClipboardError(f"xsel failed: {result.stderr}")
                 return result.stdout
-            except FileNotFoundError:
+            except FileNotFoundError as exc:
                 raise ClipboardError(
-                    "Neither xclip nor xsel found. Please install one.")
+                    "Neither xclip nor xsel found. Please install one."
+                ) from exc
 
     def _set_content_linux(self, content: str) -> bool:
         """Set clipboard content on Linux."""
@@ -101,7 +102,7 @@ class SystemClipboardManager(ClipboardManager):
                 input=content,
                 text=True,
                 capture_output=True,
-                timeout=5
+                timeout=5,
             )
             return result.returncode == 0
         except FileNotFoundError:
@@ -111,43 +112,47 @@ class SystemClipboardManager(ClipboardManager):
                     input=content,
                     text=True,
                     capture_output=True,
-                    timeout=5
+                    timeout=5,
                 )
                 return result.returncode == 0
-            except FileNotFoundError:
+            except FileNotFoundError as exc:
                 raise ClipboardError(
-                    "Neither xclip nor xsel found. Please install one.")
+                    "Neither xclip nor xsel found. Please install one."
+                ) from exc
 
     def _get_content_windows(self) -> str:
         """Get clipboard content on Windows."""
-        import tkinter as tk
-
-        temp_root = tk.Tk()
-        temp_root.withdraw()
         try:
-            content = temp_root.clipboard_get()
-            temp_root.destroy()
-            return content
-        except tk.TclError as e:
-            temp_root.destroy()
-            if "CLIPBOARD selection doesn't exist" in str(e):
+            from PyQt5.QtWidgets import QApplication
+            from PyQt5.QtCore import QMimeData
+
+            app = QApplication.instance()
+            if app is None:
+                app = QApplication([])
+
+            clipboard = app.clipboard()
+            mime_data = clipboard.mimeData()
+
+            if mime_data.hasText():
+                return mime_data.text()
+            else:
                 return ""
+        except Exception as e:
             raise ClipboardError(f"Failed to get Windows clipboard: {str(e)}")
 
     def _set_content_windows(self, content: str) -> bool:
         """Set clipboard content on Windows."""
-        import tkinter as tk
-
-        temp_root = tk.Tk()
-        temp_root.withdraw()
         try:
-            temp_root.clipboard_clear()
-            temp_root.clipboard_append(content)
-            temp_root.update()
-            temp_root.destroy()
+            from PyQt5.QtWidgets import QApplication
+
+            app = QApplication.instance()
+            if app is None:
+                app = QApplication([])
+
+            clipboard = app.clipboard()
+            clipboard.setText(content)
             return True
-        except tk.TclError:
-            temp_root.destroy()
+        except Exception:
             return False
 
 

@@ -1,7 +1,14 @@
 """PyQt5-based notification utilities."""
 
 from PyQt5.QtWidgets import QApplication, QLabel, QGraphicsOpacityEffect, QDesktopWidget
-from PyQt5.QtCore import QTimer, QPropertyAnimation, QEasingCurve, pyqtSignal, QObject, QPoint
+from PyQt5.QtCore import (
+    QTimer,
+    QPropertyAnimation,
+    QEasingCurve,
+    pyqtSignal,
+    QObject,
+    QPoint,
+)
 from PyQt5.QtGui import QFont, QCursor
 from PyQt5.QtCore import Qt
 from typing import Optional, List
@@ -47,12 +54,12 @@ class NotificationWidget(QLabel):
         """Show the notification with fade-in animation."""
         # Position the notification at top-right of screen
         self.adjustSize()
-        
+
         if target_screen_geometry:
             screen_geometry = target_screen_geometry
         else:
             screen_geometry = QApplication.desktop().screenGeometry()
-            
+
         x = screen_geometry.x() + screen_geometry.width() - self.width() - 20
         y = screen_geometry.y() + 50
         self.move(x, y)
@@ -84,17 +91,19 @@ class NotificationWidget(QLabel):
 
 class NotificationDispatcher(QObject):
     """Thread-safe notification dispatcher using Qt signals."""
-    
+
     show_notification_signal = pyqtSignal(str, str, int)
-    
+
     def __init__(self, notification_manager):
         super().__init__()
         self.notification_manager = notification_manager
         self.show_notification_signal.connect(self._show_notification_slot)
-        
+
     def _show_notification_slot(self, message: str, bg_color: str, duration: int):
         """Slot to handle notification display on main thread."""
-        self.notification_manager._show_notification_internal(message, duration, bg_color)
+        self.notification_manager._show_notification_internal(
+            message, duration, bg_color
+        )
 
 
 class PyQtNotificationManager:
@@ -151,55 +160,56 @@ class PyQtNotificationManager:
         """Get the geometry of the screen where the mouse cursor is currently located."""
         if not self.desktop:
             return QApplication.desktop().screenGeometry()
-        
+
         try:
             # Get current cursor position
             cursor_pos = QCursor.pos()
-            
+
             # Find which screen contains the cursor
             screen_number = self.desktop.screenNumber(cursor_pos)
-            
+
             # Validate screen number and get geometry
             if screen_number >= 0 and screen_number < self.desktop.screenCount():
                 screen_geometry = self.desktop.screenGeometry(screen_number)
                 # Additional validation - ensure the geometry is valid
                 if screen_geometry.width() > 0 and screen_geometry.height() > 0:
                     return screen_geometry
-            
+
             # Fallback 1: Try to find screen containing cursor by iterating all screens
             for i in range(self.desktop.screenCount()):
                 screen_geom = self.desktop.screenGeometry(i)
                 if screen_geom.contains(cursor_pos):
                     return screen_geom
-            
+
             # Fallback 2: Use primary screen
             primary_screen_num = 0
-            if hasattr(self.desktop, 'primaryScreen'):
+            if hasattr(self.desktop, "primaryScreen"):
                 try:
                     primary_screen_num = self.desktop.primaryScreen()
                 except:
                     primary_screen_num = 0
-            
+
             if primary_screen_num < self.desktop.screenCount():
                 return self.desktop.screenGeometry(primary_screen_num)
-            
+
             # Fallback 3: Use first available screen
             if self.desktop.screenCount() > 0:
                 return self.desktop.screenGeometry(0)
-                
+
         except Exception as e:
             # Log the error for debugging on different platforms
             try:
                 print(f"Display detection error on {platform.system()}: {e}")
             except:
                 pass
-        
+
         # Final fallback to default screen geometry
         try:
             return QApplication.desktop().screenGeometry()
         except:
             # Emergency fallback with reasonable defaults
             from PyQt5.QtCore import QRect
+
             return QRect(0, 0, 1920, 1080)
 
     def _show_notification_internal(
@@ -225,8 +235,15 @@ class PyQtNotificationManager:
 
             # Adjust position if there are other notifications
             if len(self.active_notifications) > 1:
-                y_offset = active_screen.y() + 50 + (len(self.active_notifications) - 1) * 80
-                x = active_screen.x() + active_screen.width() - notification.sizeHint().width() - 20
+                y_offset = (
+                    active_screen.y() + 50 + (len(self.active_notifications) - 1) * 80
+                )
+                x = (
+                    active_screen.x()
+                    + active_screen.width()
+                    - notification.sizeHint().width()
+                    - 20
+                )
                 notification.move(x, y_offset)
                 notification.show_notification(duration)
             else:
@@ -244,62 +261,61 @@ class PyQtNotificationManager:
         """Get information about available displays for debugging."""
         if not self.desktop:
             return {"error": "Desktop not available", "platform": platform.system()}
-        
+
         try:
             cursor_pos = QCursor.pos()
             active_screen = self.desktop.screenNumber(cursor_pos)
-            
+
             # Get primary screen number safely
             primary_screen = 0
             try:
-                if hasattr(self.desktop, 'primaryScreen'):
+                if hasattr(self.desktop, "primaryScreen"):
                     primary_screen = self.desktop.primaryScreen()
             except:
                 primary_screen = 0
-            
+
             display_info = {
                 "platform": platform.system(),
                 "cursor_position": {"x": cursor_pos.x(), "y": cursor_pos.y()},
                 "active_screen": active_screen,
                 "primary_screen": primary_screen,
                 "total_screens": self.desktop.screenCount(),
-                "screens": []
+                "screens": [],
             }
-            
+
             for i in range(self.desktop.screenCount()):
                 try:
                     screen_geom = self.desktop.screenGeometry(i)
                     available_geom = self.desktop.availableGeometry(i)
-                    
+
                     screen_info = {
                         "screen_number": i,
                         "geometry": {
                             "x": screen_geom.x(),
                             "y": screen_geom.y(),
                             "width": screen_geom.width(),
-                            "height": screen_geom.height()
+                            "height": screen_geom.height(),
                         },
                         "available_geometry": {
                             "x": available_geom.x(),
                             "y": available_geom.y(),
                             "width": available_geom.width(),
-                            "height": available_geom.height()
+                            "height": available_geom.height(),
                         },
                         "is_primary": i == primary_screen,
                         "is_current": i == active_screen,
-                        "contains_cursor": screen_geom.contains(cursor_pos)
+                        "contains_cursor": screen_geom.contains(cursor_pos),
                     }
-                    
+
                     display_info["screens"].append(screen_info)
-                    
+
                 except Exception as screen_error:
-                    display_info["screens"].append({
-                        "screen_number": i,
-                        "error": str(screen_error)
-                    })
-            
+                    display_info["screens"].append(
+                        {"screen_number": i, "error": str(screen_error)}
+                    )
+
             return display_info
-            
+
         except Exception as e:
             return {"error": str(e), "platform": platform.system()}
 
@@ -324,46 +340,50 @@ def get_display_info() -> dict:
     app = QApplication.instance()
     if not app:
         return {"error": "No QApplication instance available"}
-    
+
     desktop = QApplication.desktop()
     if not desktop:
         return {"error": "Desktop not available"}
-    
+
     try:
         cursor_pos = QCursor.pos()
         active_screen = desktop.screenNumber(cursor_pos)
-        
+
         display_info = {
             "platform": platform.system(),
             "cursor_position": {"x": cursor_pos.x(), "y": cursor_pos.y()},
             "active_screen": active_screen,
             "total_screens": desktop.screenCount(),
-            "screens": []
+            "screens": [],
         }
-        
+
         for i in range(desktop.screenCount()):
             screen_geom = desktop.screenGeometry(i)
             available_geom = desktop.availableGeometry(i)
-            display_info["screens"].append({
-                "screen_number": i,
-                "geometry": {
-                    "x": screen_geom.x(),
-                    "y": screen_geom.y(),
-                    "width": screen_geom.width(),
-                    "height": screen_geom.height()
-                },
-                "available_geometry": {
-                    "x": available_geom.x(),
-                    "y": available_geom.y(),
-                    "width": available_geom.width(),
-                    "height": available_geom.height()
-                },
-                "is_primary": i == desktop.primaryScreen() if hasattr(desktop, 'primaryScreen') else i == 0,
-                "is_current": i == active_screen
-            })
-        
+            display_info["screens"].append(
+                {
+                    "screen_number": i,
+                    "geometry": {
+                        "x": screen_geom.x(),
+                        "y": screen_geom.y(),
+                        "width": screen_geom.width(),
+                        "height": screen_geom.height(),
+                    },
+                    "available_geometry": {
+                        "x": available_geom.x(),
+                        "y": available_geom.y(),
+                        "width": available_geom.width(),
+                        "height": available_geom.height(),
+                    },
+                    "is_primary": i == desktop.primaryScreen()
+                    if hasattr(desktop, "primaryScreen")
+                    else i == 0,
+                    "is_current": i == active_screen,
+                }
+            )
+
         return display_info
-        
+
     except Exception as e:
         return {"error": str(e), "platform": platform.system()}
 
@@ -374,25 +394,27 @@ def test_notification_positioning():
     if not app:
         print("No QApplication instance available for testing")
         return
-    
+
     manager = PyQtNotificationManager(app)
     display_info = manager.get_display_info()
-    
+
     print("Display Information:")
     print(f"Platform: {display_info.get('platform', 'Unknown')}")
     print(f"Total screens: {display_info.get('total_screens', 0)}")
     print(f"Active screen: {display_info.get('active_screen', -1)}")
-    
-    if 'screens' in display_info:
-        for screen in display_info['screens']:
-            print(f"Screen {screen['screen_number']}: "
-                  f"{screen['geometry']['width']}x{screen['geometry']['height']} "
-                  f"at ({screen['geometry']['x']}, {screen['geometry']['y']}) "
-                  f"{'(PRIMARY)' if screen['is_primary'] else ''} "
-                  f"{'(CURRENT)' if screen['is_current'] else ''}")
-    
+
+    if "screens" in display_info:
+        for screen in display_info["screens"]:
+            print(
+                f"Screen {screen['screen_number']}: "
+                f"{screen['geometry']['width']}x{screen['geometry']['height']} "
+                f"at ({screen['geometry']['x']}, {screen['geometry']['y']}) "
+                f"{'(PRIMARY)' if screen['is_primary'] else ''} "
+                f"{'(CURRENT)' if screen['is_current'] else ''}"
+            )
+
     # Show test notification
     manager.show_info_notification(
-        "Multi-Display Test", 
-        f"This notification should appear on screen {display_info.get('active_screen', 0)}"
+        "Multi-Display Test",
+        f"This notification should appear on screen {display_info.get('active_screen', 0)}",
     )

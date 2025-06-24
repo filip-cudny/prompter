@@ -42,8 +42,7 @@ class APIPromptProvider:
                     return prompt
             return None
         except Exception as e:
-            raise ProviderError(
-                f"Failed to get prompt details: {str(e)}") from e
+            raise ProviderError(f"Failed to get prompt details: {str(e)}") from e
 
     def refresh(self) -> None:
         """Refresh data from the API."""
@@ -55,10 +54,8 @@ class APIPromptProvider:
         """Load both prompts and presets from API."""
         try:
             data = self.api.get_all_data()
-            self._prompts_cache = self._convert_prompts(
-                data.get("prompts", []))
-            self._presets_cache = self._convert_presets(
-                data.get("presets", []))
+            self._prompts_cache = self._convert_prompts(data.get("prompts", []))
+            self._presets_cache = self._convert_presets(data.get("presets", []))
         except APIError as e:
             raise ProviderError(f"API error: {str(e)}") from e
 
@@ -91,7 +88,7 @@ class APIPromptProvider:
                     tags=prompt_dict.get("tags", []),
                     created_at=prompt_dict.get("createdAt"),
                     updated_at=prompt_dict.get("updatedAt"),
-                    metadata=prompt_dict.get("metadata", {})
+                    metadata=prompt_dict.get("metadata", {}),
                 )
                 prompts.append(prompt)
             except Exception as e:
@@ -106,15 +103,13 @@ class APIPromptProvider:
             try:
                 preset = PresetData(
                     id=preset_dict.get("id", ""),
-                    preset_name=preset_dict.get(
-                        "presetName", "Unnamed Preset"),
+                    preset_name=preset_dict.get("presetName", "Unnamed Preset"),
                     prompt_id=preset_dict.get("promptId", ""),
                     temperature=preset_dict.get("temperature"),
                     model=preset_dict.get("model"),
                     context=preset_dict.get("context"),
-                    placeholder_values=preset_dict.get(
-                        "placeholderValues", {}),
-                    metadata=preset_dict.get("metadata", {})
+                    placeholder_values=preset_dict.get("placeholderValues", {}),
+                    metadata=preset_dict.get("metadata", {}),
                 )
                 presets.append(preset)
             except Exception as e:
@@ -138,8 +133,7 @@ class LocalPromptProvider:
                 self._load_prompts()
             return self._prompts_cache or []
         except Exception as e:
-            raise ProviderError(
-                f"Failed to get local prompts: {str(e)}") from e
+            raise ProviderError(f"Failed to get local prompts: {str(e)}") from e
 
     def get_presets(self) -> List[PresetData]:
         """Get presets from local files."""
@@ -148,8 +142,7 @@ class LocalPromptProvider:
                 self._load_presets()
             return self._presets_cache or []
         except Exception as e:
-            raise ProviderError(
-                f"Failed to get local presets: {str(e)}") from e
+            raise ProviderError(f"Failed to get local presets: {str(e)}") from e
 
     def get_prompt_details(self, prompt_id: str) -> Optional[PromptData]:
         """Get detailed information about a specific prompt."""
@@ -160,8 +153,7 @@ class LocalPromptProvider:
                     return prompt
             return None
         except Exception as e:
-            raise ProviderError(
-                f"Failed to get local prompt details: {str(e)}") from e
+            raise ProviderError(f"Failed to get local prompt details: {str(e)}") from e
 
     def refresh(self) -> None:
         """Refresh data from local files."""
@@ -179,15 +171,15 @@ class LocalPromptProvider:
             return
 
         for filename in os.listdir(self.prompts_dir):
-            if filename.endswith('.json'):
+            if filename.endswith(".json"):
                 try:
                     filepath = os.path.join(self.prompts_dir, filename)
-                    with open(filepath, 'r', encoding='utf-8') as f:
+                    with open(filepath, "r", encoding="utf-8") as f:
                         data = json.load(f)
 
-                    if isinstance(data, dict) and 'prompts' in data:
+                    if isinstance(data, dict) and "prompts" in data:
                         # File contains multiple prompts
-                        for prompt_dict in data['prompts']:
+                        for prompt_dict in data["prompts"]:
                             prompt = self._dict_to_prompt(prompt_dict)
                             if prompt:
                                 self._prompts_cache.append(prompt)
@@ -212,15 +204,15 @@ class LocalPromptProvider:
             return
 
         for filename in os.listdir(presets_dir):
-            if filename.endswith('.json'):
+            if filename.endswith(".json"):
                 try:
                     filepath = os.path.join(presets_dir, filename)
-                    with open(filepath, 'r', encoding='utf-8') as f:
+                    with open(filepath, "r", encoding="utf-8") as f:
                         data = json.load(f)
 
-                    if isinstance(data, dict) and 'presets' in data:
+                    if isinstance(data, dict) and "presets" in data:
                         # File contains multiple presets
-                        for preset_dict in data['presets']:
+                        for preset_dict in data["presets"]:
                             preset = self._dict_to_preset(preset_dict)
                             if preset:
                                 self._presets_cache.append(preset)
@@ -244,7 +236,7 @@ class LocalPromptProvider:
                 tags=data.get("tags", []),
                 created_at=data.get("created_at"),
                 updated_at=data.get("updated_at"),
-                metadata=data.get("metadata", {})
+                metadata=data.get("metadata", {}),
             )
         except Exception:
             return None
@@ -260,7 +252,7 @@ class LocalPromptProvider:
                 model=data.get("model"),
                 context=data.get("context"),
                 placeholder_values=data.get("placeholder_values", {}),
-                metadata=data.get("metadata", {})
+                metadata=data.get("metadata", {}),
             )
         except Exception:
             return None

@@ -587,12 +587,13 @@ class PyQtSpeechExecutionHandler:
                     preview = truncate_text(transcription, 80)
                     word_count = len(transcription.split())
                     self.notification_manager.show_success_notification(
-                        "Transcription Complete ✓", 
-                        f"Successfully transcribed {word_count} words and copied to clipboard:\n\"{preview}\""
+                        "Transcription Complete ✓",
+                        f'Successfully transcribed {word_count} words and copied to clipboard:\n"{preview}"',
                     )
                 else:
                     self.notification_manager.show_error_notification(
-                        "Clipboard Error", "Transcription successful but failed to copy to clipboard"
+                        "Clipboard Error",
+                        "Transcription successful but failed to copy to clipboard",
                     )
             else:
                 self.notification_manager.show_info_notification(

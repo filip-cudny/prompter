@@ -28,7 +28,7 @@ from .exceptions import (
 
 __all__ = [
     "MenuItemProvider",
-    "PromptProvider", 
+    "PromptProvider",
     "ExecutionHandler",
     "ClipboardManager",
     "MenuItem",

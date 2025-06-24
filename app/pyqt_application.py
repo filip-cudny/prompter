@@ -42,11 +42,11 @@ class PromptStoreApp(QObject):
 
     def __init__(self, config_file: Optional[str] = None):
         super().__init__()
-        
+
         # Create QApplication
         self.app = QApplication(sys.argv)
         self.app.setQuitOnLastWindowClosed(False)
-        
+
         # Initialize variables
         self.config = None
         self.running = False
@@ -66,7 +66,7 @@ class PromptStoreApp(QObject):
         self.event_handler: Optional[PyQtMenuEventHandler] = None
         self.notification_manager: Optional[PyQtNotificationManager] = None
         self.system_tray: Optional[QSystemTrayIcon] = None
-        
+
         # Recording state
         self.normal_icon = None
         self.recording_icon = None
@@ -95,7 +95,7 @@ class PromptStoreApp(QObject):
         try:
             if not self.config:
                 raise RuntimeError("Configuration not loaded")
-                
+
             # Initialize API client
             self.api = PromptStoreAPI(self.config.base_url, self.config.api_key)
 
@@ -130,15 +130,24 @@ class PromptStoreApp(QObject):
         """Register execution handlers with the service."""
         if not self.api or not self.clipboard_manager or not self.prompt_store_service:
             raise RuntimeError("Required services not initialized")
-            
+
         handlers = [
-            PyQtPromptExecutionHandler(self.api, self.clipboard_manager, self.notification_manager),
-            PyQtPresetExecutionHandler(self.api, self.clipboard_manager, self.notification_manager),
+            PyQtPromptExecutionHandler(
+                self.api, self.clipboard_manager, self.notification_manager
+            ),
+            PyQtPresetExecutionHandler(
+                self.api, self.clipboard_manager, self.notification_manager
+            ),
             PyQtHistoryExecutionHandler(self.clipboard_manager),
             PyQtSystemExecutionHandler(
-                refresh_callback=self._refresh_data, notification_manager=self.notification_manager
+                refresh_callback=self._refresh_data,
+                notification_manager=self.notification_manager,
             ),
-            PyQtSpeechExecutionHandler(self.clipboard_manager, self.notification_manager, self.set_recording_indicator),
+            PyQtSpeechExecutionHandler(
+                self.clipboard_manager,
+                self.notification_manager,
+                self.set_recording_indicator,
+            ),
         ]
 
         for handler in handlers:
@@ -148,12 +157,14 @@ class PromptStoreApp(QObject):
         """Initialize GUI components."""
         if not self.config or not self.prompt_store_service:
             raise RuntimeError("Configuration or prompt store service not initialized")
-            
+
         # Initialize hotkey manager
         self.hotkey_manager = PyQtHotkeyManager(self.config.hotkey)
         self.hotkey_manager.connect_context_menu_callback(self._on_f2_hotkey_pressed)
         self.hotkey_manager.connect_re_execute_callback(self._on_f1_hotkey_pressed)
-        self.hotkey_manager.connect_speech_toggle_callback(self._on_shift_f1_hotkey_pressed)
+        self.hotkey_manager.connect_speech_toggle_callback(
+            self._on_shift_f1_hotkey_pressed
+        )
 
         # Initialize menu coordinator
         self.menu_coordinator = PyQtMenuCoordinator(self.prompt_store_service, self.app)
@@ -173,7 +184,7 @@ class PromptStoreApp(QObject):
         """Initialize menu providers."""
         if not self.prompt_store_service or not self.menu_coordinator:
             raise RuntimeError("Required services not initialized")
-            
+
         data_manager = self.prompt_store_service.data_manager
         history_service = self.prompt_store_service.history_service
 
@@ -198,36 +209,38 @@ class PromptStoreApp(QObject):
         # Create tray icon
         self.normal_icon = self._create_tray_icon(Qt.black)
         self.recording_icon = self._create_tray_icon(Qt.red)
-        
+
         self.system_tray = QSystemTrayIcon(self.normal_icon, self.app)
         self.is_recording = False
-        
+
         # Set tooltip
         system = platform.system()
         hotkey = "Cmd+F1" if system == "Darwin" else "Ctrl+F1"
-        self.system_tray.setToolTip(f"Prompt Store - {hotkey} for menu, Shift+F1 for speech")
-        
+        self.system_tray.setToolTip(
+            f"Prompt Store - {hotkey} for menu, Shift+F1 for speech"
+        )
+
         # Create tray menu
         tray_menu = QMenu()
-        
+
         show_action = QAction("Show Menu", tray_menu)
         show_action.triggered.connect(self._on_hotkey_pressed)
-        
+
         speech_action = QAction("Speech to Text", tray_menu)
         speech_action.triggered.connect(self._speech_to_text)
-        
+
         refresh_action = QAction("Refresh Data", tray_menu)
         refresh_action.triggered.connect(self._refresh_data)
-        
+
         quit_action = QAction("Quit", tray_menu)
         quit_action.triggered.connect(self.stop)
-        
+
         tray_menu.addAction(show_action)
         tray_menu.addAction(speech_action)
         tray_menu.addAction(refresh_action)
         tray_menu.addSeparator()
         tray_menu.addAction(quit_action)
-        
+
         self.system_tray.setContextMenu(tray_menu)
         self.system_tray.activated.connect(self._tray_activated)
         self.system_tray.show()
@@ -253,17 +266,19 @@ class PromptStoreApp(QObject):
                 self.system_tray.setIcon(self.normal_icon)
                 system = platform.system()
                 hotkey = "Cmd+F1" if system == "Darwin" else "Ctrl+F1"
-                self.system_tray.setToolTip(f"Prompt Store - {hotkey} for menu, Shift+F1 for speech")
+                self.system_tray.setToolTip(
+                    f"Prompt Store - {hotkey} for menu, Shift+F1 for speech"
+                )
                 self.is_recording = False
 
     def _setup_signal_handlers(self) -> None:
         """Setup signal handlers for graceful shutdown."""
         # Set up Unix signal handling using Qt's mechanism
-        if hasattr(signal, 'SIGINT'):
+        if hasattr(signal, "SIGINT"):
             signal.signal(signal.SIGINT, self._unix_signal_handler)
-        if hasattr(signal, 'SIGTERM'):
+        if hasattr(signal, "SIGTERM"):
             signal.signal(signal.SIGTERM, self._unix_signal_handler)
-        
+
         # Enable keyboard interrupt processing
         QTimer.singleShot(0, self._enable_keyboard_interrupt)
 
@@ -325,6 +340,7 @@ class PromptStoreApp(QObject):
         """Handle speech-to-text action."""
         if self.menu_coordinator:
             from core.models import MenuItem, MenuItemType
+
             speech_item = MenuItem(
                 id="system_speech_to_text",
                 label="Speech to Text",
@@ -334,15 +350,15 @@ class PromptStoreApp(QObject):
                 enabled=True,
             )
             self.menu_coordinator._execute_menu_item(speech_item)
-            
+
             # Update recording indicator
             try:
                 speech_handler = None
                 for handler in self.prompt_store_service.execution_service.handlers:
-                    if hasattr(handler, 'speech_service') and handler.speech_service:
+                    if hasattr(handler, "speech_service") and handler.speech_service:
                         speech_handler = handler
                         break
-                
+
                 if speech_handler and speech_handler.speech_service:
                     is_recording = speech_handler.speech_service.is_recording()
                     self.set_recording_indicator(is_recording)
@@ -355,14 +371,14 @@ class PromptStoreApp(QObject):
             if not self.prompt_store_service:
                 print("Prompt store service not initialized")
                 return
-            
+
             result = self.prompt_store_service.execute_active_prompt()
-            
+
             # Clear menu cache and refresh providers so history updates are reflected
             if self.menu_coordinator:
                 self.menu_coordinator._clear_menu_cache()
                 self.menu_coordinator.refresh_providers()
-            
+
             if self.event_handler:
                 self.event_handler.handle_execution_result(result)
         except Exception as e:
@@ -399,7 +415,7 @@ class PromptStoreApp(QObject):
                     "Prompt Store Started",
                     f"Press {hotkey_f1} to show menu",
                     QSystemTrayIcon.Information,
-                    2000
+                    2000,
                 )
 
             # Run the Qt event loop
@@ -418,12 +434,12 @@ class PromptStoreApp(QObject):
         """Stop the application."""
         if not self.running:
             return
-            
+
         self.running = False
         print("Stopping application...")
 
         # Stop interrupt timer
-        if hasattr(self, 'interrupt_timer'):
+        if hasattr(self, "interrupt_timer"):
             self.interrupt_timer.stop()
 
         # Stop hotkey manager
@@ -501,11 +517,11 @@ class PromptStoreApp(QObject):
 def main():
     """Main entry point."""
     import argparse
-    
-    parser = argparse.ArgumentParser(description='Prompt Store PyQt5 Application')
-    parser.add_argument('--config', '-c', help='Configuration file path')
+
+    parser = argparse.ArgumentParser(description="Prompt Store PyQt5 Application")
+    parser.add_argument("--config", "-c", help="Configuration file path")
     args = parser.parse_args()
-    
+
     app = PromptStoreApp(args.config)
     return app.run()
 

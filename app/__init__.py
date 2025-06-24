@@ -1,6 +1,6 @@
 """Application module for prompt store application."""
 
-from .application import PromptStoreApp
+from .pyqt_application import PromptStoreApp
 
 __all__ = [
     "PromptStoreApp",

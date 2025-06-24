@@ -18,9 +18,11 @@ class PyQtContextMenu:
     def create_menu(self, items: List[MenuItem]) -> QMenu:
         """Create a QMenu from menu items."""
         menu = QMenu(self.parent)
-        menu.setWindowFlags(Qt.Popup | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint)
+        menu.setWindowFlags(
+            Qt.Popup | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint
+        )
         menu.setAttribute(Qt.WA_TranslucentBackground, False)
-        
+
         # Set menu style
         menu.setStyleSheet("""
             QMenu {
@@ -54,7 +56,9 @@ class PyQtContextMenu:
         self._add_menu_items(menu, items)
         return menu
 
-    def create_submenu(self, parent_menu: QMenu, title: str, items: List[MenuItem]) -> QMenu:
+    def create_submenu(
+        self, parent_menu: QMenu, title: str, items: List[MenuItem]
+    ) -> QMenu:
         """Create a submenu."""
         submenu = parent_menu.addMenu(title)
         submenu.setStyleSheet(parent_menu.styleSheet())
@@ -66,7 +70,9 @@ class PyQtContextMenu:
         cursor_pos = self.get_cursor_position()
         self.show_at_position(items, cursor_pos)
 
-    def show_at_position(self, items: List[MenuItem], position: Tuple[int, int]) -> None:
+    def show_at_position(
+        self, items: List[MenuItem], position: Tuple[int, int]
+    ) -> None:
         """Show context menu at specific position."""
         if not items:
             return
@@ -84,7 +90,9 @@ class PyQtContextMenu:
         cursor_pos = QCursor.pos()
         return (cursor_pos.x(), cursor_pos.y())
 
-    def adjust_for_screen_bounds(self, position: QPoint, items: List[MenuItem]) -> QPoint:
+    def adjust_for_screen_bounds(
+        self, position: QPoint, items: List[MenuItem]
+    ) -> QPoint:
         """Adjust menu position to stay within screen bounds."""
         return position
 
@@ -105,21 +113,21 @@ class PyQtContextMenu:
                 continue
 
             # Check if item has submenu
-            if hasattr(item, 'submenu_items') and item.submenu_items:
+            if hasattr(item, "submenu_items") and item.submenu_items:
                 self.create_submenu(menu, item.label, item.submenu_items)
             else:
                 action = self._create_action(menu, item)
                 menu.addAction(action)
 
-            if hasattr(item, 'separator_after') and item.separator_after:
+            if hasattr(item, "separator_after") and item.separator_after:
                 menu.addSeparator()
 
     def _create_action(self, menu: QMenu, item: MenuItem) -> QAction:
         """Create a QAction from a MenuItem."""
         action = QAction(item.label, menu)
         action.setEnabled(item.enabled)
-        
-        if hasattr(item, 'tooltip') and item.tooltip:
+
+        if hasattr(item, "tooltip") and item.tooltip:
             action.setToolTip(item.tooltip)
 
         if item.action is not None:
@@ -147,18 +155,18 @@ class PyQtMenuBuilder:
     def __init__(self):
         self.items: List[MenuItem] = []
 
-    def add_items(self, items: List[MenuItem]) -> 'PyQtMenuBuilder':
+    def add_items(self, items: List[MenuItem]) -> "PyQtMenuBuilder":
         """Add multiple items to the menu."""
         self.items.extend(items)
         return self
 
-    def add_separator(self) -> 'PyQtMenuBuilder':
+    def add_separator(self) -> "PyQtMenuBuilder":
         """Add a separator to the menu."""
-        if self.items and not getattr(self.items[-1], 'separator_after', False):
+        if self.items and not getattr(self.items[-1], "separator_after", False):
             self.items[-1].separator_after = True
         return self
 
-    def add_items_with_separator(self, items: List[MenuItem]) -> 'PyQtMenuBuilder':
+    def add_items_with_separator(self, items: List[MenuItem]) -> "PyQtMenuBuilder":
         """Add items with a separator before them."""
         if self.items:
             self.add_separator()
@@ -168,22 +176,22 @@ class PyQtMenuBuilder:
         """Build and return the menu items."""
         return self.items
 
-    def clear(self) -> 'PyQtMenuBuilder':
+    def clear(self) -> "PyQtMenuBuilder":
         """Clear all items."""
         self.items.clear()
         return self
 
-    def filter_enabled(self) -> 'PyQtMenuBuilder':
+    def filter_enabled(self) -> "PyQtMenuBuilder":
         """Filter to only enabled items."""
         self.items = [item for item in self.items if item.enabled]
         return self
 
-    def sort_by_label(self) -> 'PyQtMenuBuilder':
+    def sort_by_label(self) -> "PyQtMenuBuilder":
         """Sort items by label."""
         self.items.sort(key=lambda x: x.label.lower())
         return self
 
-    def group_by_type(self) -> 'PyQtMenuBuilder':
+    def group_by_type(self) -> "PyQtMenuBuilder":
         """Group items by type with separators."""
         if not self.items:
             return self
@@ -198,11 +206,19 @@ class PyQtMenuBuilder:
 
         # Rebuild items with separators between groups
         new_items: List[MenuItem] = []
-        type_order = [MenuItemType.PROMPT, MenuItemType.PRESET, MenuItemType.HISTORY, MenuItemType.SPEECH, MenuItemType.SYSTEM]
-        
+        type_order = [
+            MenuItemType.PROMPT,
+            MenuItemType.PRESET,
+            MenuItemType.HISTORY,
+            MenuItemType.SPEECH,
+            MenuItemType.SYSTEM,
+        ]
+
         for i, item_type in enumerate(type_order):
             if item_type in grouped:
-                if i > 0 and new_items:  # Add separator before each group (except first)
+                if (
+                    i > 0 and new_items
+                ):  # Add separator before each group (except first)
                     new_items[-1].separator_after = True
                 new_items.extend(grouped[item_type])
 
@@ -220,18 +236,22 @@ class PyQtMenuPosition:
         return (cursor_pos.x(), cursor_pos.y())
 
     @staticmethod
-    def get_screen_bounds_at_position(position: Tuple[int, int]) -> Tuple[int, int, int, int]:
+    def get_screen_bounds_at_position(
+        position: Tuple[int, int],
+    ) -> Tuple[int, int, int, int]:
         """Get screen bounds at the given position."""
         x, y = position
         screen = QApplication.desktop().screenAt(QPoint(x, y))
         if screen == -1:
             screen = QApplication.desktop().primaryScreen()
-        
+
         geometry = QApplication.desktop().screenGeometry(screen)
         return (geometry.left(), geometry.top(), geometry.right(), geometry.bottom())
 
     @staticmethod
-    def apply_offset(position: Tuple[int, int], offset: Tuple[int, int]) -> Tuple[int, int]:
+    def apply_offset(
+        position: Tuple[int, int], offset: Tuple[int, int]
+    ) -> Tuple[int, int]:
         """Apply offset to position."""
         x, y = position
         offset_x, offset_y = offset

@@ -38,16 +38,12 @@ def get_cursor_position() -> Tuple[int, int]:
     except Exception:
         pass
 
-    # Fallback to tkinter method
+    # Fallback to PyQt5 method
     try:
-        import tkinter as tk
+        from PyQt5.QtGui import QCursor
 
-        temp_root = tk.Tk()
-        temp_root.withdraw()
-        x = temp_root.winfo_pointerx()
-        y = temp_root.winfo_pointery()
-        temp_root.destroy()
-        return x, y
+        cursor_pos = QCursor.pos()
+        return cursor_pos.x(), cursor_pos.y()
     except Exception:
         pass
 
@@ -113,8 +109,8 @@ def is_process_running(process_name: str) -> bool:
     try:
         import psutil
 
-        for process in psutil.process_iter(['name']):
-            if process.info['name'] == process_name:
+        for process in psutil.process_iter(["name"]):
+            if process.info["name"] == process_name:
                 return True
         return False
     except Exception:
@@ -124,18 +120,21 @@ def is_process_running(process_name: str) -> bool:
 def get_screen_info() -> dict:
     """Get information about the screen(s)."""
     try:
-        import tkinter as tk
+        from PyQt5.QtWidgets import QApplication, QDesktopWidget
 
-        root = tk.Tk()
-        root.withdraw()
+        app = QApplication.instance()
+        if app is None:
+            app = QApplication([])
+
+        desktop = QDesktopWidget()
+        screen = desktop.screenGeometry()
 
         screen_info = {
-            "width": root.winfo_screenwidth(),
-            "height": root.winfo_screenheight(),
-            "dpi": root.winfo_fpixels('1i'),
+            "width": screen.width(),
+            "height": screen.height(),
+            "dpi": desktop.logicalDpiX(),
         }
 
-        root.destroy()
         return screen_info
     except Exception:
         return {
@@ -150,19 +149,76 @@ def validate_hotkey_format(hotkey: str) -> bool:
     if not hotkey:
         return False
 
-    parts = hotkey.lower().split('+')
+    parts = hotkey.lower().split("+")
     if len(parts) < 2:
         return False
 
-    valid_modifiers = {'shift', 'ctrl', 'alt', 'cmd', 'meta', 'super'}
+    valid_modifiers = {"shift", "ctrl", "alt", "cmd", "meta", "super"}
     valid_keys = {
-        'f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8', 'f9', 'f10', 'f11', 'f12',
-        'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
-        'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
-        '1', '2', '3', '4', '5', '6', '7', '8', '9', '0',
-        'space', 'tab', 'enter', 'return', 'esc', 'escape',
-        'up', 'down', 'left', 'right',
-        'home', 'end', 'page_up', 'page_down', 'insert', 'delete',
+        "f1",
+        "f2",
+        "f3",
+        "f4",
+        "f5",
+        "f6",
+        "f7",
+        "f8",
+        "f9",
+        "f10",
+        "f11",
+        "f12",
+        "a",
+        "b",
+        "c",
+        "d",
+        "e",
+        "f",
+        "g",
+        "h",
+        "i",
+        "j",
+        "k",
+        "l",
+        "m",
+        "n",
+        "o",
+        "p",
+        "q",
+        "r",
+        "s",
+        "t",
+        "u",
+        "v",
+        "w",
+        "x",
+        "y",
+        "z",
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "0",
+        "space",
+        "tab",
+        "enter",
+        "return",
+        "esc",
+        "escape",
+        "up",
+        "down",
+        "left",
+        "right",
+        "home",
+        "end",
+        "page_up",
+        "page_down",
+        "insert",
+        "delete",
     }
 
     # All parts except the last should be modifiers

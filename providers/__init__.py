@@ -10,11 +10,11 @@ from .prompt_providers import (
     APIPromptProvider,
     CompositePromptProvider,
 )
-from .execution_handlers import (
-    PromptExecutionHandler,
-    PresetExecutionHandler,
-    HistoryExecutionHandler,
-    SystemExecutionHandler,
+from .pyqt_execution_handlers import (
+    PyQtPromptExecutionHandler,
+    PyQtPresetExecutionHandler,
+    PyQtHistoryExecutionHandler,
+    PyQtSystemExecutionHandler,
 )
 
 __all__ = [
@@ -24,8 +24,8 @@ __all__ = [
     "SystemMenuProvider",
     "APIPromptProvider",
     "CompositePromptProvider",
-    "PromptExecutionHandler",
-    "PresetExecutionHandler",
-    "HistoryExecutionHandler",
-    "SystemExecutionHandler",
+    "PyQtPromptExecutionHandler",
+    "PyQtPresetExecutionHandler",
+    "PyQtHistoryExecutionHandler",
+    "PyQtSystemExecutionHandler",
 ]

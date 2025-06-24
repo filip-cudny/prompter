@@ -8,6 +8,7 @@ from enum import Enum
 
 class MenuItemType(Enum):
     """Types of menu items."""
+
     PROMPT = "prompt"
     PRESET = "preset"
     HISTORY = "history"
@@ -17,6 +18,7 @@ class MenuItemType(Enum):
 
 class ErrorCode(Enum):
     """Error codes for execution results."""
+
     NO_ACTIVE_PROMPT = "no_active_prompt"
     CLIPBOARD_ERROR = "clipboard_error"
     API_ERROR = "api_error"
@@ -28,6 +30,7 @@ class ErrorCode(Enum):
 @dataclass
 class MenuItem:
     """Represents a menu item in the context menu."""
+
     id: str
     label: str
     item_type: MenuItemType
@@ -43,6 +46,7 @@ class MenuItem:
 @dataclass
 class PromptData:
     """Represents a prompt with its metadata."""
+
     id: str
     name: str
     content: str
@@ -56,6 +60,7 @@ class PromptData:
 @dataclass
 class PresetData:
     """Represents a preset configuration for a prompt."""
+
     id: str
     preset_name: str
     prompt_id: str
@@ -69,6 +74,7 @@ class PresetData:
 @dataclass
 class ExecutionResult:
     """Result of executing a prompt or preset."""
+
     success: bool
     content: Optional[str] = None
     error: Optional[str] = None
@@ -80,6 +86,7 @@ class ExecutionResult:
 @dataclass
 class HistoryEntry:
     """Represents a history entry for input/output tracking."""
+
     id: str
     timestamp: str
     input_content: str
@@ -93,6 +100,7 @@ class HistoryEntry:
 @dataclass
 class AppConfig:
     """Application configuration."""
+
     api_key: str
     base_url: str
     hotkey: str = "shift+f1"

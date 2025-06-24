@@ -13,11 +13,11 @@ from app.pyqt_application import PromptStoreApp
 def main():
     """Main entry point."""
     import argparse
-    
-    parser = argparse.ArgumentParser(description='Prompt Store PyQt5 Application')
-    parser.add_argument('--config', '-c', help='Configuration file path')
+
+    parser = argparse.ArgumentParser(description="Prompt Store PyQt5 Application")
+    parser.add_argument("--config", "-c", help="Configuration file path")
     args = parser.parse_args()
-    
+
     try:
         app = PromptStoreApp(args.config)
         return app.run()

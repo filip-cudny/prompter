@@ -1,7 +1,7 @@
 """Abstract interfaces and protocols for the prompt store application."""
 
 from abc import ABC, abstractmethod
-from typing import List,   Optional, Protocol
+from typing import List, Optional, Protocol
 from .models import MenuItem, PromptData, PresetData, ExecutionResult
 
 
