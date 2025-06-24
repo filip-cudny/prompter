@@ -17,3 +17,7 @@ pyobjc-framework-Cocoa>=9.0; sys_platform == "darwin"
 python-xlib>=0.33; sys_platform == "linux"
 
 # windows support is handled by built-in ctypes
+
+# Speech-to-text dependencies
+pyaudio>=0.2.11
+openai>=1.0.0

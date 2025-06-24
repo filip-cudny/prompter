@@ -23,6 +23,7 @@ from providers.pyqt_execution_handlers import (
     PyQtPresetExecutionHandler,
     PyQtHistoryExecutionHandler,
     PyQtSystemExecutionHandler,
+    PyQtSpeechExecutionHandler,
 )
 from gui.pyqt_menu_coordinator import PyQtMenuCoordinator, PyQtMenuEventHandler
 from gui.pyqt_hotkey_manager import PyQtHotkeyManager
@@ -65,6 +66,11 @@ class PromptStoreApp(QObject):
         self.event_handler: Optional[PyQtMenuEventHandler] = None
         self.notification_manager: Optional[PyQtNotificationManager] = None
         self.system_tray: Optional[QSystemTrayIcon] = None
+        
+        # Recording state
+        self.normal_icon = None
+        self.recording_icon = None
+        self.is_recording = False
 
         # Load configuration
         self._load_config(config_file)
@@ -132,6 +138,7 @@ class PromptStoreApp(QObject):
             PyQtSystemExecutionHandler(
                 refresh_callback=self._refresh_data, notification_manager=self.notification_manager
             ),
+            PyQtSpeechExecutionHandler(self.clipboard_manager, self.notification_manager, self.set_recording_indicator),
         ]
 
         for handler in handlers:
@@ -174,7 +181,7 @@ class PromptStoreApp(QObject):
             PromptMenuProvider(data_manager, self._execute_menu_item),
             PresetMenuProvider(data_manager, self._execute_menu_item),
             HistoryMenuProvider(history_service, self._execute_menu_item),
-            SystemMenuProvider(self._refresh_data),
+            SystemMenuProvider(self._refresh_data, self._speech_to_text),
         ]
 
         # Register providers with coordinator
@@ -188,15 +195,11 @@ class PromptStoreApp(QObject):
             return
 
         # Create tray icon
-        pixmap = QPixmap(16, 16)
-        pixmap.fill(Qt.transparent)
-        painter = QPainter(pixmap)
-        painter.setBrush(Qt.black)
-        painter.drawEllipse(0, 0, 16, 16)
-        painter.end()
+        self.normal_icon = self._create_tray_icon(Qt.black)
+        self.recording_icon = self._create_tray_icon(Qt.red)
         
-        icon = QIcon(pixmap)
-        self.system_tray = QSystemTrayIcon(icon, self.app)
+        self.system_tray = QSystemTrayIcon(self.normal_icon, self.app)
+        self.is_recording = False
         
         # Set tooltip
         system = platform.system()
@@ -209,6 +212,9 @@ class PromptStoreApp(QObject):
         show_action = QAction("Show Menu", tray_menu)
         show_action.triggered.connect(self._on_hotkey_pressed)
         
+        speech_action = QAction("Speech to Text", tray_menu)
+        speech_action.triggered.connect(self._speech_to_text)
+        
         refresh_action = QAction("Refresh Data", tray_menu)
         refresh_action.triggered.connect(self._refresh_data)
         
@@ -216,6 +222,7 @@ class PromptStoreApp(QObject):
         quit_action.triggered.connect(self.stop)
         
         tray_menu.addAction(show_action)
+        tray_menu.addAction(speech_action)
         tray_menu.addAction(refresh_action)
         tray_menu.addSeparator()
         tray_menu.addAction(quit_action)
@@ -223,6 +230,30 @@ class PromptStoreApp(QObject):
         self.system_tray.setContextMenu(tray_menu)
         self.system_tray.activated.connect(self._tray_activated)
         self.system_tray.show()
+
+    def _create_tray_icon(self, color) -> QIcon:
+        """Create a system tray icon with the specified color."""
+        pixmap = QPixmap(16, 16)
+        pixmap.fill(Qt.transparent)
+        painter = QPainter(pixmap)
+        painter.setBrush(color)
+        painter.drawEllipse(0, 0, 16, 16)
+        painter.end()
+        return QIcon(pixmap)
+
+    def set_recording_indicator(self, recording: bool) -> None:
+        """Update system tray icon to show recording status."""
+        if self.system_tray:
+            if recording and not self.is_recording:
+                self.system_tray.setIcon(self.recording_icon)
+                self.system_tray.setToolTip("Prompt Store - Recording...")
+                self.is_recording = True
+            elif not recording and self.is_recording:
+                self.system_tray.setIcon(self.normal_icon)
+                system = platform.system()
+                hotkey = "Cmd+F1" if system == "Darwin" else "Ctrl+F1"
+                self.system_tray.setToolTip(f"Prompt Store - {hotkey} for menu")
+                self.is_recording = False
 
     def _setup_signal_handlers(self) -> None:
         """Setup signal handlers for graceful shutdown."""
@@ -284,6 +315,34 @@ class PromptStoreApp(QObject):
             print("Data refreshed successfully")
         except Exception as e:
             print(f"Failed to refresh data: {e}")
+
+    def _speech_to_text(self) -> None:
+        """Handle speech-to-text action."""
+        if self.menu_coordinator:
+            from core.models import MenuItem, MenuItemType
+            speech_item = MenuItem(
+                id="system_speech_to_text",
+                label="Speech to Text",
+                item_type=MenuItemType.SPEECH,
+                action=lambda: None,
+                data={"type": "speech_to_text"},
+                enabled=True,
+            )
+            self.menu_coordinator.execute_menu_item(speech_item)
+            
+            # Update recording indicator
+            try:
+                speech_handler = None
+                for handler in self.prompt_store_service.execution_service.handlers:
+                    if hasattr(handler, 'speech_service') and handler.speech_service:
+                        speech_handler = handler
+                        break
+                
+                if speech_handler and speech_handler.speech_service:
+                    is_recording = speech_handler.speech_service.is_recording()
+                    self.set_recording_indicator(is_recording)
+            except:
+                pass
 
     def _execute_active_prompt(self) -> None:
         """Execute the active prompt with current clipboard content."""

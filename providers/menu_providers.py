@@ -185,7 +185,6 @@ class HistoryMenuProvider:
     def refresh(self) -> None:
         """Refresh the provider's data."""
         # History doesn't need external refresh
-        pass
 
     def _create_last_input_item(self) -> MenuItem:
         """Create a menu item for last input."""
@@ -233,12 +232,29 @@ class HistoryMenuProvider:
 class SystemMenuProvider:
     """Provides system menu items (refresh, etc.)."""
 
-    def __init__(self, refresh_callback: Callable[[], None]):
+    def __init__(
+        self,
+        refresh_callback: Callable[[], None],
+        speech_callback: Callable[[], None] = None,
+    ):
         self.refresh_callback = refresh_callback
+        self.speech_callback = speech_callback
 
     def get_menu_items(self) -> List[MenuItem]:
         """Return system menu items."""
         items = []
+
+        # Speech to text item
+        if self.speech_callback:
+            speech_item = MenuItem(
+                id="system_speech_to_text",
+                label="Speech to Text",
+                item_type=MenuItemType.SPEECH,
+                action=self.speech_callback,
+                data={"type": "speech_to_text"},
+                enabled=True,
+            )
+            items.append(speech_item)
 
         refresh_item = MenuItem(
             id="system_refresh",
@@ -255,4 +271,3 @@ class SystemMenuProvider:
     def refresh(self) -> None:
         """Refresh the provider's data."""
         # System items don't need refresh
-        pass

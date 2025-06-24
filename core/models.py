@@ -12,6 +12,7 @@ class MenuItemType(Enum):
     PRESET = "preset"
     HISTORY = "history"
     SYSTEM = "system"
+    SPEECH = "speech"
 
 
 class ErrorCode(Enum):

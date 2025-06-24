@@ -13,6 +13,7 @@ class AppConfig:
     """Application configuration."""
     api_key: str
     base_url: str
+    openai_api_key: Optional[str] = None
     hotkey: str = "shift+f1"
     max_history_entries: int = 10
     enable_notifications: bool = True
@@ -48,6 +49,7 @@ def load_config(env_file: Optional[str] = None) -> AppConfig:
     config = AppConfig(
         api_key=api_key,
         base_url=base_url,
+        openai_api_key=os.getenv("OPENAI_API_KEY"),
         hotkey=os.getenv("HOTKEY", "shift+f1"),
         max_history_entries=int(os.getenv("MAX_HISTORY_ENTRIES", "10")),
         enable_notifications=os.getenv(
@@ -94,6 +96,9 @@ def get_config_template() -> str:
 # Required settings
 API_KEY=your_api_key_here
 BASE_URL=https://your-api-server.com
+
+# Optional settings for speech-to-text
+OPENAI_API_KEY=your_openai_api_key_here
 
 # Optional settings
 HOTKEY=shift+f1

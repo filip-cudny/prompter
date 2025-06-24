@@ -198,7 +198,7 @@ class PyQtMenuBuilder:
 
         # Rebuild items with separators between groups
         new_items: List[MenuItem] = []
-        type_order = [MenuItemType.PROMPT, MenuItemType.PRESET, MenuItemType.HISTORY, MenuItemType.SYSTEM]
+        type_order = [MenuItemType.PROMPT, MenuItemType.PRESET, MenuItemType.HISTORY, MenuItemType.SPEECH, MenuItemType.SYSTEM]
         
         for i, item_type in enumerate(type_order):
             if item_type in grouped:
