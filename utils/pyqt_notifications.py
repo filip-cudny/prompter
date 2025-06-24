@@ -1,11 +1,11 @@
 """PyQt5-based notification utilities."""
 
 from PyQt5.QtWidgets import QApplication, QLabel, QGraphicsOpacityEffect
-from PyQt5.QtCore import QTimer, QPropertyAnimation, QEasingCurve
+from PyQt5.QtCore import QTimer, QPropertyAnimation, QEasingCurve, pyqtSignal, QObject
 from PyQt5.QtGui import QFont
 from PyQt5.QtCore import Qt
 from typing import Optional, List
-import queue
+import threading
 
 
 class NotificationWidget(QLabel):
@@ -76,14 +76,28 @@ class NotificationWidget(QLabel):
         self.fade_animation.start()
 
 
+class NotificationDispatcher(QObject):
+    """Thread-safe notification dispatcher using Qt signals."""
+    
+    show_notification_signal = pyqtSignal(str, str, int)
+    
+    def __init__(self, notification_manager):
+        super().__init__()
+        self.notification_manager = notification_manager
+        self.show_notification_signal.connect(self._show_notification_slot)
+        
+    def _show_notification_slot(self, message: str, bg_color: str, duration: int):
+        """Slot to handle notification display on main thread."""
+        self.notification_manager._show_notification_internal(message, duration, bg_color)
+
+
 class PyQtNotificationManager:
-    """PyQt5-based notification manager."""
+    """PyQt5-based notification manager with immediate display."""
 
     def __init__(self, app: Optional[QApplication] = None):
         self.app = app or QApplication.instance()
-        self.notification_queue: queue.Queue = queue.Queue()
-        self._processing = False
         self.active_notifications: List[NotificationWidget] = []
+        self.dispatcher = NotificationDispatcher(self) if self.app else None
 
     def show_success_notification(
         self, title: str, message: str, prompt_name: Optional[str] = None
@@ -94,7 +108,7 @@ class PyQtNotificationManager:
         else:
             full_message = f"✔ {title}\n{message}"
 
-        self._queue_notification(full_message, "#6B7A4A", 2000)
+        self._display_notification(full_message, "#6B7A4A", 2000)
 
     def show_error_notification(
         self, title: str, message: str, prompt_name: Optional[str] = None
@@ -105,56 +119,34 @@ class PyQtNotificationManager:
         else:
             full_message = f"✗ {title}\n{message}"
 
-        self._queue_notification(full_message, "#9B6B67", 4000)
+        self._display_notification(full_message, "#9B6B67", 4000)
 
     def show_info_notification(self, title: str, message: str) -> None:
         """Show an info notification."""
         full_message = f"ⓘ {title}\n{message}"
-        self._queue_notification(full_message, "#6A7D93", 2000)
+        self._display_notification(full_message, "#6A7D93", 2000)
 
-    def _queue_notification(self, message: str, bg_color: str, duration: int) -> None:
-        """Queue a notification to be shown."""
-        try:
-            self.notification_queue.put_nowait(
-                {"message": message, "bg_color": bg_color, "duration": duration}
-            )
-            self._schedule_process_queue()
-        except queue.Full:
-            pass
-
-    def _schedule_process_queue(self) -> None:
-        """Schedule processing of the notification queue."""
-        if not self._processing and self.app:
-            QTimer.singleShot(0, self._process_notification_queue)
-
-    def _process_notification_queue(self) -> None:
-        """Process notifications from the queue."""
-        if self._processing:
+    def _display_notification(self, message: str, bg_color: str, duration: int) -> None:
+        """Display a notification immediately, handling threading properly."""
+        if not self.app or not self.dispatcher:
+            print(f"🔔 {message}")
             return
 
-        self._processing = True
+        # Check if we're on the main thread
+        if threading.current_thread() == threading.main_thread():
+            # We're on main thread, show immediately
+            self._show_notification_internal(message, duration, bg_color)
+        else:
+            # We're on a background thread, use signal to show on main thread
+            self.dispatcher.show_notification_signal.emit(message, bg_color, duration)
 
-        try:
-            while True:
-                try:
-                    notification_data = self.notification_queue.get_nowait()
-                    self._show_notification(
-                        notification_data["message"],
-                        notification_data["duration"],
-                        notification_data["bg_color"],
-                    )
-                except queue.Empty:
-                    break
-        finally:
-            self._processing = False
-
-    def _show_notification(
+    def _show_notification_internal(
         self, message: str, duration: int = 2000, bg_color: str = "#323232"
     ) -> None:
-        """Show a notification widget."""
+        """Internal method to show notification (must be called on main thread)."""
         try:
             if not self.app:
-                print(f"ⓘ {message}")
+                print(f"🔔 {message}")
                 return
 
             # Clean up old notifications

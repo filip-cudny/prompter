@@ -573,7 +573,7 @@ class PyQtSpeechExecutionHandler:
     def _on_recording_stopped(self) -> None:
         """Handle recording stopped event."""
         self.notification_manager.show_info_notification(
-            "Processing Audio", "Transcribing audio, please wait..."
+            "Processing Audio", "Transcribing your speech to text, please wait..."
         )
         if self.recording_indicator_callback:
             self.recording_indicator_callback(False)
@@ -584,16 +584,18 @@ class PyQtSpeechExecutionHandler:
             if transcription:
                 success = self.clipboard_manager.set_content(transcription)
                 if success:
-                    preview = truncate_text(transcription, 100)
+                    preview = truncate_text(transcription, 80)
+                    word_count = len(transcription.split())
                     self.notification_manager.show_success_notification(
-                        "Transcription Complete", f"Text copied to clipboard: {preview}"
+                        "Transcription Complete ✓", 
+                        f"Successfully transcribed {word_count} words and copied to clipboard:\n\"{preview}\""
                     )
                 else:
                     self.notification_manager.show_error_notification(
-                        "Clipboard Error", "Failed to copy transcription to clipboard"
+                        "Clipboard Error", "Transcription successful but failed to copy to clipboard"
                     )
             else:
-                self.notification_manager.show_warning_notification(
+                self.notification_manager.show_info_notification(
                     "No Speech Detected", "No speech was detected in the recording"
                 )
         except Exception as e:
