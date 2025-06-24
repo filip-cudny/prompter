@@ -14,6 +14,7 @@ class HotkeySignals(QObject):
 
     re_execute_hotkey_pressed = pyqtSignal()
     context_menu_hotkey_pressed = pyqtSignal()
+    speech_toggle_hotkey_pressed = pyqtSignal()
 
 
 class HotkeyConfig:
@@ -25,11 +26,15 @@ class HotkeyConfig:
         if system == "darwin":  # macOS
             self.context_menu_hotkey = "cmd+f2"
             self.re_execute_hotkey = "cmd+f1"
+            self.speech_toggle_hotkey = "shift+f1"
             self.modifier_keys = [Key.cmd, Key.cmd_l, Key.cmd_r]
+            self.shift_keys = [Key.shift, Key.shift_l, Key.shift_r]
         else:  # Linux and others
             self.context_menu_hotkey = "ctrl+f2"
             self.re_execute_hotkey = "ctrl+f1"
+            self.speech_toggle_hotkey = "shift+f1"
             self.modifier_keys = [Key.ctrl, Key.ctrl_l, Key.ctrl_r]
+            self.shift_keys = [Key.shift, Key.shift_l, Key.shift_r]
 
 
 HOTKEY_CONFIG = HotkeyConfig()
@@ -43,10 +48,12 @@ class PyQtHotkeyListener:
         self.pressed_keys: Set[Key] = set()
         self.re_execute_hotkey_pressed = False
         self.context_menu_hotkey_pressed = False
+        self.speech_toggle_hotkey_pressed = False
         self.signals = HotkeySignals()
         self.running = False
         self.re_execute_reset_timer: Optional[threading.Timer] = None
         self.context_menu_reset_timer: Optional[threading.Timer] = None
+        self.speech_toggle_reset_timer: Optional[threading.Timer] = None
 
     def connect_re_execute_callback(self, callback: Callable[[], None]) -> None:
         """Connect callback for re-execute hotkey (Cmd/Ctrl+F1)."""
@@ -55,6 +62,10 @@ class PyQtHotkeyListener:
     def connect_context_menu_callback(self, callback: Callable[[], None]) -> None:
         """Connect callback for context menu hotkey (Cmd/Ctrl+F2)."""
         self.signals.context_menu_hotkey_pressed.connect(callback)
+
+    def connect_speech_toggle_callback(self, callback: Callable[[], None]) -> None:
+        """Connect callback for speech toggle hotkey (Shift+F1)."""
+        self.signals.speech_toggle_hotkey_pressed.connect(callback)
 
     def start(self) -> None:
         """Start the hotkey listener."""
@@ -82,6 +93,10 @@ class PyQtHotkeyListener:
             self.context_menu_reset_timer.cancel()
             self.context_menu_reset_timer = None
 
+        if self.speech_toggle_reset_timer:
+            self.speech_toggle_reset_timer.cancel()
+            self.speech_toggle_reset_timer = None
+
         if self.listener:
             self.listener.stop()
             self.listener = None
@@ -89,6 +104,7 @@ class PyQtHotkeyListener:
         self.pressed_keys.clear()
         self.re_execute_hotkey_pressed = False
         self.context_menu_hotkey_pressed = False
+        self.speech_toggle_hotkey_pressed = False
 
     def _on_press(self, key: Key) -> None:
         """Handle key press events."""
@@ -98,6 +114,8 @@ class PyQtHotkeyListener:
             self._trigger_re_execute_hotkey()
         elif self._is_context_menu_hotkey_pressed():
             self._trigger_context_menu_hotkey()
+        elif self._is_speech_toggle_hotkey_pressed():
+            self._trigger_speech_toggle_hotkey()
 
     def _on_release(self, key: Key) -> None:
         """Handle key release events."""
@@ -120,6 +138,14 @@ class PyQtHotkeyListener:
         f2_pressed = Key.f2 in self.pressed_keys
         return modifier_pressed and f2_pressed
 
+    def _is_speech_toggle_hotkey_pressed(self) -> bool:
+        """Check if speech toggle hotkey combination is pressed."""
+        shift_pressed = any(
+            mod in self.pressed_keys for mod in HOTKEY_CONFIG.shift_keys
+        )
+        f1_pressed = Key.f1 in self.pressed_keys
+        return shift_pressed and f1_pressed
+
     def _trigger_re_execute_hotkey(self) -> None:
         """Trigger re-execute hotkey signal if not already triggered."""
         if not self.re_execute_hotkey_pressed:
@@ -140,6 +166,16 @@ class PyQtHotkeyListener:
             )
             self.context_menu_reset_timer.start()
 
+    def _trigger_speech_toggle_hotkey(self) -> None:
+        """Trigger speech toggle hotkey signal if not already triggered."""
+        if not self.speech_toggle_hotkey_pressed:
+            self.speech_toggle_hotkey_pressed = True
+            self.signals.speech_toggle_hotkey_pressed.emit()
+            self.speech_toggle_reset_timer = threading.Timer(
+                1.0, self._reset_speech_toggle_hotkey_flag
+            )
+            self.speech_toggle_reset_timer.start()
+
     def _reset_re_execute_hotkey_flag(self) -> None:
         """Reset re-execute hotkey flag to prevent rapid firing."""
         self.re_execute_hotkey_pressed = False
@@ -149,6 +185,11 @@ class PyQtHotkeyListener:
         """Reset context menu hotkey flag to prevent rapid firing."""
         self.context_menu_hotkey_pressed = False
         self.context_menu_reset_timer = None
+
+    def _reset_speech_toggle_hotkey_flag(self) -> None:
+        """Reset speech toggle hotkey flag to prevent rapid firing."""
+        self.speech_toggle_hotkey_pressed = False
+        self.speech_toggle_reset_timer = None
 
 
 class PyQtHotkeyManager:
@@ -166,6 +207,10 @@ class PyQtHotkeyManager:
     def connect_context_menu_callback(self, callback: Callable[[], None]) -> None:
         """Connect callback for context menu hotkey activation."""
         self.listener.connect_context_menu_callback(callback)
+
+    def connect_speech_toggle_callback(self, callback: Callable[[], None]) -> None:
+        """Connect callback for speech toggle hotkey activation."""
+        self.listener.connect_speech_toggle_callback(callback)
 
     def start(self) -> None:
         """Start hotkey detection."""

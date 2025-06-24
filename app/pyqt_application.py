@@ -153,6 +153,7 @@ class PromptStoreApp(QObject):
         self.hotkey_manager = PyQtHotkeyManager(self.config.hotkey)
         self.hotkey_manager.connect_context_menu_callback(self._on_f2_hotkey_pressed)
         self.hotkey_manager.connect_re_execute_callback(self._on_f1_hotkey_pressed)
+        self.hotkey_manager.connect_speech_toggle_callback(self._on_shift_f1_hotkey_pressed)
 
         # Initialize menu coordinator
         self.menu_coordinator = PyQtMenuCoordinator(self.prompt_store_service, self.app)
@@ -204,7 +205,7 @@ class PromptStoreApp(QObject):
         # Set tooltip
         system = platform.system()
         hotkey = "Cmd+F1" if system == "Darwin" else "Ctrl+F1"
-        self.system_tray.setToolTip(f"Prompt Store - {hotkey} for menu")
+        self.system_tray.setToolTip(f"Prompt Store - {hotkey} for menu, Shift+F1 for speech")
         
         # Create tray menu
         tray_menu = QMenu()
@@ -252,7 +253,7 @@ class PromptStoreApp(QObject):
                 self.system_tray.setIcon(self.normal_icon)
                 system = platform.system()
                 hotkey = "Cmd+F1" if system == "Darwin" else "Ctrl+F1"
-                self.system_tray.setToolTip(f"Prompt Store - {hotkey} for menu")
+                self.system_tray.setToolTip(f"Prompt Store - {hotkey} for menu, Shift+F1 for speech")
                 self.is_recording = False
 
     def _setup_signal_handlers(self) -> None:
@@ -300,6 +301,10 @@ class PromptStoreApp(QObject):
         if self.menu_coordinator:
             self.menu_coordinator.show_menu()
 
+    def _on_shift_f1_hotkey_pressed(self) -> None:
+        """Handle Shift+F1 hotkey press event for speech-to-text toggle."""
+        self._speech_to_text()
+
     def _execute_menu_item(self, item) -> None:
         """Execute a menu item (placeholder for provider callbacks)."""
         # This is handled by the menu coordinator's wrapped actions
@@ -328,7 +333,7 @@ class PromptStoreApp(QObject):
                 data={"type": "speech_to_text"},
                 enabled=True,
             )
-            self.menu_coordinator.execute_menu_item(speech_item)
+            self.menu_coordinator._execute_menu_item(speech_item)
             
             # Update recording indicator
             try:
@@ -374,6 +379,7 @@ class PromptStoreApp(QObject):
         hotkey_f2 = "Cmd+F2" if system == "Darwin" else "Ctrl+F2"
         print(f"Execute Active Prompt: {hotkey_f1}")
         print(f"Context Menu: {hotkey_f2}")
+        print("Speech-to-Text Toggle: Shift+F1")
         print("Press Ctrl+C to stop\n")
 
         # Check platform-specific permissions

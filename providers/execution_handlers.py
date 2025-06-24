@@ -457,3 +457,126 @@ class SystemExecutionHandler:
                 error_code=ErrorCode.UNKNOWN_ERROR,
                 execution_time=time.time() - start_time,
             )
+
+
+class SpeechExecutionHandler:
+    """Handler for executing speech-to-text menu items."""
+
+    def __init__(
+        self,
+        clipboard_manager: ClipboardManager,
+        notification_manager=None,
+        recording_indicator_callback=None,
+    ):
+        self.clipboard_manager = clipboard_manager
+        self.notification_manager = notification_manager or PyQtNotificationManager()
+        self.recording_indicator_callback = recording_indicator_callback
+        self.speech_service = None
+        self._initialize_speech_service()
+
+    def _initialize_speech_service(self) -> None:
+        """Initialize speech-to-text service."""
+        try:
+            from utils.speech_to_text import SpeechToTextService
+            from utils.config import load_config
+
+            config = load_config()
+            if hasattr(config, 'openai_api_key') and config.openai_api_key:
+                self.speech_service = SpeechToTextService(config.openai_api_key)
+                self.speech_service.set_recording_started_callback(
+                    self._on_recording_started
+                )
+                self.speech_service.set_recording_stopped_callback(
+                    self._on_recording_stopped
+                )
+                self.speech_service.set_transcription_callback(
+                    self._on_transcription_complete
+                )
+                self.speech_service.set_error_callback(self._on_speech_error)
+        except Exception:
+            pass
+
+    def can_handle(self, item: MenuItem) -> bool:
+        """Check if this handler can execute the given menu item."""
+        return item.item_type == MenuItemType.SPEECH
+
+    def execute(self, item: MenuItem, context: Optional[str] = None) -> ExecutionResult:
+        """Execute a speech-to-text menu item."""
+        start_time = time.time()
+
+        try:
+            if not self.speech_service:
+                error_msg = "Speech-to-text service not available. Please configure OPENAI_API_KEY and install PyAudio."
+                self.notification_manager.show_error_notification(
+                    "Speech-to-Text Error", error_msg
+                )
+                return ExecutionResult(
+                    success=False,
+                    error=error_msg,
+                    error_code=ErrorCode.CONFIGURATION_ERROR,
+                    execution_time=time.time() - start_time,
+                )
+
+            self.speech_service.toggle_recording()
+
+            return ExecutionResult(
+                success=True,
+                content="Speech recording toggled",
+                execution_time=time.time() - start_time,
+            )
+
+        except Exception as e:
+            error_msg = str(e)
+            self.notification_manager.show_error_notification(
+                "Speech-to-Text Error", error_msg
+            )
+            execution_result = ExecutionResult(
+                success=False,
+                error=f"Speech action failed: {error_msg}",
+                error_code=ErrorCode.UNKNOWN_ERROR,
+                execution_time=time.time() - start_time,
+            )
+            return execution_result
+
+    def _on_recording_started(self) -> None:
+        """Handle recording started event."""
+        self.notification_manager.show_info_notification(
+            "Speech-to-Text", "Recording started..."
+        )
+        if self.recording_indicator_callback:
+            self.recording_indicator_callback(True)
+
+    def _on_recording_stopped(self) -> None:
+        """Handle recording stopped event."""
+        self.notification_manager.show_info_notification(
+            "Speech-to-Text", "Recording stopped. Transcribing..."
+        )
+        if self.recording_indicator_callback:
+            self.recording_indicator_callback(False)
+
+    def _on_transcription_complete(self, transcription: str) -> None:
+        """Handle transcription completion."""
+        if transcription and transcription.strip():
+            success = self.clipboard_manager.set_content(transcription)
+            if success:
+                truncated = truncate_text(transcription, 100)
+                self.notification_manager.show_success_notification(
+                    "Speech-to-Text Complete",
+                    f"Transcribed and copied: {truncated}",
+                )
+            else:
+                self.notification_manager.show_error_notification(
+                    "Speech-to-Text Error", "Failed to copy transcription to clipboard"
+                )
+        else:
+            self.notification_manager.show_warning_notification(
+                "Speech-to-Text", "No speech detected or transcription failed"
+            )
+
+    def _on_speech_error(self, error_msg: str) -> None:
+        """Handle speech service errors."""
+        self.notification_manager.show_error_notification(
+            "Speech-to-Text Error", error_msg
+        )
+        if self.recording_indicator_callback:
+            self.recording_indicator_callback(False)

@@ -21,6 +21,7 @@ from providers.execution_handlers import (
     PresetExecutionHandler,
     HistoryExecutionHandler,
     SystemExecutionHandler,
+    SpeechExecutionHandler,
 )
 from gui.menu_coordinator import MenuCoordinator, MenuEventHandler
 from gui.hotkey_manager import HotkeyManager
@@ -112,6 +113,7 @@ class PromptStoreApp:
             SystemExecutionHandler(
                 refresh_callback=self._refresh_data, main_root=self.root
             ),
+            SpeechExecutionHandler(self.clipboard_manager, self.notification_manager),
         ]
 
         for handler in handlers:
@@ -128,6 +130,7 @@ class PromptStoreApp:
         self.hotkey_manager = HotkeyManager(self.config.hotkey)
         self.hotkey_manager.set_callback(self._on_hotkey_pressed)
         self.hotkey_manager.set_f2_callback(self._on_f2_hotkey_pressed)
+        self.hotkey_manager.set_speech_toggle_callback(self._on_shift_f1_hotkey_pressed)
 
         # Initialize menu coordinator
         self.menu_coordinator = MenuCoordinator(self.prompt_store_service)
@@ -156,7 +159,7 @@ class PromptStoreApp:
             PromptMenuProvider(data_manager, self._execute_menu_item),
             PresetMenuProvider(data_manager, self._execute_menu_item),
             HistoryMenuProvider(history_service, self._execute_menu_item),
-            SystemMenuProvider(self._refresh_data),
+            SystemMenuProvider(self._refresh_data, self._speech_to_text),
         ]
 
         # Register providers with coordinator
@@ -190,6 +193,14 @@ class PromptStoreApp:
         except queue.Full:
             pass  # Ignore if queue is full
 
+    def _on_shift_f1_hotkey_pressed(self) -> None:
+        """Handle Shift+F1 hotkey press event for speech-to-text toggle."""
+        # Put speech toggle event in queue for main thread to process
+        try:
+            self.hotkey_queue.put_nowait("toggle_speech_to_text")
+        except queue.Full:
+            pass  # Ignore if queue is full
+
     def _execute_menu_item(self, item) -> None:
         """Execute a menu item (placeholder for provider callbacks)."""
         # This is handled by the menu coordinator's wrapped actions
@@ -203,6 +214,20 @@ class PromptStoreApp:
             print("Data refreshed successfully")
         except Exception as e:
             print(f"Failed to refresh data: {e}")
+
+    def _speech_to_text(self) -> None:
+        """Handle speech-to-text toggle action."""
+        if self.menu_coordinator:
+            from core.models import MenuItem, MenuItemType
+            speech_item = MenuItem(
+                id="system_speech_to_text",
+                label="Speech to Text",
+                item_type=MenuItemType.SPEECH,
+                action=lambda: None,
+                data={"type": "speech_to_text"},
+                enabled=True,
+            )
+            self.menu_coordinator.execute_menu_item(speech_item)
 
     def _execute_active_prompt(self) -> None:
         """Execute the active prompt with current clipboard content."""
@@ -220,7 +245,8 @@ class PromptStoreApp:
         """Run the application."""
         print("Starting Prompt Store Service...")
         print(f"Hotkey: {self.config.hotkey}")
-        print("Shift+F1: Execute active prompt")
+        print("Shift+F2: Execute active prompt")
+        print("Shift+F1: Toggle speech-to-text")
         print("Press Ctrl+C to stop\n")
 
         # Check platform-specific permissions
@@ -273,6 +299,8 @@ class PromptStoreApp:
                         self.menu_coordinator.show_menu()
                     elif event == "execute_active_prompt":
                         self._execute_active_prompt()
+                    elif event == "toggle_speech_to_text":
+                        self._speech_to_text()
                 except queue.Empty:
                     break
         except Exception as e:
