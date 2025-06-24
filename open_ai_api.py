@@ -26,7 +26,7 @@ class OpenAIClient:
 
         Args:
             audio_file: Binary audio file object
-            model: Model to use for transcription (default: whisper-1)
+            model: Model to use for transcription (default: gpt-4o-transcribe)
 
         Returns:
             Transcribed text
@@ -51,7 +51,7 @@ class OpenAIClient:
 
         Args:
             file_path: Path to the audio file
-            model: Model to use for transcription (default: whisper-1)
+            model: Model to use for transcription (default: gpt-4o-transcribe)
 
         Returns:
             Transcribed text
