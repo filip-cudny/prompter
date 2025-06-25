@@ -476,13 +476,11 @@ class PyQtSpeechExecutionHandler:
         notification_manager: Optional[PyQtNotificationManager] = None,
         recording_indicator_callback: Optional[Callable[[bool], None]] = None,
         speech_history_service=None,
-        menu_refresh_callback: Optional[Callable[[], None]] = None,
     ):
         self.clipboard_manager = clipboard_manager
         self.notification_manager = notification_manager or PyQtNotificationManager()
         self.recording_indicator_callback = recording_indicator_callback
         self.speech_history_service = speech_history_service
-        self.menu_refresh_callback = menu_refresh_callback
         self.speech_service = None
         self._initialize_speech_service()
 
@@ -594,10 +592,6 @@ class PyQtSpeechExecutionHandler:
                 # Store transcription in speech history
                 if self.speech_history_service:
                     self.speech_history_service.add_transcription(transcription)
-
-                # Refresh menu immediately after adding transcription
-                if self.menu_refresh_callback:
-                    self.menu_refresh_callback()
 
                 success = self.clipboard_manager.set_content(transcription)
                 if success:

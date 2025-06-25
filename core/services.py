@@ -30,16 +30,14 @@ class PromptStoreService:
         self.history_service = HistoryService()
         self.active_prompt_service = ActivePromptService()
         self.speech_history_service = SpeechHistoryService()
-        self.menu_refresh_callback = None
+
 
     def refresh_data(self) -> None:
         """Refresh all data from providers."""
         self.prompt_provider.refresh()
         self.data_manager.refresh()
 
-    def set_menu_refresh_callback(self, callback):
-        """Set callback to refresh menu after operations."""
-        self.menu_refresh_callback = callback
+
 
     def get_prompts(self) -> List[PromptData]:
         """Get all available prompts."""
@@ -78,9 +76,7 @@ class PromptStoreService:
                         error=result.error,
                     )
 
-                # Refresh menu after adding history entry
-                if self.menu_refresh_callback:
-                    self.menu_refresh_callback()
+
 
             return result
         except Exception as e:

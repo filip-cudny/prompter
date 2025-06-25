@@ -113,10 +113,7 @@ class PromptStoreApp(QObject):
                 self.prompt_provider, self.clipboard_manager, self.notification_manager
             )
 
-            # Set menu refresh callback for prompt store service
-            self.prompt_store_service.set_menu_refresh_callback(
-                self._refresh_menu_after_execution
-            )
+
 
             # Initialize GUI components
             self._initialize_gui()
@@ -153,7 +150,6 @@ class PromptStoreApp(QObject):
                 self.notification_manager,
                 self.set_recording_indicator,
                 self.prompt_store_service.speech_history_service,
-                self._refresh_menu_after_speech,
             ),
         ]
 
@@ -353,21 +349,7 @@ class PromptStoreApp(QObject):
         except Exception as e:
             print(f"Failed to refresh data: {e}")
 
-    def _refresh_menu_after_speech(self) -> None:
-        """Refresh menu immediately after speech-to-text completion."""
-        try:
-            if self.menu_coordinator:
-                self.menu_coordinator.refresh_providers()
-        except Exception as e:
-            print(f"Failed to refresh menu after speech: {e}")
 
-    def _refresh_menu_after_execution(self) -> None:
-        """Refresh menu immediately after prompt/preset execution."""
-        try:
-            if self.menu_coordinator:
-                self.menu_coordinator.refresh_providers()
-        except Exception as e:
-            print(f"Failed to refresh menu after execution: {e}")
 
     def _speech_to_text(self) -> None:
         """Handle speech-to-text action."""
@@ -418,10 +400,9 @@ class PromptStoreApp(QObject):
 
             result = self.prompt_store_service.execute_active_prompt()
 
-            # Clear menu cache and refresh providers so history updates are reflected
+            # Clear menu cache only (no auto-refresh)
             if self.menu_coordinator:
                 self.menu_coordinator._clear_menu_cache()
-                self.menu_coordinator.refresh_providers()
 
             if self.event_handler:
                 self.event_handler.handle_execution_result(result)
