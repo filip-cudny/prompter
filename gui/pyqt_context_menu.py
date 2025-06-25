@@ -14,17 +14,7 @@ class PyQtContextMenu:
         self.parent = parent
         self.menu: Optional[QMenu] = None
         self.menu_position_offset = (0, 0)
-
-    def create_menu(self, items: List[MenuItem]) -> QMenu:
-        """Create a QMenu from menu items."""
-        menu = QMenu(self.parent)
-        menu.setWindowFlags(
-            Qt.Popup | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint
-        )
-        menu.setAttribute(Qt.WA_TranslucentBackground, False)
-
-        # Set menu style
-        menu.setStyleSheet("""
+        self._menu_stylesheet = """
             QMenu {
                 background-color: #2b2b2b;
                 border: 1px solid #555555;
@@ -50,7 +40,16 @@ class PyQtContextMenu:
                 background-color: #555555;
                 margin: 4px 8px;
             }
-        """)
+        """
+
+    def create_menu(self, items: List[MenuItem]) -> QMenu:
+        """Create a QMenu from menu items."""
+        menu = QMenu(self.parent)
+        menu.setWindowFlags(
+            Qt.Popup | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint
+        )
+        menu.setAttribute(Qt.WA_TranslucentBackground, False)
+        menu.setStyleSheet(self._menu_stylesheet)
 
         self._add_menu_items(menu, items)
         return menu
@@ -60,7 +59,13 @@ class PyQtContextMenu:
     ) -> QMenu:
         """Create a submenu."""
         submenu = parent_menu.addMenu(title)
-        submenu.setStyleSheet(parent_menu.styleSheet())
+
+        submenu.setWindowFlags(
+            Qt.Popup | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint
+        )
+        submenu.setAttribute(Qt.WA_TranslucentBackground, True)
+        submenu.setStyleSheet(self._menu_stylesheet)
+
         self._add_menu_items(submenu, items)
         return submenu
 
