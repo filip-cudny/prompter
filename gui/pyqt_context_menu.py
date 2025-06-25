@@ -31,7 +31,6 @@ class PyQtContextMenu:
                 border-radius: 6px;
                 padding: 4px;
                 color: white;
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
                 font-size: 13px;
             }
             QMenu::item {
