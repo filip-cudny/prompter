@@ -5,7 +5,7 @@ import signal
 import platform
 from typing import Optional, List
 from PyQt5.QtWidgets import QApplication, QSystemTrayIcon, QMenu, QAction
-from PyQt5.QtCore import QTimer, pyqtSignal, QObject, QSocketNotifier
+from PyQt5.QtCore import QTimer, pyqtSignal, QObject
 from PyQt5.QtGui import QIcon, QPixmap, QPainter
 from PyQt5.QtCore import Qt
 
@@ -321,16 +321,21 @@ class PromptStoreApp(QObject):
 
     def _on_f1_hotkey_pressed(self) -> None:
         """Handle F1 hotkey press event for executing active prompt."""
-        self._execute_active_prompt()
+        # Use QTimer.singleShot to ensure execution on main Qt thread
+        QTimer.singleShot(0, self._execute_active_prompt)
 
     def _on_f2_hotkey_pressed(self) -> None:
         """Handle F2 hotkey press event for showing context menu."""
-        if self.menu_coordinator:
-            self.menu_coordinator.show_menu()
+        # Use QTimer.singleShot to ensure execution on main Qt thread
+        def show_menu():
+            if self.menu_coordinator:
+                self.menu_coordinator.show_menu()
+        QTimer.singleShot(0, show_menu)
 
     def _on_shift_f1_hotkey_pressed(self) -> None:
         """Handle Shift+F1 hotkey press event for speech-to-text toggle."""
-        self._speech_to_text()
+        # Use QTimer.singleShot to ensure execution on main Qt thread
+        QTimer.singleShot(0, self._speech_to_text)
 
     def _execute_menu_item(self, item) -> None:
         """Execute a menu item (placeholder for provider callbacks)."""

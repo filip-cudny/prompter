@@ -1,16 +1,15 @@
 """PyQt5-based notification utilities."""
 
-from PyQt5.QtWidgets import QApplication, QLabel, QGraphicsOpacityEffect, QDesktopWidget
+from PyQt5.QtWidgets import QApplication, QLabel, QGraphicsOpacityEffect
 from PyQt5.QtCore import (
     QTimer,
     QPropertyAnimation,
     QEasingCurve,
     pyqtSignal,
     QObject,
-    QPoint,
+    Qt,
 )
-from PyQt5.QtGui import QFont, QCursor
-from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QCursor
 from typing import Optional, List
 import threading
 import platform
@@ -50,26 +49,36 @@ class NotificationWidget(QLabel):
         self.hide_timer.setSingleShot(True)
         self.hide_timer.timeout.connect(self.fade_out)
 
-    def show_notification(self, duration: int = 2000, target_screen_geometry=None, notification_index: int = 0):
+    def show_notification(
+        self,
+        duration: int = 2000,
+        target_screen_geometry=None,
+        notification_index: int = 0,
+    ):
         """Show the notification with fade-in animation."""
-        # Position the notification at top-right of screen
-        self.adjustSize()
+        try:
+            # Position the notification at top-right of screen
+            self.adjustSize()
 
-        if target_screen_geometry:
-            screen_geometry = target_screen_geometry
-        else:
-            screen_geometry = QApplication.desktop().screenGeometry()
+            if target_screen_geometry:
+                screen_geometry = target_screen_geometry
+            else:
+                screen_geometry = QApplication.desktop().screenGeometry()
 
-        x = screen_geometry.x() + screen_geometry.width() - self.width() - 20
-        y = screen_geometry.y() + 50 + (notification_index * 80)
-        self.move(x, y)
+            x = screen_geometry.x() + screen_geometry.width() - self.width() - 20
+            y = screen_geometry.y() + 50 + (notification_index * 80)
+            self.move(x, y)
 
-        # Show and fade in
-        self.show()
-        self.fade_in()
+            # Show and fade in
+            self.show()
+            self.raise_()  # Ensure notification is on top
+            self.activateWindow()  # Activate window on macOS
+            self.fade_in()
 
-        # Set timer to fade out
-        self.hide_timer.start(duration)
+            # Set timer to fade out
+            self.hide_timer.start(duration)
+        except Exception as e:
+            print(f"Error showing notification: {e}")
 
     def fade_in(self):
         """Fade in animation."""
@@ -97,7 +106,9 @@ class NotificationDispatcher(QObject):
     def __init__(self, notification_manager):
         super().__init__()
         self.notification_manager = notification_manager
-        self.show_notification_signal.connect(self._show_notification_slot)
+        self.show_notification_signal.connect(
+            self._show_notification_slot, Qt.QueuedConnection
+        )
 
     def _show_notification_slot(self, message: str, bg_color: str, duration: int):
         """Slot to handle notification display on main thread."""
@@ -148,9 +159,26 @@ class PyQtNotificationManager:
             print(f"🔔 {message}")
             return
 
-        # Check if we're on the main thread
-        if threading.current_thread() == threading.main_thread():
-            # We're on main thread, show immediately
+        current_thread = threading.current_thread()
+        main_thread = threading.main_thread()
+        is_main_thread = current_thread == main_thread
+
+        # Always use QTimer.singleShot for deferred execution on macOS to avoid blocking
+        if platform.system() == "Darwin":
+            if is_main_thread:
+                QTimer.singleShot(
+                    0,
+                    lambda: self._show_notification_internal(
+                        message, duration, bg_color
+                    ),
+                )
+            else:
+                # Use signal for cross-thread communication
+                self.dispatcher.show_notification_signal.emit(
+                    message, bg_color, duration
+                )
+        elif is_main_thread:
+            # On Linux/Windows, show immediately if on main thread
             self._show_notification_internal(message, duration, bg_color)
         else:
             # We're on a background thread, use signal to show on main thread
@@ -219,6 +247,16 @@ class PyQtNotificationManager:
         try:
             if not self.app:
                 print(f"🔔 {message}")
+                return
+
+            current_thread = threading.current_thread()
+            is_main_thread = current_thread == threading.main_thread()
+
+            # Ensure we're running on the main GUI thread
+            if not is_main_thread:
+                print(
+                    f"Warning: Notification called from background thread on {platform.system()}"
+                )
                 return
 
             # Get the active screen geometry

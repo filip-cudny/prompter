@@ -1,8 +1,8 @@
 """PyQt5-based context menu system for the prompt store application."""
 
-from typing import List, Optional, Tuple, Dict, Any
+from typing import List, Optional, Tuple, Dict
 from PyQt5.QtWidgets import QMenu, QAction, QApplication
-from PyQt5.QtCore import Qt, QPoint
+from PyQt5.QtCore import Qt, QPoint, QTimer
 from PyQt5.QtGui import QCursor
 from core.models import MenuItem, MenuItemType
 
@@ -135,10 +135,11 @@ class PyQtContextMenu:
         return action
 
     def _execute_action(self, item: MenuItem) -> None:
-        """Execute a menu item action."""
+        """Execute a menu item action asynchronously to prevent menu blocking."""
         try:
             if item.action is not None:
-                item.action()
+                # Execute action asynchronously to prevent blocking the menu
+                QTimer.singleShot(0, item.action)
         except Exception as e:
             print(f"Error executing menu action: {e}")
 
