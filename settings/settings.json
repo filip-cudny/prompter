@@ -9,8 +9,8 @@
   },
   "prompts": [
     {
-      "id": "example-prompt-001",
-      "name": "Help with Clipboard",
+      "id": "prompt-refine",
+      "name": "Prompt refine - local",
       "messages": [
         {
           "role": "system",
@@ -18,21 +18,35 @@
         },
         {
           "role": "user",
-          "content": "Please help me with: {{clipboard}}"
+          "content": "{{clipboard}}"
         }
       ]
     },
     {
-      "id": "code-review-001",
-      "name": "Code Reviewer",
+      "id": "text-correction-grammar",
+      "name": "Text correction - grammar",
       "messages": [
         {
           "role": "system",
-          "file": "prompts/dummy/system.md" 
+          "file": "prompts/dummy/system.md"
         },
         {
           "role": "user",
-          "content": "Review this code:\n\n{{clipboard}}"
+          "content": "{{clipboard}}"
+        }
+      ]
+    },
+    {
+      "id": "text-correction-proffesional",
+      "name": "Text correction - proffesional",
+      "messages": [
+        {
+          "role": "system",
+          "file": "prompts/dummy/system.md"
+        },
+        {
+          "role": "user",
+          "content": "{{clipboard}}"
         }
       ]
     }
