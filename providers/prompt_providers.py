@@ -48,7 +48,6 @@ class APIPromptProvider:
         """Refresh data from the API."""
         self._prompts_cache = None
         self._presets_cache = None
-        self._load_data()
 
     def _load_data(self) -> None:
         """Load both prompts and presets from API."""
