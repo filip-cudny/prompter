@@ -661,3 +661,172 @@ class PyQtSpeechExecutionHandler:
     def _on_speech_error(self, error_msg: str) -> None:
         """Handle speech service errors."""
         self.notification_manager.show_error_notification("Speech Error", error_msg)
+
+
+class SettingsPromptExecutionHandler:
+    """Handler for executing settings-based prompt menu items."""
+
+    def __init__(
+        self,
+        settings_prompt_provider,
+        clipboard_manager: ClipboardManager,
+        notification_manager: Optional[PyQtNotificationManager] = None,
+    ):
+        self.settings_prompt_provider = settings_prompt_provider
+        self.clipboard_manager = clipboard_manager
+        self.notification_manager = notification_manager or PyQtNotificationManager()
+
+    def can_handle(self, item: MenuItem) -> bool:
+        """Check if this handler can execute the given menu item."""
+        return (
+            item.item_type == MenuItemType.PROMPT
+            and item.data.get("source") == "settings"
+        )
+
+    def execute(self, item: MenuItem) -> ExecutionResult:
+        """Execute a settings prompt menu item."""
+        start_time = time.time()
+
+        try:
+            prompt_id = item.data.get("prompt_id") if item.data else None
+            if not prompt_id:
+                return ExecutionResult(
+                    success=False,
+                    error="Missing prompt ID",
+                    execution_time=time.time() - start_time,
+                )
+
+            messages = self.settings_prompt_provider.get_prompt_messages(prompt_id)
+            if not messages:
+                return ExecutionResult(
+                    success=False,
+                    error=f"Prompt '{prompt_id}' not found",
+                    execution_time=time.time() - start_time,
+                )
+
+            # Format messages for clipboard
+            formatted_content = []
+            for message in messages:
+                role = message.get("role", "user")
+                content = message.get("content", "") if message else ""
+                formatted_content.append(f"{role}: {content}")
+
+            content_text = "\n\n".join(formatted_content)
+
+            # Copy to clipboard
+            self.clipboard_manager.set_content(content_text)
+
+            # Show notification
+            prompt_name = item.data.get("prompt_name", prompt_id) if item.data else prompt_id
+            self.notification_manager.show_success_notification(
+                "Settings Prompt Copied",
+                f"Copied '{prompt_name}' to clipboard"
+            )
+
+            return ExecutionResult(
+                success=True,
+                content=content_text,
+                execution_time=time.time() - start_time,
+            )
+
+        except Exception as e:
+            return ExecutionResult(
+                success=False,
+                error=f"Failed to execute settings prompt: {str(e)}",
+                execution_time=time.time() - start_time,
+            )
+
+
+class SettingsPresetExecutionHandler:
+    """Handler for executing settings-based preset menu items."""
+
+    def __init__(
+        self,
+        settings_prompt_provider,
+        clipboard_manager: ClipboardManager,
+        notification_manager: Optional[PyQtNotificationManager] = None,
+    ):
+        self.settings_prompt_provider = settings_prompt_provider
+        self.clipboard_manager = clipboard_manager
+        self.notification_manager = notification_manager or PyQtNotificationManager()
+
+    def can_handle(self, item: MenuItem) -> bool:
+        """Check if this handler can execute the given menu item."""
+        return (
+            item.item_type == MenuItemType.PRESET
+            and item.data.get("source") == "settings"
+        )
+
+    def execute(self, item: MenuItem) -> ExecutionResult:
+        """Execute a settings preset menu item."""
+        start_time = time.time()
+
+        try:
+            preset_id = item.data.get("preset_id") if item.data else None
+            if not preset_id:
+                return ExecutionResult(
+                    success=False,
+                    error="Missing preset ID",
+                    execution_time=time.time() - start_time,
+                )
+
+            presets = self.settings_prompt_provider.get_presets()
+            preset = None
+            for p in presets if presets else []:
+                if p.id == preset_id:
+                    preset = p
+                    break
+
+            if not preset:
+                return ExecutionResult(
+                    success=False,
+                    error=f"Preset '{preset_id}' not found",
+                    execution_time=time.time() - start_time,
+                )
+
+            # Get the prompt messages
+            messages = self.settings_prompt_provider.get_prompt_messages(preset.prompt_id)
+            if not messages:
+                return ExecutionResult(
+                    success=False,
+                    error=f"Prompt for preset '{preset_id}' not found",
+                    execution_time=time.time() - start_time,
+                )
+
+            # Apply preset values to messages
+            formatted_content = []
+            for message in messages:
+                role = message.get("role", "user")
+                content = message.get("content", "")
+                
+                # Apply preset values if available
+                if hasattr(preset, 'values') and preset.values:
+                    for key, value in preset.values.items():
+                        content = content.replace(f"{{{key}}}", str(value))
+                
+                formatted_content.append(f"{role}: {content}")
+
+            content_text = "\n\n".join(formatted_content)
+
+            # Copy to clipboard
+            self.clipboard_manager.set_content(content_text)
+
+            # Show notification
+            preset_name = item.data.get("preset_name", preset_id) if item.data else preset_id
+            self.notification_manager.show_success_notification(
+                "Settings Preset Copied",
+                f"Copied preset '{preset_name}' to clipboard"
+            )
+
+            return ExecutionResult(
+                success=True,
+                content=content_text,
+                execution_time=time.time() - start_time,
+            )
+
+        except Exception as e:
+            return ExecutionResult(
+                success=False,
+                error=f"Failed to execute settings preset: {str(e)}",
+                execution_time=time.time() - start_time,
+            )

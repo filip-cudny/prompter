@@ -11,19 +11,27 @@ from PyQt5.QtCore import Qt
 
 from core.services import PromptStoreService
 from core.exceptions import ConfigurationError
+
 from providers.menu_providers import (
     PromptMenuProvider,
     PresetMenuProvider,
     HistoryMenuProvider,
     SystemMenuProvider,
 )
+from providers.settings_menu_provider import (
+    SettingsPromptMenuProvider,
+    SettingsPresetMenuProvider,
+)
 from providers.prompt_providers import APIPromptProvider
+from providers.settings_prompt_provider import SettingsPromptProvider
 from providers.pyqt_execution_handlers import (
     PyQtPromptExecutionHandler,
     PyQtPresetExecutionHandler,
     PyQtHistoryExecutionHandler,
     PyQtSystemExecutionHandler,
     PyQtSpeechExecutionHandler,
+    SettingsPromptExecutionHandler,
+    SettingsPresetExecutionHandler,
 )
 from gui.pyqt_menu_coordinator import PyQtMenuCoordinator, PyQtMenuEventHandler
 from gui.pyqt_hotkey_manager import PyQtHotkeyManager
@@ -57,7 +65,7 @@ class PromptStoreApp(QObject):
         self.prompt_store_service: Optional[PromptStoreService] = None
 
         # Providers
-        self.prompt_provider: Optional[APIPromptProvider] = None
+        self.prompt_providers: List = []
         self.menu_providers: List = []
 
         # GUI components
@@ -78,7 +86,6 @@ class PromptStoreApp(QObject):
         # Initialize components
         self._initialize_components()
         self._setup_signal_handlers()
-        self._setup_system_tray()
 
     def _load_config(self, config_file: Optional[str] = None) -> None:
         """Load and validate configuration."""
@@ -102,18 +109,19 @@ class PromptStoreApp(QObject):
             # Initialize clipboard manager
             self.clipboard_manager = SystemClipboardManager()
 
-            # Initialize prompt provider
-            self.prompt_provider = APIPromptProvider(self.api)
+            # Initialize prompt providers
+            self._initialize_prompt_providers()
 
             # Initialize notification manager
             self.notification_manager = PyQtNotificationManager(self.app)
 
             # Initialize core service
-            self.prompt_store_service = PromptStoreService(
-                self.prompt_provider, self.clipboard_manager, self.notification_manager
+            primary_provider = (
+                self.prompt_providers[0] if self.prompt_providers else None
             )
-
-
+            self.prompt_store_service = PromptStoreService(
+                primary_provider, self.clipboard_manager, self.notification_manager
+            )
 
             # Initialize GUI components
             self._initialize_gui()
@@ -127,6 +135,22 @@ class PromptStoreApp(QObject):
         except Exception as e:
             print(f"Failed to initialize application: {e}")
             sys.exit(1)
+
+    def _initialize_prompt_providers(self) -> None:
+        """Initialize prompt providers."""
+        if not self.api:
+            raise RuntimeError("API not initialized")
+
+        # Initialize API prompt provider
+        api_provider = APIPromptProvider(self.api)
+        self.prompt_providers.append(api_provider)
+
+        # Initialize settings prompt provider
+        try:
+            settings_provider = SettingsPromptProvider()
+            self.prompt_providers.append(settings_provider)
+        except Exception as e:
+            print(f"Warning: Failed to initialize settings prompt provider: {e}")
 
     def _register_execution_handlers(self) -> None:
         """Register execution handlers with the service."""
@@ -152,6 +176,24 @@ class PromptStoreApp(QObject):
                 self.prompt_store_service.speech_history_service,
             ),
         ]
+
+        # Add settings-based execution handlers if available
+        settings_provider = self._get_settings_prompt_provider()
+        if settings_provider:
+            handlers.extend(
+                [
+                    SettingsPromptExecutionHandler(
+                        settings_provider,
+                        self.clipboard_manager,
+                        self.notification_manager,
+                    ),
+                    SettingsPresetExecutionHandler(
+                        settings_provider,
+                        self.clipboard_manager,
+                        self.notification_manager,
+                    ),
+                ]
+            )
 
         for handler in handlers:
             self.prompt_store_service.execution_service.register_handler(handler)
@@ -204,54 +246,30 @@ class PromptStoreApp(QObject):
             ),
         ]
 
+        # Add settings-based menu providers if available
+        settings_provider = self._get_settings_prompt_provider()
+        if settings_provider:
+            self.menu_providers.extend(
+                [
+                    SettingsPromptMenuProvider(
+                        settings_provider, self._execute_menu_item
+                    ),
+                    SettingsPresetMenuProvider(
+                        settings_provider, self._execute_menu_item
+                    ),
+                ]
+            )
+
         # Register providers with coordinator
         for provider in self.menu_providers:
             self.menu_coordinator.add_provider(provider)
 
-    def _setup_system_tray(self) -> None:
-        """Setup system tray icon."""
-        if not QSystemTrayIcon.isSystemTrayAvailable():
-            print("System tray not available")
-            return
-
-        # Create tray icon
-        self.normal_icon = self._create_tray_icon(Qt.black)
-        self.recording_icon = self._create_tray_icon(Qt.red)
-
-        self.system_tray = QSystemTrayIcon(self.normal_icon, self.app)
-        self.is_recording = False
-
-        # Set tooltip
-        system = platform.system()
-        hotkey = "Cmd+F1" if system == "Darwin" else "Ctrl+F1"
-        self.system_tray.setToolTip(
-            f"Prompt Store - {hotkey} for menu, Shift+F1 for speech"
-        )
-
-        # Create tray menu
-        tray_menu = QMenu()
-
-        show_action = QAction("Show Menu", tray_menu)
-        show_action.triggered.connect(self._on_hotkey_pressed)
-
-        speech_action = QAction("Speech to Text", tray_menu)
-        speech_action.triggered.connect(self._speech_to_text)
-
-        refresh_action = QAction("Refresh Data", tray_menu)
-        refresh_action.triggered.connect(self._refresh_data)
-
-        quit_action = QAction("Quit", tray_menu)
-        quit_action.triggered.connect(self.stop)
-
-        tray_menu.addAction(show_action)
-        tray_menu.addAction(speech_action)
-        tray_menu.addAction(refresh_action)
-        tray_menu.addSeparator()
-        tray_menu.addAction(quit_action)
-
-        self.system_tray.setContextMenu(tray_menu)
-        self.system_tray.activated.connect(self._tray_activated)
-        self.system_tray.show()
+    def _get_settings_prompt_provider(self) -> Optional[SettingsPromptProvider]:
+        """Get the SettingsPromptProvider from the initialized providers."""
+        for provider in self.prompt_providers:
+            if isinstance(provider, SettingsPromptProvider):
+                return provider
+        return None
 
     def _create_tray_icon(self, color) -> QIcon:
         """Create a system tray icon with the specified color."""
@@ -322,10 +340,12 @@ class PromptStoreApp(QObject):
 
     def _on_f2_hotkey_pressed(self) -> None:
         """Handle F2 hotkey press event for showing context menu."""
+
         # Use QTimer.singleShot to ensure execution on main Qt thread
         def show_menu():
             if self.menu_coordinator:
                 self.menu_coordinator.show_menu()
+
         QTimer.singleShot(0, show_menu)
 
     def _on_shift_f1_hotkey_pressed(self) -> None:
@@ -348,8 +368,6 @@ class PromptStoreApp(QObject):
             print("Data refreshed successfully")
         except Exception as e:
             print(f"Failed to refresh data: {e}")
-
-
 
     def _speech_to_text(self) -> None:
         """Handle speech-to-text action."""
@@ -491,7 +509,8 @@ class PromptStoreApp(QObject):
             "running": self.running,
             "hotkey": self.config.hotkey if self.config else None,
             "api_url": self.config.base_url if self.config else None,
-            "providers_count": len(self.menu_providers),
+            "prompt_providers_count": len(self.prompt_providers),
+            "menu_providers_count": len(self.menu_providers),
             "hotkey_active": self.hotkey_manager.is_running()
             if self.hotkey_manager
             else False,
@@ -499,6 +518,85 @@ class PromptStoreApp(QObject):
                 self.event_handler.get_recent_results(5) if self.event_handler else []
             ),
         }
+
+    def get_prompt_providers_info(self) -> List[dict]:
+        """Get information about available prompt providers."""
+        providers_info = []
+        for i, provider in enumerate(self.prompt_providers):
+            provider_info = {
+                "index": i,
+                "type": type(provider).__name__,
+                "is_primary": i == 0,
+            }
+
+            if hasattr(provider, "get_info"):
+                provider_info.update(provider.get_info())
+
+            providers_info.append(provider_info)
+
+        return providers_info
+
+    def add_prompt_provider(self, provider) -> bool:
+        """Add a new prompt provider to the list."""
+        try:
+            if provider not in self.prompt_providers:
+                self.prompt_providers.append(provider)
+                print(f"Added prompt provider: {type(provider).__name__}")
+                return True
+            else:
+                print(f"Provider already exists: {type(provider).__name__}")
+                return False
+        except Exception as e:
+            print(f"Failed to add prompt provider: {e}")
+            return False
+
+    def remove_prompt_provider(self, provider_index: int) -> bool:
+        """Remove a prompt provider by index."""
+        try:
+            if 0 <= provider_index < len(self.prompt_providers):
+                if provider_index == 0 and len(self.prompt_providers) > 1:
+                    print("Cannot remove primary provider when other providers exist")
+                    return False
+
+                removed_provider = self.prompt_providers.pop(provider_index)
+                print(f"Removed prompt provider: {type(removed_provider).__name__}")
+
+                # Update primary provider in service if we removed the first one
+                if (
+                    provider_index == 0
+                    and self.prompt_store_service
+                    and self.prompt_providers
+                ):
+                    self.prompt_store_service.prompt_provider = self.prompt_providers[0]
+
+                return True
+            else:
+                print(f"Invalid provider index: {provider_index}")
+                return False
+        except Exception as e:
+            print(f"Failed to remove prompt provider: {e}")
+            return False
+
+    def set_primary_prompt_provider(self, provider_index: int) -> bool:
+        """Set a prompt provider as primary by moving it to index 0."""
+        try:
+            if 0 <= provider_index < len(self.prompt_providers):
+                if provider_index != 0:
+                    provider = self.prompt_providers.pop(provider_index)
+                    self.prompt_providers.insert(0, provider)
+
+                    # Update service with new primary provider
+                    if self.prompt_store_service:
+                        self.prompt_store_service.prompt_provider = provider
+
+                    print(f"Set primary prompt provider: {type(provider).__name__}")
+                return True
+            else:
+                print(f"Invalid provider index: {provider_index}")
+                return False
+        except Exception as e:
+            print(f"Failed to set primary prompt provider: {e}")
+            return False
 
     def reload_config(self, config_file: Optional[str] = None) -> None:
         """Reload configuration and reinitialize components."""
@@ -512,6 +610,19 @@ class PromptStoreApp(QObject):
         try:
             # Reload config
             self._load_config(config_file)
+
+            # Reinitialize API with new config
+            if self.config:
+                self.api = PromptStoreAPI(self.config.base_url, self.config.api_key)
+
+            # Reinitialize prompt providers
+            self.prompt_providers.clear()
+            self._initialize_prompt_providers()
+
+            # Update prompt store service with new primary provider
+            if self.prompt_store_service and self.prompt_providers:
+                primary_provider = self.prompt_providers[0]
+                self.prompt_store_service.prompt_provider = primary_provider
 
             # Reinitialize hotkey manager with new config
             if self.hotkey_manager and self.config:
