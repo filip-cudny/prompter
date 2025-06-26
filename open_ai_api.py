@@ -1,8 +1,9 @@
 """OpenAI API client for speech-to-text transcription."""
 
 import os
-from typing import Optional, BinaryIO
+from typing import Optional, BinaryIO, List, Dict, Any
 from openai import OpenAI
+from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
 from api import APIError
 
 
@@ -68,3 +69,40 @@ class OpenAIClient:
                 return self.transcribe_audio(audio_file, model)
         except IOError as e:
             raise APIError(f"Failed to read audio file: {e}") from e
+
+    def complete(
+        self,
+        messages: List[ChatCompletionMessageParam],
+        model: str = "gpt-4.1",
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
+        **kwargs: Any,
+    ) -> str:
+        """
+        Generate text completion using OpenAI Chat API.
+
+        Args:
+            messages: List of message dictionaries with 'role' and 'content' keys
+            model: Model to use for completion (default: gpt-4.1)
+            temperature: Sampling temperature (default: 0.7)
+            max_tokens: Maximum tokens to generate
+            **kwargs: Additional parameters for the API call
+
+        Returns:
+            Generated text completion
+
+        Raises:
+            APIError: If completion fails
+        """
+        try:
+            response = self.client.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                **kwargs,
+            )
+            return response.choices[0].message.content.strip()
+
+        except Exception as e:
+            raise APIError(f"Failed to generate completion: {e}") from e
