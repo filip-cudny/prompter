@@ -33,6 +33,7 @@ class PromptMenuProvider:
                         "prompt_id": prompt.id,
                         "prompt_name": prompt.name,
                         "type": "prompt",
+                        "source": "api-provider",
                     },
                     enabled=True,
                 )
@@ -54,7 +55,7 @@ class PromptMenuProvider:
             label=prompt.name,
             item_type=MenuItemType.PROMPT,
             action=lambda: None,  # Will be handled by execution handler
-            data={"prompt_id": prompt.id, "prompt_name": prompt.name, "type": "prompt"},
+            data={"prompt_id": prompt.id, "prompt_name": prompt.name, "type": "prompt", "source": "api-provider"},
             enabled=True,
         )
 
@@ -91,6 +92,7 @@ class PresetMenuProvider:
                         "preset_name": preset.preset_name,
                         "prompt_id": preset.prompt_id,
                         "type": "preset",
+                        "source": "api-provider",
                     },
                     enabled=True,
                 )
@@ -121,6 +123,7 @@ class PresetMenuProvider:
                 "preset_name": preset.preset_name,
                 "prompt_id": preset.prompt_id,
                 "type": "preset",
+                "source": "api-provider",
             },
             enabled=True,
         )

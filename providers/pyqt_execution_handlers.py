@@ -33,7 +33,11 @@ class PyQtPromptExecutionHandler:
 
     def can_handle(self, item: MenuItem) -> bool:
         """Check if this handler can execute the given menu item."""
-        return item.item_type == MenuItemType.PROMPT
+        return (
+            item.item_type == MenuItemType.PROMPT
+            and item.data is not None
+            and item.data.get("source") == "api-provider"
+        )
 
     def execute(self, item: MenuItem, context: Optional[str] = None) -> ExecutionResult:
         """Execute a prompt menu item."""
@@ -189,7 +193,11 @@ class PyQtPresetExecutionHandler:
 
     def can_handle(self, item: MenuItem) -> bool:
         """Check if this handler can execute the given menu item."""
-        return item.item_type == MenuItemType.PRESET
+        return (
+            item.item_type == MenuItemType.PRESET
+            and item.data is not None
+            and item.data.get("source") == "api-provider"
+        )
 
     def execute(self, item: MenuItem, context: Optional[str] = None) -> ExecutionResult:
         """Execute a preset menu item."""
@@ -881,10 +889,11 @@ class SettingsPromptExecutionHandler:
         """Check if this handler can execute the given menu item."""
         return (
             item.item_type == MenuItemType.PROMPT
+            and item.data is not None
             and item.data.get("source") == "settings"
         )
 
-    def execute(self, item: MenuItem) -> ExecutionResult:
+    def execute(self, item: MenuItem, _context: Optional[str] = None) -> ExecutionResult:
         """Execute a settings prompt menu item."""
         start_time = time.time()
 
@@ -956,10 +965,11 @@ class SettingsPresetExecutionHandler:
         """Check if this handler can execute the given menu item."""
         return (
             item.item_type == MenuItemType.PRESET
+            and item.data is not None
             and item.data.get("source") == "settings"
         )
 
-    def execute(self, item: MenuItem) -> ExecutionResult:
+    def execute(self, item: MenuItem, _context: Optional[str] = None) -> ExecutionResult:
         """Execute a settings preset menu item."""
         start_time = time.time()
 
