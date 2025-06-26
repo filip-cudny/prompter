@@ -8,7 +8,6 @@ from .menu_providers import (
 )
 from .prompt_providers import (
     APIPromptProvider,
-    CompositePromptProvider,
 )
 from .pyqt_execution_handlers import (
     PyQtPromptExecutionHandler,
@@ -23,7 +22,6 @@ __all__ = [
     "HistoryMenuProvider",
     "SystemMenuProvider",
     "APIPromptProvider",
-    "CompositePromptProvider",
     "PyQtPromptExecutionHandler",
     "PyQtPresetExecutionHandler",
     "PyQtHistoryExecutionHandler",
