@@ -1,7 +1,9 @@
 """Core business services for the prompt store application."""
 
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 import time
+import json
+from pathlib import Path
 from collections import deque
 
 
@@ -13,6 +15,9 @@ from .models import (
     MenuItem,
     MenuItemType,
     ErrorCode,
+    SettingsConfig,
+    PromptConfig,
+    MessageConfig,
 )
 from .exceptions import DataError
 from utils.pyqt_notifications import PyQtNotificationManager
@@ -151,42 +156,52 @@ class PromptStoreService:
 
         # Add prompts
         for prompt in self.get_prompts():
+            def make_prompt_action(p):
+                def action():
+                    self.set_active_prompt(
+                        MenuItem(
+                            id=f"prompt_{p.id}",
+                            label=p.name,
+                            item_type=MenuItemType.PROMPT,
+                            action=lambda: None,
+                            data={"prompt_id": p.id, "prompt_name": p.name},
+                        )
+                    )
+                return action
+            
             item = MenuItem(
                 id=f"prompt_{prompt.id}",
                 label=prompt.name,
                 item_type=MenuItemType.PROMPT,
-                action=lambda p=prompt: self.set_active_prompt(
-                    MenuItem(
-                        id=f"prompt_{p.id}",
-                        label=p.name,
-                        item_type=MenuItemType.PROMPT,
-                        action=None,
-                        data={"prompt_id": p.id, "prompt_name": p.name},
-                    )
-                ),
+                action=make_prompt_action(prompt),
                 data={"prompt_id": prompt.id, "prompt_name": prompt.name},
             )
             items.append(item)
 
         # Add presets
         for preset in self.get_presets():
+            def make_preset_action(p):
+                def action():
+                    self.set_active_prompt(
+                        MenuItem(
+                            id=f"preset_{p.id}",
+                            label=p.preset_name,
+                            item_type=MenuItemType.PRESET,
+                            action=lambda: None,
+                            data={
+                                "preset_id": p.id,
+                                "preset_name": p.preset_name,
+                                "prompt_id": p.prompt_id,
+                            },
+                        )
+                    )
+                return action
+            
             item = MenuItem(
                 id=f"preset_{preset.id}",
                 label=preset.preset_name,
                 item_type=MenuItemType.PRESET,
-                action=lambda p=preset: self.set_active_prompt(
-                    MenuItem(
-                        id=f"preset_{p.id}",
-                        label=p.preset_name,
-                        item_type=MenuItemType.PRESET,
-                        action=None,
-                        data={
-                            "preset_id": p.id,
-                            "preset_name": p.preset_name,
-                            "prompt_id": p.prompt_id,
-                        },
-                    )
-                ),
+                action=make_preset_action(preset),
                 data={
                     "preset_id": preset.id,
                     "preset_name": preset.preset_name,
@@ -381,7 +396,7 @@ class ActivePromptService:
 
     def get_active_prompt_display_name(self) -> Optional[str]:
         """Get a display name for the active prompt/preset."""
-        if not self._active_prompt:
+        if not self._active_prompt or not self._active_prompt.data:
             return None
 
         if self._active_prompt.item_type == MenuItemType.PRESET:
@@ -432,3 +447,189 @@ class SpeechHistoryService:
     def has_transcriptions(self) -> bool:
         """Check if there are any transcriptions."""
         return len(self._transcriptions) > 0
+
+
+class SettingsService:
+    """Service for loading and managing application settings."""
+
+    def __init__(self, settings_path: Optional[str] = None):
+        self.settings_path = settings_path or "settings/settings.json"
+        self._settings: Optional[SettingsConfig] = None
+        self._base_path: Optional[Path] = None
+
+    def load_settings(self) -> SettingsConfig:
+        """Load settings from the configuration file."""
+        if self._settings is None:
+            self._settings = self._load_from_file()
+        return self._settings
+
+    def get_settings(self) -> SettingsConfig:
+        """Get current settings (loads if not already loaded)."""
+        return self.load_settings()
+
+    def reload_settings(self) -> SettingsConfig:
+        """Force reload settings from file."""
+        self._settings = None
+        return self.load_settings()
+
+    def get_prompt_configs(self) -> List[PromptConfig]:
+        """Get all prompt configurations."""
+        settings = self.get_settings()
+        return settings.prompts
+
+    def get_model_configs(self) -> Dict[str, List[Dict[str, Any]]]:
+        """Get model configurations."""
+        settings = self.get_settings() 
+        return settings.models
+
+    def resolve_message_content(self, message: MessageConfig) -> str:
+        """Resolve message content, loading from file if necessary."""
+        if message.content is not None:
+            return message.content
+        
+        if message.file is not None:
+            return self._load_file_content(message.file)
+        
+        return ""
+
+    def _load_from_file(self) -> SettingsConfig:
+        """Load settings from the JSON file."""
+        try:
+            settings_file = Path(self.settings_path)
+            self._base_path = settings_file.parent
+            
+            if not settings_file.exists():
+                raise DataError(f"Settings file not found: {self.settings_path}")
+            
+            with open(settings_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                
+            return self._parse_settings_data(data)
+            
+        except json.JSONDecodeError as e:
+            raise DataError(f"Invalid JSON in settings file: {str(e)}") from e
+        except Exception as e:
+            raise DataError(f"Failed to load settings: {str(e)}") from e
+
+    def _parse_settings_data(self, data: Dict[str, Any]) -> SettingsConfig:
+        """Parse raw settings data into SettingsConfig."""
+        try:
+            # Parse prompts
+            prompts = []
+            for prompt_data in data.get("prompts", []):
+                messages = []
+                for msg_data in prompt_data.get("messages", []):
+                    message = MessageConfig(
+                        role=msg_data["role"],
+                        content=msg_data.get("content"),
+                        file=msg_data.get("file")
+                    )
+                    messages.append(message)
+                
+                prompt = PromptConfig(
+                    id=prompt_data["id"],
+                    name=prompt_data["name"],
+                    messages=messages,
+                    description=prompt_data.get("description"),
+                    tags=prompt_data.get("tags", []),
+                    metadata=prompt_data.get("metadata", {})
+                )
+                prompts.append(prompt)
+            
+            # Parse models (keep as raw dict for flexibility)
+            models = data.get("models", {})
+            
+            return SettingsConfig(
+                models=models,
+                prompts=prompts,
+                settings_path=self.settings_path
+            )
+            
+        except KeyError as e:
+            raise DataError(f"Missing required field in settings: {str(e)}") from e
+        except Exception as e:
+            raise DataError(f"Failed to parse settings data: {str(e)}") from e
+
+    def _load_file_content(self, file_path: str) -> str:
+        """Load content from a file referenced in settings."""
+        try:
+            if self._base_path is None:
+                raise DataError("Base path not set")
+                
+            full_path = self._base_path / file_path
+            
+            if not full_path.exists():
+                raise DataError(f"Referenced file not found: {file_path}")
+                
+            with open(full_path, 'r', encoding='utf-8') as f:
+                return f.read()
+                
+        except Exception as e:
+            raise DataError(f"Failed to load file content from {file_path}: {str(e)}") from e
+
+    def convert_to_prompt_data(self, prompt_config: PromptConfig) -> PromptData:
+        """Convert PromptConfig to PromptData for compatibility."""
+        # Combine all messages into content
+        content_parts = []
+        for message in prompt_config.messages:
+            message_content = self.resolve_message_content(message)
+            content_parts.append(f"{message.role}: {message_content}")
+        
+        content = "\n\n".join(content_parts)
+        
+        return PromptData(
+            id=prompt_config.id,
+            name=prompt_config.name,
+            content=content,
+            description=prompt_config.description,
+            tags=prompt_config.tags,
+            metadata=prompt_config.metadata
+        )
+
+    def get_prompt_by_id(self, prompt_id: str) -> Optional[PromptConfig]:
+        """Get a specific prompt configuration by ID."""
+        settings = self.get_settings()
+        for prompt in settings.prompts:
+            if prompt.id == prompt_id:
+                return prompt
+        return None
+
+    def get_resolved_prompt_messages(self, prompt_id: str) -> Optional[List[Dict[str, str]]]:
+        """Get resolved messages for a prompt (with file contents loaded)."""
+        prompt_config = self.get_prompt_by_id(prompt_id)
+        if not prompt_config:
+            return None
+        
+        messages = []
+        for message in prompt_config.messages:
+            content = self.resolve_message_content(message)
+            messages.append({
+                "role": message.role,
+                "content": content
+            })
+        
+        return messages
+
+    def get_available_models(self) -> List[str]:
+        """Get list of available model names from all providers."""
+        settings = self.get_settings()
+        models = []
+        
+        for provider_name, provider_models in settings.models.items():
+            for model_config in provider_models:
+                model_name = model_config.get("model", "")
+                if model_name:
+                    models.append(f"{provider_name}/{model_name}")
+        
+        return models
+
+    def get_model_config(self, provider: str, model: str) -> Optional[Dict[str, Any]]:
+        """Get configuration for a specific model."""
+        settings = self.get_settings()
+        provider_models = settings.models.get(provider, [])
+        
+        for model_config in provider_models:
+            if model_config.get("model") == model:
+                return model_config
+        
+        return None

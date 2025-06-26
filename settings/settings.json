@@ -1,0 +1,40 @@
+{
+  "models": {
+    "openai": [
+      {
+        "model": "gpt-4.1",
+        "temperature": 0.7
+      }
+    ]
+  },
+  "prompts": [
+    {
+      "id": "example-prompt-001",
+      "name": "Help with Clipboard",
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are a helpful assistant."
+        },
+        {
+          "role": "user",
+          "content": "Please help me with: {{clipboard}}"
+        }
+      ]
+    },
+    {
+      "id": "code-review-001",
+      "name": "Code Reviewer",
+      "messages": [
+        {
+          "role": "system",
+          "file": "prompts/dummy/system.md" 
+        },
+        {
+          "role": "user",
+          "content": "Review this code:\n\n{{clipboard}}"
+        }
+      ]
+    }
+  ]
+}

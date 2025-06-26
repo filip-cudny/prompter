@@ -5,6 +5,7 @@ from core.interfaces import PromptProvider
 from core.models import PromptData, PresetData
 from core.exceptions import ProviderError
 from api import PromptStoreAPI, APIError
+from .settings_prompt_provider import SettingsPromptProvider
 
 
 class APIPromptProvider:
