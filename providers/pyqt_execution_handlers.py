@@ -1,12 +1,13 @@
 """PyQt5-specific execution handlers that accept shared notification manager."""
 
-from typing import Optional, Callable
+from typing import Optional, Callable, List
 import logging
 from core.interfaces import ClipboardManager
 from core.models import MenuItem, MenuItemType, ExecutionResult, ErrorCode
 from core.exceptions import ClipboardError
 from api import PromptStoreAPI, APIError, create_user_message
 from open_ai_api import OpenAIClient
+from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
 from core.services import SettingsService
 from utils.pyqt_notifications import (
     PyQtNotificationManager,
@@ -884,6 +885,7 @@ class SettingsPromptExecutionHandler:
         self.settings_prompt_provider = settings_prompt_provider
         self.clipboard_manager = clipboard_manager
         self.notification_manager = notification_manager or PyQtNotificationManager()
+        self.openai_client = OpenAIClient()
 
     def can_handle(self, item: MenuItem) -> bool:
         """Check if this handler can execute the given menu item."""
@@ -893,7 +895,9 @@ class SettingsPromptExecutionHandler:
             and item.data.get("source") == "settings"
         )
 
-    def execute(self, item: MenuItem, _context: Optional[str] = None) -> ExecutionResult:
+    def execute(
+        self, item: MenuItem, _context: Optional[str] = None
+    ) -> ExecutionResult:
         """Execute a settings prompt menu item."""
         start_time = time.time()
 
@@ -914,32 +918,56 @@ class SettingsPromptExecutionHandler:
                     execution_time=time.time() - start_time,
                 )
 
-            # Format messages for clipboard
-            formatted_content = []
+            # Get current clipboard content for placeholder replacement
+            try:
+                clipboard_content = self.clipboard_manager.get_content()
+            except Exception as e:
+                clipboard_content = ""
+                logger.warning(f"Failed to get clipboard content: {e}")
+
+            processed_messages: List[ChatCompletionMessageParam] = []
             for message in messages:
-                role = message.get("role", "user")
-                content = message.get("content", "") if message else ""
-                formatted_content.append(f"{role}: {content}")
+                if message and isinstance(message.get("content"), str):
+                    content = message["content"].replace(
+                        "{{clipboard}}", clipboard_content
+                    )
+                    role = message.get("role", "user")
+                    processed_messages.append({"role": role, "content": content})
 
-            content_text = "\n\n".join(formatted_content)
+            if not processed_messages:
+                return ExecutionResult(
+                    success=False,
+                    error="No valid messages found after processing",
+                    execution_time=time.time() - start_time,
+                )
 
-            # Copy to clipboard
-            self.clipboard_manager.set_content(content_text)
+            # Call OpenAI API
+            response_text = self.openai_client.complete(processed_messages)
+
+            # Copy response to clipboard
+            self.clipboard_manager.set_content(response_text)
 
             # Show notification
             prompt_name = (
                 item.data.get("prompt_name", prompt_id) if item.data else prompt_id
             )
             self.notification_manager.show_success_notification(
-                "Settings Prompt Copied", f"Copied '{prompt_name}' to clipboard"
+                "OpenAI Response Copied",
+                f"Response from '{prompt_name}' copied to clipboard",
             )
 
             return ExecutionResult(
                 success=True,
-                content=content_text,
+                content=response_text,
                 execution_time=time.time() - start_time,
             )
 
+        except APIError as e:
+            return ExecutionResult(
+                success=False,
+                error=f"OpenAI API error: {str(e)}",
+                execution_time=time.time() - start_time,
+            )
         except Exception as e:
             return ExecutionResult(
                 success=False,
@@ -969,7 +997,9 @@ class SettingsPresetExecutionHandler:
             and item.data.get("source") == "settings"
         )
 
-    def execute(self, item: MenuItem, _context: Optional[str] = None) -> ExecutionResult:
+    def execute(
+        self, item: MenuItem, _context: Optional[str] = None
+    ) -> ExecutionResult:
         """Execute a settings preset menu item."""
         start_time = time.time()
 
