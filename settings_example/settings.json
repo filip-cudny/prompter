@@ -9,7 +9,7 @@
   },
   "prompts": [
     {
-      "id": "prompt-refine",
+      "id": "72153ef6-f011-4f3f-8b3f-e87cc9796a3d",
       "name": "Prompt refine - local",
       "messages": [
         {
@@ -23,7 +23,7 @@
       ]
     },
     {
-      "id": "text-correction-grammar",
+      "id": "5215642c-4e82-43fb-ae01-3242e09b639f",
       "name": "Text correction - grammar",
       "messages": [
         {
@@ -32,12 +32,12 @@
         },
         {
           "role": "user",
-          "content": "{{clipboard}}"
+          "content": "<input_text>\n{{clipboard}}\n</input_text>"
         }
       ]
     },
     {
-      "id": "text-correction-proffesional",
+      "id": "f8bfc8eb-b05f-4e92-a679-18dfa2c39ddd",
       "name": "Text correction - proffesional",
       "messages": [
         {
@@ -46,7 +46,7 @@
         },
         {
           "role": "user",
-          "content": "{{clipboard}}"
+          "content": "<input_text>\n{{clipboard}}\n</input_text>"
         }
       ]
     }
