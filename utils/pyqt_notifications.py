@@ -126,14 +126,12 @@ class PyQtNotificationManager:
         self.dispatcher = NotificationDispatcher(self) if self.app else None
         self.desktop = QApplication.desktop() if self.app else None
 
-    def show_success_notification(
-        self, title: str, message: str, prompt_name: Optional[str] = None
-    ) -> None:
+    def show_success_notification(self, title: str, message: str | None = None) -> None:
         """Show a success notification."""
-        if prompt_name:
-            full_message = f"✔ {title} - {prompt_name}\n{message}"
-        else:
+        if message:
             full_message = f"✔ {title}\n{message}"
+        else:
+            full_message = f"✔ {title}"
 
         self._display_notification(full_message, "#6B7A4A", 2000)
 

@@ -128,9 +128,7 @@ class PromptStoreService:
                 else "Unknown Prompt"
             )
             self.notification_manager.show_success_notification(
-                "Active Prompt Set",
-                "Ready to execute with clipboard content",
-                prompt_name,
+                f"{prompt_name} is active",
             )
         elif item.item_type == MenuItemType.PRESET:
             preset_name = (
@@ -139,9 +137,7 @@ class PromptStoreService:
                 else "Unknown Preset"
             )
             self.notification_manager.show_success_notification(
-                "Active Preset Set",
-                "Ready to execute with clipboard content",
-                preset_name,
+                f"{preset_name} is active",
             )
 
     def execute_active_prompt(self) -> ExecutionResult:

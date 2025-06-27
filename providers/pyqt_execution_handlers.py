@@ -117,9 +117,11 @@ class PyQtPromptExecutionHandler:
                 },
             )
 
-            message = f"Processed in {format_execution_time(execution_time)}"
+            notification_message = (
+                f"Processed in {format_execution_time(execution_time)}"
+            )
             self.notification_manager.show_success_notification(
-                "Prompt Completed", message, prompt_name
+                f"{prompt_name} completed", notification_message
             )
 
             return execution_result
@@ -289,9 +291,11 @@ class PyQtPresetExecutionHandler:
                 },
             )
 
-            message = f"Processed in {format_execution_time(execution_time)}"
+            notification_message = (
+                f"Processed in {format_execution_time(execution_time)}"
+            )
             self.notification_manager.show_success_notification(
-                "Preset Completed", message, preset_name
+                f"{preset_name} completed", notification_message
             )
 
             return execution_result
@@ -615,9 +619,11 @@ class PyQtSystemPromptExecutionHandler:
                 },
             )
 
-            message = f"Processed in {format_execution_time(execution_time)}"
+            notification_message = (
+                f"Processed in {format_execution_time(execution_time)}"
+            )
             self.notification_manager.show_success_notification(
-                "Prompt Completed", message, prompt_name
+                f"{prompt_name} completed", notification_message
             )
 
             return execution_result
@@ -696,6 +702,7 @@ class PyQtSpeechExecutionHandler:
         self.recording_indicator_callback = recording_indicator_callback
         self.speech_history_service = speech_history_service
         self.speech_service = None
+        self._transcription_start_time: Optional[float] = None
         self._initialize_speech_service()
 
     def _initialize_speech_service(self) -> None:
@@ -793,6 +800,7 @@ class PyQtSpeechExecutionHandler:
 
     def _on_recording_stopped(self) -> None:
         """Handle recording stopped event."""
+        self._transcription_start_time = time.time()
         self.notification_manager.show_info_notification(
             "Processing Audio", "Transcribing your speech to text, please wait..."
         )
@@ -809,11 +817,14 @@ class PyQtSpeechExecutionHandler:
 
                 success = self.clipboard_manager.set_content(transcription)
                 if success:
-                    preview = truncate_text(transcription, 80)
-                    word_count = len(transcription.split())
+                    execution_time = time.time() - getattr(
+                        self, "_transcription_start_time", time.time()
+                    )
+                    notification_message = (
+                        f"Processed in {format_execution_time(execution_time)}"
+                    )
                     self.notification_manager.show_success_notification(
-                        "Transcription Complete ✓",
-                        f'Successfully transcribed {word_count} words and copied to clipboard:\n"{preview}"',
+                        "Transcription completed", notification_message
                     )
                 else:
                     self.notification_manager.show_error_notification(
@@ -847,10 +858,8 @@ class PyQtSpeechExecutionHandler:
             success = self.clipboard_manager.set_content(content)
 
             if success:
-                preview = truncate_text(content, 80)
                 self.notification_manager.show_success_notification(
-                    "Speech Output Copied ✓",
-                    f'Copied speech transcription to clipboard:\n"{preview}"',
+                    "Speech Output Copied"
                 )
 
                 return ExecutionResult(
@@ -958,9 +967,12 @@ class SettingsPromptExecutionHandler:
             prompt_name = (
                 item.data.get("prompt_name", prompt_id) if item.data else prompt_id
             )
+            execution_time = time.time() - start_time
+            notification_message = (
+                f"Processed in {format_execution_time(execution_time)}"
+            )
             self.notification_manager.show_success_notification(
-                "OpenAI Response Copied",
-                f"Response from '{prompt_name}' copied to clipboard",
+                f"{prompt_name} completed", notification_message
             )
 
             return ExecutionResult(
