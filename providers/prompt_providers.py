@@ -86,6 +86,7 @@ class APIPromptProvider:
                     tags=prompt_dict.get("tags", []),
                     created_at=prompt_dict.get("createdAt"),
                     updated_at=prompt_dict.get("updatedAt"),
+                    source="api-provider",
                     metadata=prompt_dict.get("metadata", {}),
                 )
                 prompts.append(prompt)
@@ -107,6 +108,7 @@ class APIPromptProvider:
                     model=preset_dict.get("model"),
                     context=preset_dict.get("context"),
                     placeholder_values=preset_dict.get("placeholderValues", {}),
+                    source="api-provider",
                     metadata=preset_dict.get("metadata", {}),
                 )
                 presets.append(preset)

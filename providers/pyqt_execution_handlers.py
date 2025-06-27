@@ -34,11 +34,15 @@ class PyQtPromptExecutionHandler:
 
     def can_handle(self, item: MenuItem) -> bool:
         """Check if this handler can execute the given menu item."""
-        return (
-            item.item_type == MenuItemType.PROMPT
-            and item.data is not None
-            and item.data.get("source") == "api-provider"
-        )
+        if item.item_type != MenuItemType.PROMPT:
+            return False
+        if item.data is None:
+            return False
+
+        source = item.data.get("source")
+        # Only handle items that explicitly have "api-provider" source
+        # This prevents handling items with None or other sources
+        return source == "api-provider"
 
     def execute(self, item: MenuItem, context: Optional[str] = None) -> ExecutionResult:
         """Execute a prompt menu item."""
@@ -889,11 +893,14 @@ class SettingsPromptExecutionHandler:
 
     def can_handle(self, item: MenuItem) -> bool:
         """Check if this handler can execute the given menu item."""
-        return (
-            item.item_type == MenuItemType.PROMPT
-            and item.data is not None
-            and item.data.get("source") == "settings"
-        )
+        if item.item_type != MenuItemType.PROMPT:
+            return False
+        if item.data is None:
+            return False
+
+        source = item.data.get("source")
+        # Only handle items that explicitly have "settings" source
+        return source == "settings"
 
     def execute(
         self, item: MenuItem, _context: Optional[str] = None

@@ -55,6 +55,7 @@ class PromptData:
     tags: List[str] = field(default_factory=list)
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
+    source: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -69,6 +70,7 @@ class PresetData:
     model: Optional[str] = None
     context: Optional[str] = None
     placeholder_values: Dict[str, str] = field(default_factory=dict)
+    source: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 

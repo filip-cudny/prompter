@@ -307,7 +307,11 @@ class PyQtMenuCoordinator(QObject):
                             label=p.name,
                             item_type=MenuItemType.PROMPT,
                             action=lambda: None,
-                            data={"prompt_id": p.id, "prompt_name": p.name},
+                            data={
+                                "prompt_id": p.id,
+                                "prompt_name": p.name,
+                                "source": p.source,
+                            },
                         )
                         self.prompt_store_service.set_active_prompt(active_item)
                         # Show confirmation through execution result
@@ -345,6 +349,7 @@ class PyQtMenuCoordinator(QObject):
                                 "preset_id": p.id,
                                 "preset_name": p.preset_name,
                                 "prompt_id": p.prompt_id,
+                                "source": getattr(p, "source", None),
                             },
                         )
                         self.prompt_store_service.set_active_prompt(active_item)

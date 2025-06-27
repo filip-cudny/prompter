@@ -26,23 +26,31 @@ from utils.pyqt_notifications import PyQtNotificationManager
 class PromptStoreService:
     """Main business logic coordinator for the prompt store."""
 
-    def __init__(self, prompt_provider, clipboard_manager, notification_manager=None):
-        self.prompt_provider = prompt_provider
+    def __init__(self, prompt_providers, clipboard_manager, notification_manager=None):
+        self.prompt_providers = (
+            prompt_providers
+            if isinstance(prompt_providers, list)
+            else [prompt_providers]
+        )
+        self.primary_provider = (
+            self.prompt_providers[0] if self.prompt_providers else None
+        )
         self.clipboard_manager = clipboard_manager
         self.notification_manager = notification_manager or PyQtNotificationManager()
-        self.execution_service = ExecutionService(prompt_provider, clipboard_manager)
-        self.data_manager = DataManager(prompt_provider)
+        self.execution_service = ExecutionService(
+            self.primary_provider, clipboard_manager
+        )
+        self.data_manager = DataManager(self.prompt_providers)
         self.history_service = HistoryService()
         self.active_prompt_service = ActivePromptService()
         self.speech_history_service = SpeechHistoryService()
 
-
     def refresh_data(self) -> None:
         """Refresh all data from providers."""
-        self.prompt_provider.refresh()
+        for provider in self.prompt_providers:
+            if hasattr(provider, "refresh"):
+                provider.refresh()
         self.data_manager.refresh()
-
-
 
     def get_prompts(self) -> List[PromptData]:
         """Get all available prompts."""
@@ -80,8 +88,6 @@ class PromptStoreService:
                         success=False,
                         error=result.error,
                     )
-
-
 
             return result
         except Exception as e:
@@ -156,6 +162,7 @@ class PromptStoreService:
 
         # Add prompts
         for prompt in self.get_prompts():
+
             def make_prompt_action(p):
                 def action():
                     self.set_active_prompt(
@@ -164,22 +171,32 @@ class PromptStoreService:
                             label=p.name,
                             item_type=MenuItemType.PROMPT,
                             action=lambda: None,
-                            data={"prompt_id": p.id, "prompt_name": p.name},
+                            data={
+                                "prompt_id": p.id,
+                                "prompt_name": p.name,
+                                "source": p.source,
+                            },
                         )
                     )
+
                 return action
-            
+
             item = MenuItem(
                 id=f"prompt_{prompt.id}",
                 label=prompt.name,
                 item_type=MenuItemType.PROMPT,
                 action=make_prompt_action(prompt),
-                data={"prompt_id": prompt.id, "prompt_name": prompt.name},
+                data={
+                    "prompt_id": prompt.id,
+                    "prompt_name": prompt.name,
+                    "source": prompt.source,
+                },
             )
             items.append(item)
 
         # Add presets
         for preset in self.get_presets():
+
             def make_preset_action(p):
                 def action():
                     self.set_active_prompt(
@@ -192,11 +209,13 @@ class PromptStoreService:
                                 "preset_id": p.id,
                                 "preset_name": p.preset_name,
                                 "prompt_id": p.prompt_id,
+                                "source": p.source,
                             },
                         )
                     )
+
                 return action
-            
+
             item = MenuItem(
                 id=f"preset_{preset.id}",
                 label=preset.preset_name,
@@ -206,6 +225,7 @@ class PromptStoreService:
                     "preset_id": preset.id,
                     "preset_name": preset.preset_name,
                     "prompt_id": preset.prompt_id,
+                    "source": preset.source,
                 },
             )
             items.append(item)
@@ -229,6 +249,7 @@ class ExecutionService:
         self, item: MenuItem, input_content: Optional[str] = None
     ) -> ExecutionResult:
         """Execute a menu item using the appropriate handler."""
+
         if not item.enabled:
             return ExecutionResult(success=False, error="Menu item is disabled")
 
@@ -247,8 +268,12 @@ class ExecutionService:
 class DataManager:
     """Manages prompt and preset data with caching."""
 
-    def __init__(self, prompt_provider):
-        self.prompt_provider = prompt_provider
+    def __init__(self, prompt_providers):
+        self.prompt_providers = (
+            prompt_providers
+            if isinstance(prompt_providers, list)
+            else [prompt_providers]
+        )
         self._prompts_cache: Optional[List[PromptData]] = None
         self._presets_cache: Optional[List[PresetData]] = None
         self._prompt_id_to_name: Dict[str, str] = {}
@@ -285,7 +310,9 @@ class DataManager:
     def refresh(self) -> None:
         """Force refresh of all cached data."""
         try:
-            self.prompt_provider.refresh()
+            for provider in self.prompt_providers:
+                if provider and hasattr(provider, "refresh"):
+                    provider.refresh()
             self._refresh_prompts()
             self._refresh_presets()
             self._last_refresh = time.time()
@@ -299,7 +326,18 @@ class DataManager:
     def _refresh_prompts(self) -> List[PromptData]:
         """Refresh prompts cache."""
         try:
-            self._prompts_cache = self.prompt_provider.get_prompts()
+            all_prompts = []
+            for provider in self.prompt_providers:
+                if provider and hasattr(provider, "get_prompts"):
+                    try:
+                        provider_prompts = provider.get_prompts()
+                        all_prompts.extend(provider_prompts)
+                    except Exception as e:
+                        print(
+                            f"Warning: Failed to get prompts from provider {type(provider).__name__}: {e}"
+                        )
+
+            self._prompts_cache = all_prompts
             self._update_prompt_id_mapping()
             return self._prompts_cache
         except Exception as e:
@@ -308,7 +346,18 @@ class DataManager:
     def _refresh_presets(self) -> List[PresetData]:
         """Refresh presets cache."""
         try:
-            self._presets_cache = self.prompt_provider.get_presets()
+            all_presets = []
+            for provider in self.prompt_providers:
+                if provider and hasattr(provider, "get_presets"):
+                    try:
+                        provider_presets = provider.get_presets()
+                        all_presets.extend(provider_presets)
+                    except Exception as e:
+                        print(
+                            f"Warning: Failed to get presets from provider {type(provider).__name__}: {e}"
+                        )
+
+            self._presets_cache = all_presets
             return self._presets_cache
         except Exception as e:
             raise DataError(f"Failed to refresh presets: {str(e)}") from e
@@ -392,6 +441,7 @@ class ActivePromptService:
 
     def get_active_prompt(self) -> Optional[MenuItem]:
         """Get the active prompt/preset."""
+
         return self._active_prompt
 
     def get_active_prompt_display_name(self) -> Optional[str]:
@@ -479,17 +529,17 @@ class SettingsService:
 
     def get_model_configs(self) -> Dict[str, List[Dict[str, Any]]]:
         """Get model configurations."""
-        settings = self.get_settings() 
+        settings = self.get_settings()
         return settings.models
 
     def resolve_message_content(self, message: MessageConfig) -> str:
         """Resolve message content, loading from file if necessary."""
         if message.content is not None:
             return message.content
-        
+
         if message.file is not None:
             return self._load_file_content(message.file)
-        
+
         return ""
 
     def _load_from_file(self) -> SettingsConfig:
@@ -497,15 +547,15 @@ class SettingsService:
         try:
             settings_file = Path(self.settings_path)
             self._base_path = settings_file.parent
-            
+
             if not settings_file.exists():
                 raise DataError(f"Settings file not found: {self.settings_path}")
-            
-            with open(settings_file, 'r', encoding='utf-8') as f:
+
+            with open(settings_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                
+
             return self._parse_settings_data(data)
-            
+
         except json.JSONDecodeError as e:
             raise DataError(f"Invalid JSON in settings file: {str(e)}") from e
         except Exception as e:
@@ -522,29 +572,27 @@ class SettingsService:
                     message = MessageConfig(
                         role=msg_data["role"],
                         content=msg_data.get("content"),
-                        file=msg_data.get("file")
+                        file=msg_data.get("file"),
                     )
                     messages.append(message)
-                
+
                 prompt = PromptConfig(
                     id=prompt_data["id"],
                     name=prompt_data["name"],
                     messages=messages,
                     description=prompt_data.get("description"),
                     tags=prompt_data.get("tags", []),
-                    metadata=prompt_data.get("metadata", {})
+                    metadata=prompt_data.get("metadata", {}),
                 )
                 prompts.append(prompt)
-            
+
             # Parse models (keep as raw dict for flexibility)
             models = data.get("models", {})
-            
+
             return SettingsConfig(
-                models=models,
-                prompts=prompts,
-                settings_path=self.settings_path
+                models=models, prompts=prompts, settings_path=self.settings_path
             )
-            
+
         except KeyError as e:
             raise DataError(f"Missing required field in settings: {str(e)}") from e
         except Exception as e:
@@ -555,17 +603,19 @@ class SettingsService:
         try:
             if self._base_path is None:
                 raise DataError("Base path not set")
-                
+
             full_path = self._base_path / file_path
-            
+
             if not full_path.exists():
                 raise DataError(f"Referenced file not found: {file_path}")
-                
-            with open(full_path, 'r', encoding='utf-8') as f:
+
+            with open(full_path, "r", encoding="utf-8") as f:
                 return f.read()
-                
+
         except Exception as e:
-            raise DataError(f"Failed to load file content from {file_path}: {str(e)}") from e
+            raise DataError(
+                f"Failed to load file content from {file_path}: {str(e)}"
+            ) from e
 
     def convert_to_prompt_data(self, prompt_config: PromptConfig) -> PromptData:
         """Convert PromptConfig to PromptData for compatibility."""
@@ -574,17 +624,19 @@ class SettingsService:
         for message in prompt_config.messages:
             message_content = self.resolve_message_content(message)
             content_parts.append(f"{message.role}: {message_content}")
-        
+
         content = "\n\n".join(content_parts)
-        
-        return PromptData(
+
+        prompt_data = PromptData(
             id=prompt_config.id,
             name=prompt_config.name,
             content=content,
             description=prompt_config.description,
             tags=prompt_config.tags,
-            metadata=prompt_config.metadata
+            source="settings",
+            metadata=prompt_config.metadata,
         )
+        return prompt_data
 
     def get_prompt_by_id(self, prompt_id: str) -> Optional[PromptConfig]:
         """Get a specific prompt configuration by ID."""
@@ -594,42 +646,41 @@ class SettingsService:
                 return prompt
         return None
 
-    def get_resolved_prompt_messages(self, prompt_id: str) -> Optional[List[Dict[str, str]]]:
+    def get_resolved_prompt_messages(
+        self, prompt_id: str
+    ) -> Optional[List[Dict[str, str]]]:
         """Get resolved messages for a prompt (with file contents loaded)."""
         prompt_config = self.get_prompt_by_id(prompt_id)
         if not prompt_config:
             return None
-        
+
         messages = []
         for message in prompt_config.messages:
             content = self.resolve_message_content(message)
-            messages.append({
-                "role": message.role,
-                "content": content
-            })
-        
+            messages.append({"role": message.role, "content": content})
+
         return messages
 
     def get_available_models(self) -> List[str]:
         """Get list of available model names from all providers."""
         settings = self.get_settings()
         models = []
-        
+
         for provider_name, provider_models in settings.models.items():
             for model_config in provider_models:
                 model_name = model_config.get("model", "")
                 if model_name:
                     models.append(f"{provider_name}/{model_name}")
-        
+
         return models
 
     def get_model_config(self, provider: str, model: str) -> Optional[Dict[str, Any]]:
         """Get configuration for a specific model."""
         settings = self.get_settings()
         provider_models = settings.models.get(provider, [])
-        
+
         for model_config in provider_models:
             if model_config.get("model") == model:
                 return model_config
-        
+
         return None

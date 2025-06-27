@@ -33,7 +33,7 @@ class PromptMenuProvider:
                         "prompt_id": prompt.id,
                         "prompt_name": prompt.name,
                         "type": "prompt",
-                        "source": "api-provider",
+                        "source": prompt.source,
                     },
                     enabled=True,
                 )
@@ -55,7 +55,12 @@ class PromptMenuProvider:
             label=prompt.name,
             item_type=MenuItemType.PROMPT,
             action=lambda: None,  # Will be handled by execution handler
-            data={"prompt_id": prompt.id, "prompt_name": prompt.name, "type": "prompt", "source": "api-provider"},
+            data={
+                "prompt_id": prompt.id,
+                "prompt_name": prompt.name,
+                "type": "prompt",
+                "source": prompt.source,
+            },
             enabled=True,
         )
 
@@ -92,7 +97,7 @@ class PresetMenuProvider:
                         "preset_name": preset.preset_name,
                         "prompt_id": preset.prompt_id,
                         "type": "preset",
-                        "source": "api-provider",
+                        "source": preset.source,
                     },
                     enabled=True,
                 )
@@ -123,7 +128,7 @@ class PresetMenuProvider:
                 "preset_name": preset.preset_name,
                 "prompt_id": preset.prompt_id,
                 "type": "preset",
-                "source": "api-provider",
+                "source": preset.source,
             },
             enabled=True,
         )
@@ -324,7 +329,11 @@ class SystemMenuProvider:
                     id=f"system_prompt_{prompt_config.id}",
                     label=prompt_config.name,
                     item_type=MenuItemType.PROMPT,
-                    action=lambda p=prompt_config: self.execute_callback(self._create_system_prompt_item(p)) if self.execute_callback else None,
+                    action=lambda p=prompt_config: self.execute_callback(
+                        self._create_system_prompt_item(p)
+                    )
+                    if self.execute_callback
+                    else None,
                     data={
                         "prompt_id": prompt_config.id,
                         "prompt_name": prompt_config.name,

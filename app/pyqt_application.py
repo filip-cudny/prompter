@@ -116,11 +116,8 @@ class PromptStoreApp(QObject):
             self.notification_manager = PyQtNotificationManager(self.app)
 
             # Initialize core service
-            primary_provider = (
-                self.prompt_providers[0] if self.prompt_providers else None
-            )
             self.prompt_store_service = PromptStoreService(
-                primary_provider, self.clipboard_manager, self.notification_manager
+                self.prompt_providers, self.clipboard_manager, self.notification_manager
             )
 
             # Initialize GUI components
@@ -567,7 +564,9 @@ class PromptStoreApp(QObject):
                     and self.prompt_store_service
                     and self.prompt_providers
                 ):
-                    self.prompt_store_service.prompt_provider = self.prompt_providers[0]
+                    self.prompt_store_service.primary_provider = self.prompt_providers[
+                        0
+                    ]
 
                 return True
             else:
@@ -587,7 +586,7 @@ class PromptStoreApp(QObject):
 
                     # Update service with new primary provider
                     if self.prompt_store_service:
-                        self.prompt_store_service.prompt_provider = provider
+                        self.prompt_store_service.primary_provider = provider
 
                     print(f"Set primary prompt provider: {type(provider).__name__}")
                 return True
@@ -622,7 +621,7 @@ class PromptStoreApp(QObject):
             # Update prompt store service with new primary provider
             if self.prompt_store_service and self.prompt_providers:
                 primary_provider = self.prompt_providers[0]
-                self.prompt_store_service.prompt_provider = primary_provider
+                self.prompt_store_service.primary_provider = primary_provider
 
             # Reinitialize hotkey manager with new config
             if self.hotkey_manager and self.config:
