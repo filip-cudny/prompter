@@ -137,26 +137,6 @@ logs-follow: ## Follow service logs in real-time
 		echo "No log file found. Start the service first."; \
 	fi
 
-dev: ## Run in development mode (foreground)
-	@echo "🔧 Running in development mode..."
-	@$(VENV_PYTHON) main.py
-
-test: ## Run tests
-	@echo "🧪 Running tests..."
-	@$(VENV_PYTHON) -m pytest tests/ -v || echo "No tests found"
-
-lint: ## Run linting
-	@echo "🔍 Running linting..."
-	@$(VENV_PYTHON) -m ruff check . || echo "Ruff not installed, skipping..."
-
-format: ## Format code
-	@echo "🎨 Formatting code..."
-	@$(VENV_PYTHON) -m ruff format . || echo "Ruff not installed, skipping..."
-
-check-deps: ## Check if dependencies are installed
-	@echo "📦 Checking dependencies..."
-	@$(VENV_PYTHON) -c "import requests, dotenv, pynput; print('✅ All core dependencies installed')" || \
-		echo "❌ Missing dependencies. Run 'make setup'"
 
 clean: ## Clean up generated files
 	@echo "🧹 Cleaning up..."

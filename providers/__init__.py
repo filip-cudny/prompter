@@ -6,15 +6,23 @@ from .menu_providers import (
     HistoryMenuProvider,
     SystemMenuProvider,
 )
+from .settings_menu_provider import (
+    SettingsPromptMenuProvider,
+    SettingsPresetMenuProvider,
+)
 from .prompt_providers import (
     APIPromptProvider,
-    CompositePromptProvider,
+)
+from .settings_prompt_provider import (
+    SettingsPromptProvider,
 )
 from .pyqt_execution_handlers import (
     PyQtPromptExecutionHandler,
     PyQtPresetExecutionHandler,
     PyQtHistoryExecutionHandler,
     PyQtSystemExecutionHandler,
+    SettingsPromptExecutionHandler,
+    SettingsPresetExecutionHandler,
 )
 
 __all__ = [
@@ -22,10 +30,14 @@ __all__ = [
     "PresetMenuProvider",
     "HistoryMenuProvider",
     "SystemMenuProvider",
+    "SettingsPromptMenuProvider",
+    "SettingsPresetMenuProvider",
     "APIPromptProvider",
-    "CompositePromptProvider",
+    "SettingsPromptProvider",
     "PyQtPromptExecutionHandler",
     "PyQtPresetExecutionHandler",
     "PyQtHistoryExecutionHandler",
     "PyQtSystemExecutionHandler",
+    "SettingsPromptExecutionHandler",
+    "SettingsPresetExecutionHandler",
 ]

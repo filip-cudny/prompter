@@ -4,3 +4,6 @@ __pycache__/
 
 prompt-store.log
 prompt-store-error.log
+
+settings/
+.prompt-store.pid

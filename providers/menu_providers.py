@@ -1,6 +1,6 @@
 """Menu item providers for the prompt store application."""
 
-from typing import List, Callable
+from typing import List, Callable, Optional
 from core.models import MenuItem, MenuItemType, PromptData, PresetData
 from core.services import HistoryService, DataManager
 
@@ -33,6 +33,7 @@ class PromptMenuProvider:
                         "prompt_id": prompt.id,
                         "prompt_name": prompt.name,
                         "type": "prompt",
+                        "source": prompt.source,
                     },
                     enabled=True,
                 )
@@ -54,7 +55,12 @@ class PromptMenuProvider:
             label=prompt.name,
             item_type=MenuItemType.PROMPT,
             action=lambda: None,  # Will be handled by execution handler
-            data={"prompt_id": prompt.id, "prompt_name": prompt.name, "type": "prompt"},
+            data={
+                "prompt_id": prompt.id,
+                "prompt_name": prompt.name,
+                "type": "prompt",
+                "source": prompt.source,
+            },
             enabled=True,
         )
 
@@ -91,6 +97,7 @@ class PresetMenuProvider:
                         "preset_name": preset.preset_name,
                         "prompt_id": preset.prompt_id,
                         "type": "preset",
+                        "source": preset.source,
                     },
                     enabled=True,
                 )
@@ -121,6 +128,7 @@ class PresetMenuProvider:
                 "preset_name": preset.preset_name,
                 "prompt_id": preset.prompt_id,
                 "type": "preset",
+                "source": preset.source,
             },
             enabled=True,
         )
@@ -234,18 +242,27 @@ class SystemMenuProvider:
     def __init__(
         self,
         refresh_callback: Callable[[], None],
-        speech_callback: Callable[[], None] = None,
+        speech_callback: Optional[Callable[[], None]] = None,
         speech_history_service=None,
-        execute_callback: Callable[[MenuItem], None] = None,
+        execute_callback: Optional[Callable[[MenuItem], None]] = None,
+        settings_service=None,
     ):
         self.refresh_callback = refresh_callback
         self.speech_callback = speech_callback
         self.speech_history_service = speech_history_service
         self.execute_callback = execute_callback
+        self.settings_service = settings_service
 
     def get_menu_items(self) -> List[MenuItem]:
         """Return system menu items."""
         items = []
+
+        # Add system prompts from settings
+        if self.settings_service:
+            system_prompts = self._get_system_prompts()
+            items.extend(system_prompts)
+            if system_prompts:
+                items[-1].separator_after = True
 
         # Speech to text item
         if self.speech_callback:
@@ -285,21 +302,64 @@ class SystemMenuProvider:
         )
         items.append(speech_output_item)
 
-        refresh_item = MenuItem(
-            id="system_refresh",
-            label="Refresh",
-            item_type=MenuItemType.SYSTEM,
-            action=self.refresh_callback,
-            data={"type": "refresh"},
-            enabled=True,
-        )
-        items.append(refresh_item)
+        # refresh_item = MenuItem(
+        #     id="system_refresh",
+        #     label="Refresh",
+        #     item_type=MenuItemType.SYSTEM,
+        #     action=self.refresh_callback,
+        #     data={"type": "refresh"},
+        #     enabled=True,
+        # )
+        # items.append(refresh_item)
 
         return items
 
     def refresh(self) -> None:
         """Refresh the provider's data."""
-        # System items don't need refresh
+        if self.settings_service:
+            self.settings_service.reload_settings()
+
+    def _get_system_prompts(self) -> List[MenuItem]:
+        """Get system prompts from settings that should use OpenAI."""
+        items = []
+        try:
+            settings = self.settings_service.get_settings()
+            for prompt_config in settings.prompts:
+                item = MenuItem(
+                    id=f"system_prompt_{prompt_config.id}",
+                    label=prompt_config.name,
+                    item_type=MenuItemType.PROMPT,
+                    action=lambda p=prompt_config: self.execute_callback(
+                        self._create_system_prompt_item(p)
+                    )
+                    if self.execute_callback
+                    else None,
+                    data={
+                        "prompt_id": prompt_config.id,
+                        "prompt_name": prompt_config.name,
+                        "use_openai": True,
+                    },
+                    enabled=True,
+                )
+                items.append(item)
+        except Exception:
+            pass
+        return items
+
+    def _create_system_prompt_item(self, prompt_config) -> MenuItem:
+        """Create a menu item for a system prompt."""
+        return MenuItem(
+            id=f"system_prompt_{prompt_config.id}",
+            label=prompt_config.name,
+            item_type=MenuItemType.PROMPT,
+            action=lambda: None,
+            data={
+                "prompt_id": prompt_config.id,
+                "prompt_name": prompt_config.name,
+                "use_openai": True,
+            },
+            enabled=True,
+        )
 
     def _create_last_speech_item(self) -> MenuItem:
         """Create a menu item for last speech transcription."""
