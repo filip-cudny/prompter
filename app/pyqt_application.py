@@ -139,8 +139,8 @@ class PromptStoreApp(QObject):
             raise RuntimeError("API not initialized")
 
         # Initialize API prompt provider
-        api_provider = APIPromptProvider(self.api)
-        self.prompt_providers.append(api_provider)
+        # api_provider = APIPromptProvider(self.api)
+        # self.prompt_providers.append(api_provider)
 
         # Initialize settings prompt provider
         try:
@@ -248,12 +248,12 @@ class PromptStoreApp(QObject):
         if settings_provider:
             self.menu_providers.extend(
                 [
-                    SettingsPromptMenuProvider(
-                        settings_provider, self._execute_menu_item
-                    ),
-                    SettingsPresetMenuProvider(
-                        settings_provider, self._execute_menu_item
-                    ),
+                    # SettingsPromptMenuProvider(
+                    #     settings_provider, self._execute_menu_item
+                    # ),
+                    # SettingsPresetMenuProvider(
+                    #     settings_provider, self._execute_menu_item
+                    # ),
                 ]
             )
 

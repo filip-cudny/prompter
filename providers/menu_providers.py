@@ -302,15 +302,15 @@ class SystemMenuProvider:
         )
         items.append(speech_output_item)
 
-        refresh_item = MenuItem(
-            id="system_refresh",
-            label="Refresh",
-            item_type=MenuItemType.SYSTEM,
-            action=self.refresh_callback,
-            data={"type": "refresh"},
-            enabled=True,
-        )
-        items.append(refresh_item)
+        # refresh_item = MenuItem(
+        #     id="system_refresh",
+        #     label="Refresh",
+        #     item_type=MenuItemType.SYSTEM,
+        #     action=self.refresh_callback,
+        #     data={"type": "refresh"},
+        #     enabled=True,
+        # )
+        # items.append(refresh_item)
 
         return items
 
