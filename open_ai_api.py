@@ -74,7 +74,7 @@ class OpenAIClient:
         self,
         messages: List[ChatCompletionMessageParam],
         model: str = "gpt-4.1",
-        temperature: float = 0.7,
+        temperature: float = 0.0,
         max_tokens: Optional[int] = None,
         **kwargs: Any,
     ) -> str:

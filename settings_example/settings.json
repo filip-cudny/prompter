@@ -1,0 +1,54 @@
+{
+  "models": {
+    "openai": [
+      {
+        "model": "gpt-4.1",
+        "temperature": 0.7
+      }
+    ]
+  },
+  "prompts": [
+    {
+      "id": "prompt-refine",
+      "name": "Prompt refine - local",
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are a helpful assistant."
+        },
+        {
+          "role": "user",
+          "content": "{{clipboard}}"
+        }
+      ]
+    },
+    {
+      "id": "text-correction-grammar",
+      "name": "Text correction - grammar",
+      "messages": [
+        {
+          "role": "system",
+          "file": "prompts/dummy/system.md"
+        },
+        {
+          "role": "user",
+          "content": "{{clipboard}}"
+        }
+      ]
+    },
+    {
+      "id": "text-correction-proffesional",
+      "name": "Text correction - proffesional",
+      "messages": [
+        {
+          "role": "system",
+          "file": "prompts/dummy/system.md"
+        },
+        {
+          "role": "user",
+          "content": "{{clipboard}}"
+        }
+      ]
+    }
+  ]
+}

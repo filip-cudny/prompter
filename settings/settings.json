@@ -3,22 +3,22 @@
     "openai": [
       {
         "model": "gpt-4.1",
-        "temperature": 0.7
+        "temperature": 0.0
       }
     ]
   },
   "prompts": [
     {
       "id": "prompt-refine",
-      "name": "Prompt refine - local",
+      "name": "Prompt refine",
       "messages": [
         {
           "role": "system",
-          "content": "You are a helpful assistant."
+          "file": "prompts/prompt_refine..md"
         },
         {
           "role": "user",
-          "content": "{{clipboard}}"
+          "content": "<input_text>\n{{clipboard}}\n</input_text>"
         }
       ]
     },
@@ -28,11 +28,11 @@
       "messages": [
         {
           "role": "system",
-          "file": "prompts/dummy/system.md"
+          "file": "prompts/text_correction_grammar.md"
         },
         {
           "role": "user",
-          "content": "{{clipboard}}"
+          "content": "<input_text>\n{{clipboard}}\n</input_text>"
         }
       ]
     },
@@ -42,11 +42,39 @@
       "messages": [
         {
           "role": "system",
-          "file": "prompts/dummy/system.md"
+          "file": "prompts/text_correction_proffesional.md"
         },
         {
           "role": "user",
-          "content": "{{clipboard}}"
+          "content": "<input_text>\n{{clipboard}}\n</input_text>"
+        }
+      ]
+    },
+    {
+      "id": "translate-english",
+      "name": "Translate - English",
+      "messages": [
+        {
+          "role": "system",
+          "file": "prompts/translate_english.md"
+        },
+        {
+          "role": "user",
+          "content": "<input_text>\n{{clipboard}}\n</input_text>"
+        }
+      ]
+    },
+    {
+      "id": "translate-polish",
+      "name": "Translate - Polish",
+      "messages": [
+        {
+          "role": "system",
+          "file": "prompts/translate_polish.md"
+        },
+        {
+          "role": "user",
+          "content": "<input_text>\n{{clipboard}}\n</input_text>"
         }
       ]
     }
