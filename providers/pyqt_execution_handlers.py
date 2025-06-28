@@ -744,7 +744,7 @@ class PyQtSpeechExecutionHandler:
 
             # Handle speech-to-text recording
             if not self.speech_service:
-                error_msg = "Speech-to-text service not available. Please configure LOCAL_OPENAI_API_KEY and install PyAudio."
+                error_msg = "Speech-to-text service not available. Please configure OPENAI_API_KEY and install PyAudio."
 
                 self.notification_manager.show_error_notification(
                     "Speech-to-Text Error", error_msg
@@ -774,7 +774,7 @@ class PyQtSpeechExecutionHandler:
             if "PyAudio" in error_msg:
                 error_msg = "PyAudio is not installed. Please install it with: pip install pyaudio"
             elif "OpenAI" in error_msg:
-                error_msg = "OpenAI API key not configured. Please set LOCAL_OPENAI_API_KEY environment variable."
+                error_msg = "OpenAI API key not configured. Please set OPENAI_API_KEY environment variable."
 
             execution_result = ExecutionResult(
                 success=False,

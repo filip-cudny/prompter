@@ -11,7 +11,7 @@ class OpenAIClient:
     """Client for OpenAI API operations."""
 
     def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or os.getenv("LOCAL_OPENAI_API_KEY")
+        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         if not self.api_key:
             raise APIError(
                 "OpenAI API key not found. Set OPENAI_API_KEY environment variable."
