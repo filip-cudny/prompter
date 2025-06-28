@@ -171,6 +171,7 @@ class PromptStoreApp(QObject):
                 self.notification_manager,
                 self.set_recording_indicator,
                 self.prompt_store_service.speech_history_service,
+                self._refresh_ui_after_speech,
             ),
         ]
 
@@ -365,6 +366,14 @@ class PromptStoreApp(QObject):
             print("Data refreshed successfully")
         except Exception as e:
             print(f"Failed to refresh data: {e}")
+
+    def _refresh_ui_after_speech(self) -> None:
+        """Refresh UI after speech-to-text completion to show 'Copy last speech' item."""
+        try:
+            if self.menu_coordinator:
+                self.menu_coordinator.force_rebuild_dynamic_items()
+        except Exception as e:
+            print(f"Failed to refresh UI after speech: {e}")
 
     def _speech_to_text(self) -> None:
         """Handle speech-to-text action."""

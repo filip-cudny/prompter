@@ -1,7 +1,7 @@
 """Settings-based menu providers for the prompt store application."""
 
 from typing import List, Callable, Optional
-from core.models import MenuItem, MenuItemType, PromptData
+from core.models import MenuItem, MenuItemType
 from .settings_prompt_provider import SettingsPromptProvider
 
 
@@ -28,7 +28,7 @@ class SettingsPromptMenuProvider:
                     id=f"settings_prompt_{prompt.id}",
                     label=f"📝 {prompt.name}",
                     item_type=MenuItemType.PROMPT,
-                    action=self._make_prompt_action(prompt),
+                    action=lambda: None,
                     data={
                         "prompt_id": prompt.id,
                         "prompt_name": prompt.name,
@@ -38,6 +38,7 @@ class SettingsPromptMenuProvider:
                     enabled=True,
                     tooltip=f"Settings prompt: {prompt.name}"
                 )
+                item.action = lambda item=item: self.execute_callback(item)
                 items.append(item)
 
         except Exception as e:
@@ -49,28 +50,7 @@ class SettingsPromptMenuProvider:
         """Refresh the provider's data."""
         self.settings_prompt_provider.refresh()
 
-    def _make_prompt_action(self, prompt: PromptData):
-        """Create action for prompt item."""
-        def action():
-            self.execute_callback(self._create_prompt_item(prompt))
-        return action
 
-    def _create_prompt_item(self, prompt: PromptData) -> MenuItem:
-        """Create a menu item for a settings prompt."""
-        return MenuItem(
-            id=f"settings_prompt_{prompt.id}",
-            label=f"📝 {prompt.name}",
-            item_type=MenuItemType.PROMPT,
-            action=lambda: None,
-            data={
-                "prompt_id": prompt.id,
-                "prompt_name": prompt.name,
-                "type": "settings_prompt",
-                "source": "settings"
-            },
-            enabled=True,
-            tooltip=f"Settings prompt: {prompt.name}"
-        )
 
 
 class SettingsPresetMenuProvider:
@@ -101,7 +81,7 @@ class SettingsPresetMenuProvider:
                     id=f"settings_preset_{preset.id}",
                     label=display_name,
                     item_type=MenuItemType.PRESET,
-                    action=self._make_preset_action(preset),
+                    action=lambda: None,
                     data={
                         "preset_id": preset.id,
                         "preset_name": preset.preset_name,
@@ -112,6 +92,7 @@ class SettingsPresetMenuProvider:
                     enabled=True,
                     tooltip=f"Settings preset: {preset.preset_name}"
                 )
+                item.action = lambda item=item: self.execute_callback(item)
                 items.append(item)
 
         except Exception as e:
@@ -123,11 +104,7 @@ class SettingsPresetMenuProvider:
         """Refresh the provider's data."""
         self.settings_prompt_provider.refresh()
 
-    def _make_preset_action(self, preset):
-        """Create action for preset item."""
-        def action():
-            self.execute_callback(self._create_preset_item(preset))
-        return action
+
 
     def _get_prompt_name(self, prompt_id: str) -> Optional[str]:
         """Get prompt name by ID."""
@@ -137,25 +114,3 @@ class SettingsPresetMenuProvider:
         except Exception:
             return None
 
-    def _create_preset_item(self, preset) -> MenuItem:
-        """Create a menu item for a settings preset."""
-        prompt_name = self._get_prompt_name(preset.prompt_id)
-        display_name = f"⚙️ {preset.preset_name}"
-        if prompt_name:
-            display_name += f" ({prompt_name})"
-
-        return MenuItem(
-            id=f"settings_preset_{preset.id}",
-            label=display_name,
-            item_type=MenuItemType.PRESET,
-            action=lambda: None,
-            data={
-                "preset_id": preset.id,
-                "preset_name": preset.preset_name,
-                "prompt_id": preset.prompt_id,
-                "type": "settings_preset",
-                "source": "settings"
-            },
-            enabled=True,
-            tooltip=f"Settings preset: {preset.preset_name}"
-        )

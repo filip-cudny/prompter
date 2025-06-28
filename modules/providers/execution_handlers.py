@@ -696,11 +696,13 @@ class PyQtSpeechExecutionHandler:
         notification_manager: Optional[PyQtNotificationManager] = None,
         recording_indicator_callback: Optional[Callable[[bool], None]] = None,
         speech_history_service=None,
+        ui_refresh_callback: Optional[Callable[[], None]] = None,
     ):
         self.clipboard_manager = clipboard_manager
         self.notification_manager = notification_manager or PyQtNotificationManager()
         self.recording_indicator_callback = recording_indicator_callback
         self.speech_history_service = speech_history_service
+        self.ui_refresh_callback = ui_refresh_callback
         self.speech_service = None
         self._transcription_start_time: Optional[float] = None
         self._initialize_speech_service()
@@ -826,6 +828,10 @@ class PyQtSpeechExecutionHandler:
                     self.notification_manager.show_success_notification(
                         "Transcription completed", notification_message
                     )
+                    
+                    # Trigger UI refresh to show "Copy last speech" item
+                    if self.ui_refresh_callback:
+                        self.ui_refresh_callback()
                 else:
                     self.notification_manager.show_error_notification(
                         "Clipboard Error",
