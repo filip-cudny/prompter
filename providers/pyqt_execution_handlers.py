@@ -793,7 +793,7 @@ class PyQtSpeechExecutionHandler:
         """Handle recording started event."""
         self.notification_manager.show_info_notification(
             "Recording Started",
-            "Recording audio... Click Speech to Text again to stop.",
+            "Click Speech to Text again to stop.",
         )
         if self.recording_indicator_callback:
             self.recording_indicator_callback(True)
@@ -802,7 +802,7 @@ class PyQtSpeechExecutionHandler:
         """Handle recording stopped event."""
         self._transcription_start_time = time.time()
         self.notification_manager.show_info_notification(
-            "Processing Audio", "Transcribing your speech to text, please wait..."
+            "Processing Audio", "Transcribing your speech to text"
         )
         if self.recording_indicator_callback:
             self.recording_indicator_callback(False)
