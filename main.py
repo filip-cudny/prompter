@@ -7,7 +7,7 @@ import os
 # Add the current directory to Python path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from app.pyqt_application import PromptStoreApp
+from app.application import PromptStoreApp
 
 
 def main():
