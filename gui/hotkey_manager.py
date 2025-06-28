@@ -195,8 +195,10 @@ class PyQtHotkeyListener:
 class PyQtHotkeyManager:
     """Manages global hotkey detection and configuration using PyQt5."""
 
-    def __init__(self, hotkey: Optional[str] = None):
-        self.hotkey = hotkey.lower() if hotkey else HOTKEY_CONFIG.re_execute_hotkey
+    def __init__(
+        self,
+    ):
+        self.hotkey = HOTKEY_CONFIG.re_execute_hotkey
         self.listener = PyQtHotkeyListener()
         self.running = False
 

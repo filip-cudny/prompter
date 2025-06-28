@@ -6,7 +6,6 @@ from typing import Dict, Any, List, Optional, Callable
 from enum import Enum
 
 
-
 class MenuItemType(Enum):
     """Types of menu items."""
 
@@ -106,18 +105,15 @@ class AppConfig:
 
     api_key: str
     base_url: str
-    hotkey: str = "shift+f1"
     max_history_entries: int = 10
-    enable_notifications: bool = True
     clipboard_timeout: float = 5.0
     menu_position_offset: tuple = (0, 0)
-    debug_mode: bool = False
 
 
 @dataclass
 class ModelConfig:
     """Configuration for a model."""
-    
+
     model: str
     temperature: Optional[float] = None
     max_tokens: Optional[int] = None
@@ -129,7 +125,7 @@ class ModelConfig:
 @dataclass
 class ProviderConfig:
     """Configuration for a model provider."""
-    
+
     name: str
     models: List[ModelConfig] = field(default_factory=list)
     api_key: Optional[str] = None
@@ -139,7 +135,7 @@ class ProviderConfig:
 @dataclass
 class MessageConfig:
     """Configuration for a message in a prompt."""
-    
+
     role: str
     content: Optional[str] = None
     file: Optional[str] = None
@@ -148,7 +144,7 @@ class MessageConfig:
 @dataclass
 class PromptConfig:
     """Configuration for a prompt."""
-    
+
     id: str
     name: str
     messages: List[MessageConfig] = field(default_factory=list)
@@ -160,7 +156,7 @@ class PromptConfig:
 @dataclass
 class SettingsConfig:
     """Main settings configuration."""
-    
+
     models: Dict[str, List[Dict[str, Any]]] = field(default_factory=dict)
     prompts: List[PromptConfig] = field(default_factory=list)
     providers: List[ProviderConfig] = field(default_factory=list)

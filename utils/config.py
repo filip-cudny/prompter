@@ -15,11 +15,7 @@ class AppConfig:
     api_key: str
     base_url: str
     openai_api_key: Optional[str] = None
-    hotkey: str = "shift+f1"
-    max_history_entries: int = 10
-    enable_notifications: bool = True
     menu_position_offset: tuple = (0, 0)
-    debug_mode: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert config to dictionary."""
@@ -51,11 +47,6 @@ def load_config(env_file: Optional[str] = None) -> AppConfig:
         api_key=api_key,
         base_url=base_url,
         openai_api_key=os.getenv("OPENAI_API_KEY"),
-        hotkey=os.getenv("HOTKEY", "shift+f1"),
-        max_history_entries=int(os.getenv("MAX_HISTORY_ENTRIES", "10")),
-        enable_notifications=os.getenv("ENABLE_NOTIFICATIONS", "true").lower()
-        == "true",
-        debug_mode=os.getenv("DEBUG_MODE", "false").lower() == "true",
     )
     # Parse menu position offset
     offset_str = os.getenv("MENU_POSITION_OFFSET", "0,0")
@@ -78,6 +69,3 @@ def validate_config(config: AppConfig) -> None:
 
     if not config.base_url.startswith(("http://", "https://")):
         raise ConfigurationError("Base URL must start with http:// or https://")
-
-    if config.max_history_entries < 1:
-        raise ConfigurationError("Max history entries must be at least 1")

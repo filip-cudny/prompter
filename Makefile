@@ -48,7 +48,7 @@ start: ## Start the service in background
 		echo "❌ Service is already running (PID: `cat $(PID_FILE)`)"; \
 		exit 1; \
 	fi
-	@echo "🚀 Starting Prompt Store service in background..."
+	@echo "🚀 Starting Prompt Store in background..."
 	@nohup $(VENV_PYTHON) main.py > $(LOG_FILE) 2> $(ERROR_LOG) & echo $$! > $(PID_FILE)
 	@sleep 2
 	@if [ -f "$(PID_FILE)" ] && kill -0 `cat $(PID_FILE)` 2>/dev/null; then \
