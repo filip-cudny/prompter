@@ -68,10 +68,7 @@ class PromptStoreService:
 
             # Only add to history for prompt and preset executions, not history or system operations
             if item.item_type in [MenuItemType.PROMPT, MenuItemType.PRESET]:
-                # Track active prompt/preset
                 if result.success and item.data:
-                    self.active_prompt_service.update_active_on_execution(item)
-
                     self.history_service.add_entry(
                         input_content=input_content,
                         output_content=result.content,
@@ -458,10 +455,7 @@ class ActivePromptService:
         """Clear the active prompt/preset."""
         self._active_prompt = None
 
-    def update_active_on_execution(self, item: MenuItem) -> None:
-        """Update active prompt when a prompt/preset is executed."""
-        if item.item_type in [MenuItemType.PROMPT, MenuItemType.PRESET]:
-            self._active_prompt = item
+
 
 
 class SpeechHistoryService:

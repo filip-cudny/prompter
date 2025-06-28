@@ -35,7 +35,7 @@ class NotificationWidget(QFrame):
             QFrame {{
                 background-color: {bg_color};
                 border-radius: 8px;
-                border: 1px solid rgba(255, 255, 255, 0.4);
+                border: 1px solid rgba(255, 255, 255, 0.3);
             }}
         """)
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
@@ -228,13 +228,15 @@ class PyQtNotificationManager:
         self._display_notification(full_message, "#6B7A4A", 2000, "✔")
 
     def show_error_notification(
-        self, title: str, message: str, prompt_name: Optional[str] = None
+        self,
+        title: str,
+        message: str | None = None,
     ) -> None:
         """Show an error notification."""
-        if prompt_name:
-            full_message = f"{title} - {prompt_name}\n{message}"
-        else:
+        if message:
             full_message = f"{title}\n{message}"
+        else:
+            full_message = title
 
         self._display_notification(full_message, "#9B6B67", 4000, "✗")
 
