@@ -9,7 +9,7 @@ from api import PromptStoreAPI, APIError, create_user_message
 from open_ai_api import OpenAIClient
 from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
 from core.services import SettingsService
-from utils.notifications import (
+from modules.utils.notifications import (
     PyQtNotificationManager,
     format_execution_time,
     truncate_text,
@@ -708,8 +708,8 @@ class PyQtSpeechExecutionHandler:
     def _initialize_speech_service(self) -> None:
         """Initialize speech-to-text service."""
         try:
-            from utils.speech_to_text import SpeechToTextService
-            from utils.config import load_config
+            from modules.utils.speech_to_text import SpeechToTextService
+            from modules.utils.config import load_config
 
             config = load_config()
             if config.openai_api_key:

@@ -20,7 +20,7 @@ from .models import (
     MessageConfig,
 )
 from .exceptions import DataError
-from utils.notifications import PyQtNotificationManager
+from modules.utils.notifications import PyQtNotificationManager
 
 
 class PromptStoreService:
@@ -454,8 +454,6 @@ class ActivePromptService:
     def clear_active_prompt(self) -> None:
         """Clear the active prompt/preset."""
         self._active_prompt = None
-
-
 
 
 class SpeechHistoryService:

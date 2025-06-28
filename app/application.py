@@ -12,19 +12,19 @@ from PyQt5.QtCore import Qt
 from core.services import PromptStoreService
 from core.exceptions import ConfigurationError
 
-from providers.menu_providers import (
+from modules.providers.menu_providers import (
     PromptMenuProvider,
     PresetMenuProvider,
     HistoryMenuProvider,
     SystemMenuProvider,
 )
-from providers.settings_menu_provider import (
+from modules.providers.settings_menu_provider import (
     SettingsPromptMenuProvider,
     SettingsPresetMenuProvider,
 )
-from providers.prompt_providers import APIPromptProvider
-from providers.settings_prompt_provider import SettingsPromptProvider
-from providers.execution_handlers import (
+from modules.providers.prompt_providers import APIPromptProvider
+from modules.providers.settings_prompt_provider import SettingsPromptProvider
+from modules.providers.execution_handlers import (
     PyQtPromptExecutionHandler,
     PyQtPresetExecutionHandler,
     PyQtHistoryExecutionHandler,
@@ -35,10 +35,10 @@ from providers.execution_handlers import (
 )
 from modules.gui.menu_coordinator import PyQtMenuCoordinator, PyQtMenuEventHandler
 from modules.gui.hotkey_manager import PyQtHotkeyManager
-from utils.clipboard import SystemClipboardManager
-from utils.config import load_config, validate_config
-from utils.system import check_macos_permissions, show_macos_permissions_help
-from utils.notifications import PyQtNotificationManager
+from modules.utils.clipboard import SystemClipboardManager
+from modules.utils.config import load_config, validate_config
+from modules.utils.system import check_macos_permissions, show_macos_permissions_help
+from modules.utils.notifications import PyQtNotificationManager
 from api import PromptStoreAPI
 
 
