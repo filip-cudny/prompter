@@ -26,9 +26,7 @@ class PromptMenuProvider:
                     id=f"prompt_{prompt.id}",
                     label=prompt.name,
                     item_type=MenuItemType.PROMPT,
-                    action=lambda p=prompt: self.execute_callback(
-                        self._create_prompt_item(p)
-                    ),
+                    action=lambda: None,
                     data={
                         "prompt_id": prompt.id,
                         "prompt_name": prompt.name,
@@ -47,22 +45,6 @@ class PromptMenuProvider:
     def refresh(self) -> None:
         """Refresh the provider's data."""
         self.data_manager.refresh()
-
-    def _create_prompt_item(self, prompt: PromptData) -> MenuItem:
-        """Create a menu item for a prompt."""
-        return MenuItem(
-            id=f"prompt_{prompt.id}",
-            label=prompt.name,
-            item_type=MenuItemType.PROMPT,
-            action=lambda: None,  # Will be handled by execution handler
-            data={
-                "prompt_id": prompt.id,
-                "prompt_name": prompt.name,
-                "type": "prompt",
-                "source": prompt.source,
-            },
-            enabled=True,
-        )
 
 
 class PresetMenuProvider:
