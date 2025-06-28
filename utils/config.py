@@ -81,9 +81,3 @@ def validate_config(config: AppConfig) -> None:
 
     if config.max_history_entries < 1:
         raise ConfigurationError("Max history entries must be at least 1")
-
-    # Validate hotkey format
-    from .system import validate_hotkey_format
-
-    if not validate_hotkey_format(config.hotkey):
-        raise ConfigurationError(f"Invalid hotkey format: {config.hotkey}")

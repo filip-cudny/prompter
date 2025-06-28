@@ -27,7 +27,6 @@ class NotificationWidget(QLabel):
                 color: white;
                 padding: 12px 24px;
                 border-radius: 8px;
-                font-family: Arial;
                 font-size: 13px;
                 border: 1px solid rgba(255, 255, 255, 0.1);
             }}
