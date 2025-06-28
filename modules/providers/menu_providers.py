@@ -35,6 +35,7 @@ class PromptMenuProvider:
                     },
                     enabled=True,
                 )
+                item.action = lambda item=item: self.execute_callback(item)
                 items.append(item)
 
         except Exception:
@@ -45,6 +46,8 @@ class PromptMenuProvider:
     def refresh(self) -> None:
         """Refresh the provider's data."""
         self.data_manager.refresh()
+
+
 
 
 class PresetMenuProvider:
@@ -71,9 +74,7 @@ class PresetMenuProvider:
                     id=f"preset_{preset.id}",
                     label=display_name,
                     item_type=MenuItemType.PRESET,
-                    action=lambda p=preset: self.execute_callback(
-                        self._create_preset_item(p)
-                    ),
+                    action=lambda: None,
                     data={
                         "preset_id": preset.id,
                         "preset_name": preset.preset_name,
@@ -83,6 +84,7 @@ class PresetMenuProvider:
                     },
                     enabled=True,
                 )
+                item.action = lambda item=item: self.execute_callback(item)
                 items.append(item)
 
         except Exception:
@@ -95,25 +97,7 @@ class PresetMenuProvider:
         """Refresh the provider's data."""
         self.data_manager.refresh()
 
-    def _create_preset_item(self, preset: PresetData) -> MenuItem:
-        """Create a menu item for a preset."""
-        prompt_name = self.data_manager.get_prompt_name(preset.prompt_id)
-        display_name = f"{preset.preset_name} ({prompt_name})"
 
-        return MenuItem(
-            id=f"preset_{preset.id}",
-            label=display_name,
-            item_type=MenuItemType.PRESET,
-            action=lambda: None,  # Will be handled by execution handler
-            data={
-                "preset_id": preset.id,
-                "preset_name": preset.preset_name,
-                "prompt_id": preset.prompt_id,
-                "type": "preset",
-                "source": preset.source,
-            },
-            enabled=True,
-        )
 
 
 class HistoryMenuProvider:
@@ -144,11 +128,12 @@ class HistoryMenuProvider:
             id="history_last_input",
             label=input_label,
             item_type=MenuItemType.HISTORY,
-            action=lambda: self.execute_callback(self._create_last_input_item()),
+            action=lambda: None,
             data={"type": "last_input", "content": last_input},
             enabled=last_input is not None,
             tooltip=last_input,
         )
+        input_item.action = lambda item=input_item: self.execute_callback(item)
         items.append(input_item)
 
         # Last Output item
@@ -161,12 +146,13 @@ class HistoryMenuProvider:
             id="history_last_output",
             label=output_label,
             item_type=MenuItemType.HISTORY,
-            action=lambda: self.execute_callback(self._create_last_output_item()),
+            action=lambda: None,
             data={"type": "last_output", "content": last_output},
             enabled=last_output is not None,
             separator_after=True,
             tooltip=last_output,
         )
+        output_item.action = lambda item=output_item: self.execute_callback(item)
         items.append(output_item)
 
         return items
@@ -175,47 +161,7 @@ class HistoryMenuProvider:
         """Refresh the provider's data."""
         # History doesn't need external refresh
 
-    def _create_last_input_item(self) -> MenuItem:
-        """Create a menu item for last input."""
-        last_input = self.history_service.get_last_input()
-        preview = (
-            last_input[:30] + "..."
-            if last_input and len(last_input) > 30
-            else last_input
-        )
-        label = f"⎘ Copy last input: {preview}" if last_input else "⎘ Copy last input"
 
-        return MenuItem(
-            id="history_last_input",
-            label=label,
-            item_type=MenuItemType.HISTORY,
-            action=lambda: None,  # Will be handled by execution handler
-            data={"type": "last_input", "content": last_input},
-            enabled=last_input is not None,
-            tooltip=last_input,
-        )
-
-    def _create_last_output_item(self) -> MenuItem:
-        """Create a menu item for last output."""
-        last_output = self.history_service.get_last_output()
-        preview = (
-            last_output[:30] + "..."
-            if last_output and len(last_output) > 30
-            else last_output
-        )
-        label = (
-            f"⎘ Copy last output: {preview}" if last_output else "⎘ Copy last output"
-        )
-
-        return MenuItem(
-            id="history_last_output",
-            label=label,
-            item_type=MenuItemType.HISTORY,
-            action=lambda: None,  # Will be handled by execution handler
-            data={"type": "last_output", "content": last_output},
-            enabled=last_output is not None,
-            tooltip=last_output,
-        )
 
 
 class SystemMenuProvider:
@@ -276,12 +222,13 @@ class SystemMenuProvider:
             id="speech_last_output",
             label=speech_output_label,
             item_type=MenuItemType.SPEECH,
-            action=lambda: self.execute_callback(self._create_last_speech_item()),
+            action=lambda: None,
             data={"type": "last_speech_output", "content": last_transcription},
             enabled=last_transcription is not None,
             separator_after=True,
             tooltip=last_transcription,
         )
+        speech_output_item.action = lambda item=speech_output_item: self.execute_callback(item)
         items.append(speech_output_item)
 
         # refresh_item = MenuItem(
@@ -311,11 +258,7 @@ class SystemMenuProvider:
                     id=f"system_prompt_{prompt_config.id}",
                     label=prompt_config.name,
                     item_type=MenuItemType.PROMPT,
-                    action=lambda p=prompt_config: self.execute_callback(
-                        self._create_system_prompt_item(p)
-                    )
-                    if self.execute_callback
-                    else None,
+                    action=lambda: None,
                     data={
                         "prompt_id": prompt_config.id,
                         "prompt_name": prompt_config.name,
@@ -323,49 +266,11 @@ class SystemMenuProvider:
                     },
                     enabled=True,
                 )
+                if self.execute_callback:
+                    item.action = lambda item=item: self.execute_callback(item)
                 items.append(item)
         except Exception:
             pass
         return items
 
-    def _create_system_prompt_item(self, prompt_config) -> MenuItem:
-        """Create a menu item for a system prompt."""
-        return MenuItem(
-            id=f"system_prompt_{prompt_config.id}",
-            label=prompt_config.name,
-            item_type=MenuItemType.PROMPT,
-            action=lambda: None,
-            data={
-                "prompt_id": prompt_config.id,
-                "prompt_name": prompt_config.name,
-                "use_openai": True,
-            },
-            enabled=True,
-        )
 
-    def _create_last_speech_item(self) -> MenuItem:
-        """Create a menu item for last speech transcription."""
-        last_transcription = None
-        if self.speech_history_service:
-            last_transcription = self.speech_history_service.get_last_transcription()
-
-        preview = (
-            last_transcription[:30] + "..."
-            if last_transcription and len(last_transcription) > 30
-            else last_transcription
-        )
-        label = (
-            f"⎘ Copy last speech output: {preview}"
-            if last_transcription
-            else "⎘ Copy last speech output"
-        )
-
-        return MenuItem(
-            id="speech_last_output",
-            label=label,
-            item_type=MenuItemType.SPEECH,
-            action=lambda: None,  # Will be handled by execution handler
-            data={"type": "last_speech_output", "content": last_transcription},
-            enabled=last_transcription is not None,
-            tooltip=last_transcription,
-        )
