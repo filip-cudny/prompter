@@ -34,9 +34,9 @@ class AppConfig:
 def load_config(env_file: Optional[str] = None) -> AppConfig:
     """Load configuration from environment variables and .env file."""
     if env_file:
-        load_dotenv(env_file)
+        load_dotenv(env_file, override=True)
     else:
-        load_dotenv()
+        load_dotenv(override=True)
 
     api_key = os.getenv("API_KEY")
     base_url = os.getenv("BASE_URL")
@@ -57,7 +57,6 @@ def load_config(env_file: Optional[str] = None) -> AppConfig:
         == "true",
         debug_mode=os.getenv("DEBUG_MODE", "false").lower() == "true",
     )
-
     # Parse menu position offset
     offset_str = os.getenv("MENU_POSITION_OFFSET", "0,0")
     try:
@@ -88,47 +87,3 @@ def validate_config(config: AppConfig) -> None:
 
     if not validate_hotkey_format(config.hotkey):
         raise ConfigurationError(f"Invalid hotkey format: {config.hotkey}")
-
-
-def get_config_template() -> str:
-    """Get a template .env file content."""
-    return """# Prompt Store Configuration
-
-# Required settings
-API_KEY=your_api_key_here
-BASE_URL=https://your-api-server.com
-
-# Optional settings for speech-to-text
-OPENAI_API_KEY=your_openai_api_key_here
-
-# Optional settings
-HOTKEY=shift+f1
-MAX_HISTORY_ENTRIES=10
-AUTO_REFRESH_INTERVAL=300
-ENABLE_NOTIFICATIONS=true
-CLIPBOARD_TIMEOUT=5.0
-MENU_POSITION_OFFSET=0,0
-DEBUG_MODE=false
-"""
-
-
-def create_default_env_file(path: str = ".env") -> None:
-    """Create a default .env file if it doesn't exist."""
-    if not os.path.exists(path):
-        with open(path, "w") as f:
-            f.write(get_config_template())
-
-
-def get_env_file_path() -> str:
-    """Get the path to the .env file."""
-    # Look for .env in current directory first
-    if os.path.exists(".env"):
-        return ".env"
-
-    # Look in user's home directory
-    home_env = os.path.expanduser("~/.prompt-store.env")
-    if os.path.exists(home_env):
-        return home_env
-
-    # Default to current directory
-    return ".env"

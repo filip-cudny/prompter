@@ -1,7 +1,7 @@
 """OpenAI API client for speech-to-text transcription."""
 
 import os
-from typing import Optional, BinaryIO, List, Dict, Any
+from typing import Optional, BinaryIO, List, Any
 from openai import OpenAI
 from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
 from api import APIError
