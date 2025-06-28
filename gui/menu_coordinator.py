@@ -6,7 +6,7 @@ from PyQt5.QtWidgets import QApplication
 
 from core.models import MenuItem, ExecutionResult, MenuItemType
 from core.exceptions import MenuError
-from .pyqt_context_menu import PyQtContextMenu
+from .context_menu import PyQtContextMenu
 
 
 class PyQtMenuCoordinator(QObject):

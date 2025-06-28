@@ -143,7 +143,7 @@ class PromptStoreService:
         if not active_prompt:
             return ExecutionResult(
                 success=False,
-                error="No default prompt selected",
+                error="No active prompt selected",
                 error_code=ErrorCode.NO_ACTIVE_PROMPT,
             )
 

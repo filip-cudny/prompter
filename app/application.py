@@ -33,8 +33,8 @@ from providers.pyqt_execution_handlers import (
     SettingsPromptExecutionHandler,
     SettingsPresetExecutionHandler,
 )
-from gui.pyqt_menu_coordinator import PyQtMenuCoordinator, PyQtMenuEventHandler
-from gui.pyqt_hotkey_manager import PyQtHotkeyManager
+from gui.menu_coordinator import PyQtMenuCoordinator, PyQtMenuEventHandler
+from gui.hotkey_manager import PyQtHotkeyManager
 from utils.clipboard import SystemClipboardManager
 from utils.config import load_config, validate_config
 from utils.system import check_macos_permissions, show_macos_permissions_help
