@@ -31,7 +31,7 @@ class NotificationWidget(QLabel):
                 border: 1px solid rgba(255, 255, 255, 0.1);
             }}
         """)
-        self.setWordWrap(True)
+        self.setWordWrap(False)
         self.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
 
