@@ -16,7 +16,7 @@ from .prompt_providers import (
 from .settings_prompt_provider import (
     SettingsPromptProvider,
 )
-from .pyqt_execution_handlers import (
+from .execution_handlers import (
     PyQtPromptExecutionHandler,
     PyQtPresetExecutionHandler,
     PyQtHistoryExecutionHandler,

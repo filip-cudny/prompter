@@ -24,7 +24,7 @@ from providers.settings_menu_provider import (
 )
 from providers.prompt_providers import APIPromptProvider
 from providers.settings_prompt_provider import SettingsPromptProvider
-from providers.pyqt_execution_handlers import (
+from providers.execution_handlers import (
     PyQtPromptExecutionHandler,
     PyQtPresetExecutionHandler,
     PyQtHistoryExecutionHandler,
@@ -38,7 +38,7 @@ from gui.hotkey_manager import PyQtHotkeyManager
 from utils.clipboard import SystemClipboardManager
 from utils.config import load_config, validate_config
 from utils.system import check_macos_permissions, show_macos_permissions_help
-from utils.pyqt_notifications import PyQtNotificationManager
+from utils.notifications import PyQtNotificationManager
 from api import PromptStoreAPI
 
 

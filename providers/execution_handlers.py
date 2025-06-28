@@ -9,7 +9,7 @@ from api import PromptStoreAPI, APIError, create_user_message
 from open_ai_api import OpenAIClient
 from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
 from core.services import SettingsService
-from utils.pyqt_notifications import (
+from utils.notifications import (
     PyQtNotificationManager,
     format_execution_time,
     truncate_text,

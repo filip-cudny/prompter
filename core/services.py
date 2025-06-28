@@ -20,7 +20,7 @@ from .models import (
     MessageConfig,
 )
 from .exceptions import DataError
-from utils.pyqt_notifications import PyQtNotificationManager
+from utils.notifications import PyQtNotificationManager
 
 
 class PromptStoreService:
