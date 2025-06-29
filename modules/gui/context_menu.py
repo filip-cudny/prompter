@@ -307,35 +307,3 @@ class PyQtMenuBuilder:
 
         self.items = new_items
         return self
-
-
-class PyQtMenuPosition:
-    """Utility class for menu positioning."""
-
-    @staticmethod
-    def get_cursor_position() -> Tuple[int, int]:
-        """Get current cursor position using PyQt5."""
-        cursor_pos = QCursor.pos()
-        return (cursor_pos.x(), cursor_pos.y())
-
-    @staticmethod
-    def get_screen_bounds_at_position(
-        position: Tuple[int, int],
-    ) -> Tuple[int, int, int, int]:
-        """Get screen bounds at the given position."""
-        x, y = position
-        screen = QApplication.desktop().screenAt(QPoint(x, y))
-        if screen == -1:
-            screen = QApplication.desktop().primaryScreen()
-
-        geometry = QApplication.desktop().screenGeometry(screen)
-        return (geometry.left(), geometry.top(), geometry.right(), geometry.bottom())
-
-    @staticmethod
-    def apply_offset(
-        position: Tuple[int, int], offset: Tuple[int, int]
-    ) -> Tuple[int, int]:
-        """Apply offset to position."""
-        x, y = position
-        offset_x, offset_y = offset
-        return (x + offset_x, y + offset_y)
