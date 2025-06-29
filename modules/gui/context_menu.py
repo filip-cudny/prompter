@@ -2,18 +2,20 @@
 
 from typing import List, Optional, Tuple, Dict
 from PyQt5.QtWidgets import QMenu, QAction, QApplication
-from PyQt5.QtCore import Qt, QPoint, QTimer
+from PyQt5.QtCore import Qt, QPoint, QTimer, QObject, QEvent
 from PyQt5.QtGui import QCursor
 from core.models import MenuItem, MenuItemType
 
 
-class PyQtContextMenu:
+class PyQtContextMenu(QObject):
     """PyQt5-based context menu implementation."""
 
     def __init__(self, parent=None):
+        super().__init__(parent)
         self.parent = parent
         self.menu: Optional[QMenu] = None
         self.menu_position_offset = (0, 0)
+        self.shift_pressed = False
         self._menu_stylesheet = """
             QMenu {
                 background-color: #2b2b2b;
@@ -50,6 +52,9 @@ class PyQtContextMenu:
         )
         menu.setAttribute(Qt.WA_TranslucentBackground, False)
         menu.setStyleSheet(self._menu_stylesheet)
+
+        # Install event filter to detect shift key
+        menu.installEventFilter(self)
 
         self._add_menu_items(menu, items)
         return menu
@@ -131,6 +136,9 @@ class PyQtContextMenu:
         action = QAction(item.label, menu)
         action.setEnabled(item.enabled)
 
+        # Store reference to MenuItem for shift+right click handling
+        action._menu_item = item
+
         if hasattr(item, "tooltip") and item.tooltip:
             action.setToolTip(item.tooltip)
 
@@ -155,6 +163,47 @@ class PyQtContextMenu:
             item.item_type == MenuItemType.HISTORY
             or item.item_type == MenuItemType.SPEECH
         )
+
+    def eventFilter(self, obj, event):
+        """Filter events to detect shift key state and mouse clicks."""
+        if isinstance(obj, QMenu):
+            if event.type() == QEvent.KeyPress:
+                if event.key() == Qt.Key_Shift:
+                    self.shift_pressed = True
+            elif event.type() == QEvent.KeyRelease:
+                if event.key() == Qt.Key_Shift:
+                    self.shift_pressed = False
+            elif event.type() == QEvent.MouseButtonPress:
+                if event.button() == Qt.RightButton and self.shift_pressed:
+                    # Find the action under the mouse
+                    action = obj.actionAt(event.pos())
+                    if action and action.isEnabled():
+                        self._handle_shift_right_click(action)
+                        return True  # Consume the event
+                elif event.button() == Qt.LeftButton and self.shift_pressed:
+                    # Prevent normal left click action when shift is held
+                    action = obj.actionAt(event.pos())
+                    if action and action.isEnabled():
+                        item = getattr(action, '_menu_item', None)
+                        if item and (item.item_type == MenuItemType.PROMPT or item.item_type == MenuItemType.PRESET):
+                            self._handle_shift_right_click(action)
+                            return True  # Consume the event to prevent normal action
+        return False
+
+    def _handle_shift_right_click(self, action: QAction):
+        """Handle shift+click on menu items."""
+        # Get the MenuItem associated with this action
+        item = getattr(action, "_menu_item", None)
+        if item and (
+            item.item_type == MenuItemType.PROMPT
+            or item.item_type == MenuItemType.PRESET
+        ):
+            print(
+                f"It Works! Shift+Click on {item.item_type.value}: {item.label}"
+            )
+            # Close the menu after handling
+            if self.menu:
+                self.menu.close()
 
 
 class PyQtMenuBuilder:
