@@ -24,13 +24,13 @@ class HotkeyConfig:
         system = platform.system().lower()
 
         if system == "darwin":  # macOS
-            self.context_menu_hotkey = "cmd+f2"
+            self.context_menu_hotkey = "cmd+escape"
             self.re_execute_hotkey = "cmd+f1"
             self.speech_toggle_hotkey = "shift+f1"
             self.modifier_keys = [Key.cmd, Key.cmd_l, Key.cmd_r]
             self.shift_keys = [Key.shift, Key.shift_l, Key.shift_r]
         else:  # Linux and others
-            self.context_menu_hotkey = "ctrl+f2"
+            self.context_menu_hotkey = "ctrl+escape"
             self.re_execute_hotkey = "ctrl+f1"
             self.speech_toggle_hotkey = "shift+f1"
             self.modifier_keys = [Key.ctrl, Key.ctrl_l, Key.ctrl_r]
@@ -60,7 +60,7 @@ class PyQtHotkeyListener:
         self.signals.re_execute_hotkey_pressed.connect(callback)
 
     def connect_context_menu_callback(self, callback: Callable[[], None]) -> None:
-        """Connect callback for context menu hotkey (Cmd/Ctrl+F2)."""
+        """Connect callback for context menu hotkey (Cmd/Ctrl+Escape)."""
         self.signals.context_menu_hotkey_pressed.connect(callback)
 
     def connect_speech_toggle_callback(self, callback: Callable[[], None]) -> None:
@@ -135,8 +135,8 @@ class PyQtHotkeyListener:
         modifier_pressed = any(
             mod in self.pressed_keys for mod in HOTKEY_CONFIG.modifier_keys
         )
-        f2_pressed = Key.f2 in self.pressed_keys
-        return modifier_pressed and f2_pressed
+        escape_pressed = Key.esc in self.pressed_keys
+        return modifier_pressed and escape_pressed
 
     def _is_speech_toggle_hotkey_pressed(self) -> bool:
         """Check if speech toggle hotkey combination is pressed."""

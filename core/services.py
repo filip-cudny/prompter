@@ -54,6 +54,10 @@ class PromptStoreService:
         self.active_prompt_service = ActivePromptService()
         self.speech_history_service = SpeechHistoryService()
         self.pending_alternative_execution = None
+        self.speech_service.add_transcription_callback(
+            self._on_transcription_for_execution,
+            handler_name="PromptStoreService",
+        )
 
     def refresh_data(self) -> None:
         """Refresh all data from providers."""
@@ -91,10 +95,6 @@ class PromptStoreService:
             self.pending_alternative_execution = item
 
             if self.speech_service:
-                self.speech_service.add_transcription_callback(
-                    self._on_transcription_for_execution,
-                    handler_name="PromptStoreService",
-                )
                 self.speech_service.start_recording("PromptStoreService")
                 return ExecutionResult(
                     success=True, content="Recording started for transcription..."
