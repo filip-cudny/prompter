@@ -16,6 +16,7 @@ class PyQtContextMenu(QObject):
         self.menu: Optional[QMenu] = None
         self.menu_position_offset = (0, 0)
         self.shift_pressed = False
+        self.event_filter_installed = False
         self._menu_stylesheet = """
             QMenu {
                 background-color: #2b2b2b;
@@ -53,7 +54,9 @@ class PyQtContextMenu(QObject):
         menu.setAttribute(Qt.WA_TranslucentBackground, False)
         menu.setStyleSheet(self._menu_stylesheet)
 
-        # Install event filter to detect shift key
+        # Reset shift state and install event filter
+        self.shift_pressed = False
+        self.event_filter_installed = True
         menu.installEventFilter(self)
 
         self._add_menu_items(menu, items)
@@ -70,6 +73,9 @@ class PyQtContextMenu(QObject):
         )
         submenu.setAttribute(Qt.WA_TranslucentBackground, True)
         submenu.setStyleSheet(self._menu_stylesheet)
+        
+        # Install event filter on submenu too
+        submenu.installEventFilter(self)
 
         self._add_menu_items(submenu, items)
         return submenu
@@ -90,6 +96,9 @@ class PyQtContextMenu(QObject):
         x, y = position
         offset_x, offset_y = self.menu_position_offset
         adjusted_pos = QPoint(x + offset_x, y + offset_y)
+
+        # Check current shift state before showing menu
+        self.shift_pressed = bool(QApplication.keyboardModifiers() & Qt.ShiftModifier)
 
         self.menu = self.create_menu(items)
         self.menu.exec_(adjusted_pos)
@@ -114,6 +123,8 @@ class PyQtContextMenu(QObject):
         if self.menu:
             self.menu.close()
             self.menu = None
+        self.shift_pressed = False
+        self.event_filter_installed = False
 
     def _add_menu_items(self, menu: QMenu, items: List[MenuItem]) -> None:
         """Add menu items to a QMenu."""
@@ -166,28 +177,34 @@ class PyQtContextMenu(QObject):
 
     def eventFilter(self, obj, event):
         """Filter events to detect shift key state and mouse clicks."""
+        if not self.event_filter_installed:
+            return False
+            
         if isinstance(obj, QMenu):
+            # Handle key events for shift tracking
             if event.type() == QEvent.KeyPress:
                 if event.key() == Qt.Key_Shift:
                     self.shift_pressed = True
             elif event.type() == QEvent.KeyRelease:
                 if event.key() == Qt.Key_Shift:
                     self.shift_pressed = False
+            # Handle mouse events
             elif event.type() == QEvent.MouseButtonPress:
-                if event.button() == Qt.RightButton and self.shift_pressed:
-                    # Find the action under the mouse
-                    action = obj.actionAt(event.pos())
-                    if action and action.isEnabled():
+                # Double-check shift state with current keyboard modifiers
+                current_shift = bool(QApplication.keyboardModifiers() & Qt.ShiftModifier)
+                if current_shift != self.shift_pressed:
+                    self.shift_pressed = current_shift
+                action = obj.actionAt(event.pos())
+                if action and action.isEnabled():
+                    item = getattr(action, '_menu_item', None)
+                    
+                    if self.shift_pressed and item and (item.item_type == MenuItemType.PROMPT or item.item_type == MenuItemType.PRESET):
                         self._handle_shift_right_click(action)
                         return True  # Consume the event
-                elif event.button() == Qt.LeftButton and self.shift_pressed:
-                    # Prevent normal left click action when shift is held
-                    action = obj.actionAt(event.pos())
-                    if action and action.isEnabled():
-                        item = getattr(action, '_menu_item', None)
-                        if item and (item.item_type == MenuItemType.PROMPT or item.item_type == MenuItemType.PRESET):
-                            self._handle_shift_right_click(action)
-                            return True  # Consume the event to prevent normal action
+            # Handle show event to check shift state
+            elif event.type() == QEvent.Show:
+                # Check actual keyboard state when menu shows
+                self.shift_pressed = bool(QApplication.keyboardModifiers() & Qt.ShiftModifier)
         return False
 
     def _handle_shift_right_click(self, action: QAction):
