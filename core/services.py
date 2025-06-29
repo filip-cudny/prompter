@@ -271,7 +271,7 @@ class DataManager:
         self._presets_cache: Optional[List[PresetData]] = None
         self._prompt_id_to_name: Dict[str, str] = {}
         self._last_refresh = 0.0
-        self._cache_ttl = 300.0  # 5 minutes
+        self._cache_ttl = 60 * 60 * 10  # 10h
 
     def get_prompts(self) -> List[PromptData]:
         """Get prompts with caching."""
