@@ -78,6 +78,8 @@ class PyQtMenuCoordinator(QObject):
 
     def show_menu(self) -> None:
         """Show the context menu at cursor position."""
+        if self.context_menu.menu and self.context_menu.menu.isVisible():
+            self.context_menu.menu.close()
         try:
             items = self._get_all_menu_items()
             if not items:
