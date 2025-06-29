@@ -123,7 +123,10 @@ class PromptStoreApp(QObject):
 
             # Initialize core service
             self.prompt_store_service = PromptStoreService(
-                self.prompt_providers, self.clipboard_manager, self.notification_manager, self.speech_service
+                self.prompt_providers,
+                self.clipboard_manager,
+                self.notification_manager,
+                self.speech_service,
             )
 
             # Initialize GUI components
@@ -146,10 +149,43 @@ class PromptStoreApp(QObject):
 
             if self.config.openai_api_key:
                 self.speech_service = SpeechToTextService(self.config.openai_api_key)
+                self._setup_common_speech_notifications()
             else:
                 self.speech_service = None
         except Exception as e:
             self.speech_service = None
+
+    def _setup_common_speech_notifications(self) -> None:
+        """Setup common speech notifications that run for all transcriptions."""
+        if self.speech_service and self.notification_manager:
+            from modules.utils.notifications import format_execution_time
+
+            def _on_transcription_notification(
+                transcription: str, duration: float
+            ) -> None:
+                """Handle common transcription notifications."""
+                try:
+                    if transcription:
+                        notification_message = (
+                            f"Processed in {format_execution_time(duration)}"
+                        )
+                        self.notification_manager.show_success_notification(
+                            "Transcription completed", notification_message
+                        )
+                    else:
+                        self.notification_manager.show_info_notification(
+                            "No Speech Detected",
+                            "No speech was detected in the recording",
+                        )
+                except Exception as e:
+                    self.notification_manager.show_error_notification(
+                        "Notification Error",
+                        f"Failed to show transcription notification: {str(e)}",
+                    )
+
+            self.speech_service.add_transcription_callback(
+                _on_transcription_notification, run_always=True
+            )
 
     def _initialize_prompt_providers(self) -> None:
         """Initialize prompt providers."""

@@ -6,6 +6,7 @@ from core.interfaces import ClipboardManager
 from core.models import MenuItem, MenuItemType, ExecutionResult, ErrorCode
 from core.exceptions import ClipboardError
 from api import PromptStoreAPI, APIError, create_user_message
+from modules.utils.speech_to_text import SpeechToTextService
 from open_ai_api import OpenAIClient
 from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
 from core.services import SettingsService
@@ -697,7 +698,7 @@ class PyQtSpeechExecutionHandler:
         recording_indicator_callback: Optional[Callable[[bool], None]] = None,
         speech_history_service=None,
         ui_refresh_callback: Optional[Callable[[], None]] = None,
-        speech_service=None,
+        speech_service=SpeechToTextService,
     ):
         self.clipboard_manager = clipboard_manager
         self.notification_manager = notification_manager or PyQtNotificationManager()
@@ -706,10 +707,7 @@ class PyQtSpeechExecutionHandler:
         self.ui_refresh_callback = ui_refresh_callback
         self.speech_service = speech_service
         self._transcription_start_time: Optional[float] = None
-        if self.speech_service:
-            self._setup_speech_callbacks()
-        else:
-            self._initialize_speech_service()
+        self._setup_speech_callbacks()
 
     def _setup_speech_callbacks(self) -> None:
         """Setup callbacks for the speech service."""
@@ -724,21 +722,6 @@ class PyQtSpeechExecutionHandler:
                 self._on_transcription_complete, handler_name=self.__class__.__name__
             )
             self.speech_service.set_error_callback(self._on_speech_error)
-
-    def _initialize_speech_service(self) -> None:
-        """Initialize speech-to-text service."""
-        try:
-            from modules.utils.speech_to_text import SpeechToTextService
-            from modules.utils.config import load_config
-
-            config = load_config()
-            if config.openai_api_key:
-                self.speech_service = SpeechToTextService(config.openai_api_key)
-                self._setup_speech_callbacks()
-            else:
-                pass  # OpenAI API key not configured for speech-to-text
-        except Exception as e:
-            pass  # Failed to initialize speech service
 
     def can_handle(self, item: MenuItem) -> bool:
         """Check if this handler can execute the given menu item."""
@@ -818,7 +801,7 @@ class PyQtSpeechExecutionHandler:
         if self.recording_indicator_callback:
             self.recording_indicator_callback(False)
 
-    def _on_transcription_complete(self, transcription: str, duration) -> None:
+    def _on_transcription_complete(self, transcription: str, duration: float) -> None:
         """Handle transcription completion."""
         try:
             if transcription:
@@ -827,28 +810,16 @@ class PyQtSpeechExecutionHandler:
                     self.speech_history_service.add_transcription(transcription)
 
                 success = self.clipboard_manager.set_content(transcription)
-                if success:
-                    execution_time = time.time() - getattr(
-                        self, "_transcription_start_time", time.time()
-                    )
-                    notification_message = (
-                        f"Processed in {format_execution_time(execution_time)}"
-                    )
-                    self.notification_manager.show_success_notification(
-                        "Transcription completed", notification_message
-                    )
-                    # Trigger UI refresh to show "Copy last speech" item
-                    if self.ui_refresh_callback:
-                        self.ui_refresh_callback()
-                else:
+                if not success:
                     self.notification_manager.show_error_notification(
                         "Clipboard Error",
                         "Transcription successful but failed to copy to clipboard",
                     )
-            else:
-                self.notification_manager.show_info_notification(
-                    "No Speech Detected", "No speech was detected in the recording"
-                )
+                    return
+
+                # Trigger UI refresh to show "Copy last speech" item
+                if self.ui_refresh_callback:
+                    self.ui_refresh_callback()
         except Exception as e:
             self.notification_manager.show_error_notification(
                 "Transcription Error", f"Failed to process transcription: {str(e)}"
