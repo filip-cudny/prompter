@@ -720,8 +720,8 @@ class PyQtSpeechExecutionHandler:
             self.speech_service.set_recording_stopped_callback(
                 self._on_recording_stopped
             )
-            self.speech_service.set_transcription_callback(
-                self._on_transcription_complete
+            self.speech_service.add_transcription_callback(
+                self._on_transcription_complete, handler_name=self.__class__.__name__
             )
             self.speech_service.set_error_callback(self._on_speech_error)
 
@@ -769,7 +769,7 @@ class PyQtSpeechExecutionHandler:
                 )
 
             # Toggle recording
-            self.speech_service.toggle_recording()
+            self.speech_service.toggle_recording(self.__class__.__name__)
 
             return ExecutionResult(
                 success=True,
@@ -818,7 +818,7 @@ class PyQtSpeechExecutionHandler:
         if self.recording_indicator_callback:
             self.recording_indicator_callback(False)
 
-    def _on_transcription_complete(self, transcription: str) -> None:
+    def _on_transcription_complete(self, transcription: str, duration) -> None:
         """Handle transcription completion."""
         try:
             if transcription:
