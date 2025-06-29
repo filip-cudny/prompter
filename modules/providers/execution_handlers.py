@@ -801,7 +801,7 @@ class PyQtSpeechExecutionHandler:
         if self.recording_indicator_callback:
             self.recording_indicator_callback(False)
 
-    def _on_transcription_complete(self, transcription: str, duration: float) -> None:
+    def _on_transcription_complete(self, transcription: str, _duration: float) -> None:
         """Handle transcription completion."""
         try:
             if transcription:

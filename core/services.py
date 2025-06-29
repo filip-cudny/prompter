@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from collections import deque
 
+from modules.utils.speech_to_text import SpeechToTextService
+
 
 from .models import (
     PromptData,
@@ -31,7 +33,7 @@ class PromptStoreService:
         prompt_providers,
         clipboard_manager,
         notification_manager=None,
-        speech_service=None,
+        speech_service=SpeechToTextService,
     ):
         self.prompt_providers = (
             prompt_providers
@@ -72,37 +74,81 @@ class PromptStoreService:
         """Execute a menu item and track in history."""
         try:
             if item.data.get("alternative_execution", False):
-                input_content = (
-                    self.speech_history_service.get_last_transcription() or ""
-                )
+                # Alternative execution always triggers transcription
+                return self._handle_transcription_execution(item)
             else:
                 input_content = self.clipboard_manager.get_content()
 
             result = self.execution_service.execute_item(item, input_content)
-
-            # Only add to history for prompt and preset executions, not history or system operations
-            if item.item_type in [MenuItemType.PROMPT, MenuItemType.PRESET]:
-                if result.success and item.data:
-                    self.history_service.add_entry(
-                        input_content=input_content,
-                        output_content=result.content,
-                        prompt_id=item.data.get("prompt_id"),
-                        preset_id=item.data.get("preset_id"),
-                        success=True,
-                    )
-                elif not result.success:
-                    self.history_service.add_entry(
-                        input_content=input_content,
-                        output_content=None,
-                        prompt_id=item.data.get("prompt_id") if item.data else None,
-                        preset_id=item.data.get("preset_id") if item.data else None,
-                        success=False,
-                        error=result.error,
-                    )
-
+            self._add_history_entry(item, input_content, result)
             return result
         except Exception as e:
             return ExecutionResult(success=False, error=str(e))
+
+    def _handle_transcription_execution(self, item: MenuItem) -> ExecutionResult:
+        """Handle execution that should trigger transcription first."""
+        try:
+            self.pending_alternative_execution = item
+
+            if self.speech_service:
+                self.speech_service.add_transcription_callback(
+                    self._on_transcription_for_execution,
+                    handler_name="PromptStoreService",
+                )
+                self.speech_service.start_recording("PromptStoreService")
+                return ExecutionResult(
+                    success=True, content="Recording started for transcription..."
+                )
+            else:
+                return ExecutionResult(
+                    success=False, error="Speech service not available"
+                )
+        except Exception as e:
+            return ExecutionResult(
+                success=False, error=f"Failed to start transcription: {str(e)}"
+            )
+
+    def _on_transcription_for_execution(
+        self, transcription: str, _duration: float
+    ) -> None:
+        """Handle transcription completion for pending execution."""
+        try:
+            if self.pending_alternative_execution and transcription:
+                # Execute the pending item with transcribed text
+                result = self.execution_service.execute_item(
+                    self.pending_alternative_execution, transcription
+                )
+                self._add_history_entry(
+                    self.pending_alternative_execution, transcription, result
+                )
+                self.pending_alternative_execution = None
+        except Exception:
+            # Handle error but don't raise to avoid breaking other callbacks
+            pass
+
+    def _add_history_entry(
+        self, item: MenuItem, input_content: str, result: ExecutionResult
+    ) -> None:
+        """Add entry to history service for prompt and preset executions."""
+        # Only add to history for prompt and preset executions, not history or system operations
+        if item.item_type in [MenuItemType.PROMPT, MenuItemType.PRESET]:
+            if result.success and item.data:
+                self.history_service.add_entry(
+                    input_content=input_content,
+                    output_content=result.content,
+                    prompt_id=item.data.get("prompt_id"),
+                    preset_id=item.data.get("preset_id"),
+                    success=True,
+                )
+            elif not result.success:
+                self.history_service.add_entry(
+                    input_content=input_content,
+                    output_content=None,
+                    prompt_id=item.data.get("prompt_id") if item.data else None,
+                    preset_id=item.data.get("preset_id") if item.data else None,
+                    success=False,
+                    error=result.error,
+                )
 
     def get_history(self) -> List[HistoryEntry]:
         """Get execution history."""
