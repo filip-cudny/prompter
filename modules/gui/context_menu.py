@@ -228,8 +228,21 @@ class PyQtContextMenu(QObject):
         ):
             print(f"It Works! Shift+Click on {item.item_type.value}: {item.label}")
             # Close the menu after handling
+            self._execute_alternative_action(item)
             if self.menu:
                 self.menu.close()
+
+    def _execute_alternative_action(self, item: MenuItem) -> None:
+        """Execute menu item with alternative flag."""
+        try:
+            if item.data is None:
+                item.data = {}
+            item.data["alternative_execution"] = True
+
+            if item.action is not None:
+                QTimer.singleShot(0, item.action)
+        except Exception as e:
+            print(f"Error executing alternative menu action: {e}")
 
 
 class PyQtMenuBuilder:

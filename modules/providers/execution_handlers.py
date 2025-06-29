@@ -697,15 +697,33 @@ class PyQtSpeechExecutionHandler:
         recording_indicator_callback: Optional[Callable[[bool], None]] = None,
         speech_history_service=None,
         ui_refresh_callback: Optional[Callable[[], None]] = None,
+        speech_service=None,
     ):
         self.clipboard_manager = clipboard_manager
         self.notification_manager = notification_manager or PyQtNotificationManager()
         self.recording_indicator_callback = recording_indicator_callback
         self.speech_history_service = speech_history_service
         self.ui_refresh_callback = ui_refresh_callback
-        self.speech_service = None
+        self.speech_service = speech_service
         self._transcription_start_time: Optional[float] = None
-        self._initialize_speech_service()
+        if self.speech_service:
+            self._setup_speech_callbacks()
+        else:
+            self._initialize_speech_service()
+
+    def _setup_speech_callbacks(self) -> None:
+        """Setup callbacks for the speech service."""
+        if self.speech_service:
+            self.speech_service.set_recording_started_callback(
+                self._on_recording_started
+            )
+            self.speech_service.set_recording_stopped_callback(
+                self._on_recording_stopped
+            )
+            self.speech_service.set_transcription_callback(
+                self._on_transcription_complete
+            )
+            self.speech_service.set_error_callback(self._on_speech_error)
 
     def _initialize_speech_service(self) -> None:
         """Initialize speech-to-text service."""
@@ -716,16 +734,7 @@ class PyQtSpeechExecutionHandler:
             config = load_config()
             if config.openai_api_key:
                 self.speech_service = SpeechToTextService(config.openai_api_key)
-                self.speech_service.set_recording_started_callback(
-                    self._on_recording_started
-                )
-                self.speech_service.set_recording_stopped_callback(
-                    self._on_recording_stopped
-                )
-                self.speech_service.set_transcription_callback(
-                    self._on_transcription_complete
-                )
-                self.speech_service.set_error_callback(self._on_speech_error)
+                self._setup_speech_callbacks()
             else:
                 pass  # OpenAI API key not configured for speech-to-text
         except Exception as e:
@@ -828,7 +837,6 @@ class PyQtSpeechExecutionHandler:
                     self.notification_manager.show_success_notification(
                         "Transcription completed", notification_message
                     )
-                    
                     # Trigger UI refresh to show "Copy last speech" item
                     if self.ui_refresh_callback:
                         self.ui_refresh_callback()

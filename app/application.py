@@ -75,6 +75,9 @@ class PromptStoreApp(QObject):
         self.notification_manager: Optional[PyQtNotificationManager] = None
         self.system_tray: Optional[QSystemTrayIcon] = None
 
+        # Speech service
+        self.speech_service = None
+
         # Recording state
         self.normal_icon = None
         self.recording_icon = None
@@ -115,9 +118,12 @@ class PromptStoreApp(QObject):
             # Initialize notification manager
             self.notification_manager = PyQtNotificationManager(self.app)
 
+            # Initialize speech service
+            self._initialize_speech_service()
+
             # Initialize core service
             self.prompt_store_service = PromptStoreService(
-                self.prompt_providers, self.clipboard_manager, self.notification_manager
+                self.prompt_providers, self.clipboard_manager, self.notification_manager, self.speech_service
             )
 
             # Initialize GUI components
@@ -132,6 +138,18 @@ class PromptStoreApp(QObject):
         except Exception as e:
             print(f"Failed to initialize application: {e}")
             sys.exit(1)
+
+    def _initialize_speech_service(self) -> None:
+        """Initialize speech-to-text service as singleton."""
+        try:
+            from modules.utils.speech_to_text import SpeechToTextService
+
+            if self.config.openai_api_key:
+                self.speech_service = SpeechToTextService(self.config.openai_api_key)
+            else:
+                self.speech_service = None
+        except Exception as e:
+            self.speech_service = None
 
     def _initialize_prompt_providers(self) -> None:
         """Initialize prompt providers."""
@@ -172,6 +190,7 @@ class PromptStoreApp(QObject):
                 self.set_recording_indicator,
                 self.prompt_store_service.speech_history_service,
                 self._refresh_ui_after_speech,
+                self.speech_service,
             ),
         ]
 

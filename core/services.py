@@ -26,7 +26,13 @@ from modules.utils.notifications import PyQtNotificationManager
 class PromptStoreService:
     """Main business logic coordinator for the prompt store."""
 
-    def __init__(self, prompt_providers, clipboard_manager, notification_manager=None):
+    def __init__(
+        self,
+        prompt_providers,
+        clipboard_manager,
+        notification_manager=None,
+        speech_service=None,
+    ):
         self.prompt_providers = (
             prompt_providers
             if isinstance(prompt_providers, list)
@@ -37,6 +43,7 @@ class PromptStoreService:
         )
         self.clipboard_manager = clipboard_manager
         self.notification_manager = notification_manager or PyQtNotificationManager()
+        self.speech_service = speech_service
         self.execution_service = ExecutionService(
             self.primary_provider, clipboard_manager
         )
@@ -44,6 +51,7 @@ class PromptStoreService:
         self.history_service = HistoryService()
         self.active_prompt_service = ActivePromptService()
         self.speech_history_service = SpeechHistoryService()
+        self.pending_alternative_execution = None
 
     def refresh_data(self) -> None:
         """Refresh all data from providers."""
@@ -63,7 +71,13 @@ class PromptStoreService:
     def execute_item(self, item: MenuItem) -> ExecutionResult:
         """Execute a menu item and track in history."""
         try:
-            input_content = self.clipboard_manager.get_content()
+            if item.data.get("alternative_execution", False):
+                input_content = (
+                    self.speech_history_service.get_last_transcription() or ""
+                )
+            else:
+                input_content = self.clipboard_manager.get_content()
+
             result = self.execution_service.execute_item(item, input_content)
 
             # Only add to history for prompt and preset executions, not history or system operations
