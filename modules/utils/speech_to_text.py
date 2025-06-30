@@ -1,13 +1,13 @@
 """Speech-to-text service with audio recording functionality."""
 
+import contextlib
 import os
+import sys
 import tempfile
 import threading
-import contextlib
-import sys
-from typing import Optional, Callable, Dict, List
-import uuid
 import time
+import uuid
+from typing import Callable, Dict, List, Optional
 
 try:
     import pyaudio
@@ -16,8 +16,9 @@ try:
 except ImportError:
     PYAUDIO_AVAILABLE = False
 import wave
-from open_ai_api import OpenAIClient
+
 from api import APIError
+from open_ai_api import OpenAIClient
 
 
 @contextlib.contextmanager
