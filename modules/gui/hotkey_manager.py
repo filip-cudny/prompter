@@ -24,17 +24,68 @@ class HotkeyConfig:
         system = platform.system().lower()
 
         if system == "darwin":  # macOS
-            self.context_menu_hotkey = "cmd+escape"
-            self.re_execute_hotkey = "cmd+f1"
+            self.context_menu_hotkey = "cmd+f1"
+            self.re_execute_hotkey = "cmd+f2"
             self.speech_toggle_hotkey = "shift+f1"
-            self.modifier_keys = [Key.cmd, Key.cmd_l, Key.cmd_r]
-            self.shift_keys = [Key.shift, Key.shift_l, Key.shift_r]
         else:  # Linux and others
-            self.context_menu_hotkey = "ctrl+escape"
-            self.re_execute_hotkey = "ctrl+f1"
+            self.context_menu_hotkey = "ctrl+f1"
+            self.re_execute_hotkey = "ctrl+f2"
             self.speech_toggle_hotkey = "shift+f1"
-            self.modifier_keys = [Key.ctrl, Key.ctrl_l, Key.ctrl_r]
-            self.shift_keys = [Key.shift, Key.shift_l, Key.shift_r]
+
+        # Parse hotkeys to extract keys and modifiers
+        self.context_menu_parsed = self._parse_hotkey(self.context_menu_hotkey)
+        self.re_execute_parsed = self._parse_hotkey(self.re_execute_hotkey)
+        self.speech_toggle_parsed = self._parse_hotkey(self.speech_toggle_hotkey)
+
+    def _parse_hotkey(self, hotkey_str: str) -> dict:
+        """Parse hotkey string and return modifiers and key."""
+        parts = hotkey_str.lower().split('+')
+        key_name = parts[-1]
+        modifier_names = parts[:-1]
+        
+        # Map string names to Key objects
+        key_map = {
+            'f1': Key.f1, 'f2': Key.f2, 'f3': Key.f3, 'f4': Key.f4, 'f5': Key.f5,
+            'f6': Key.f6, 'f7': Key.f7, 'f8': Key.f8, 'f9': Key.f9, 'f10': Key.f10,
+            'f11': Key.f11, 'f12': Key.f12, 'f13': Key.f13, 'f14': Key.f14, 'f15': Key.f15,
+            'f16': Key.f16, 'f17': Key.f17, 'f18': Key.f18, 'f19': Key.f19, 'f20': Key.f20,
+            'esc': Key.esc, 'escape': Key.esc, 'space': Key.space, 'tab': Key.tab,
+            'enter': Key.enter, 'return': Key.enter, 'up': Key.up, 'down': Key.down,
+            'left': Key.left, 'right': Key.right, 'home': Key.home, 'end': Key.end,
+            'delete': Key.delete, 'backspace': Key.backspace, 'page_up': Key.page_up,
+            'page_down': Key.page_down, 'caps_lock': Key.caps_lock
+        }
+        
+        # Add letter and number keys
+        for i in range(26):
+            letter = chr(ord('a') + i)
+            key_map[letter] = keyboard.KeyCode.from_char(letter)
+        
+        for i in range(10):
+            key_map[str(i)] = keyboard.KeyCode.from_char(str(i))
+        
+        modifier_map = {
+            'cmd': [Key.cmd, Key.cmd_l, Key.cmd_r],
+            'ctrl': [Key.ctrl, Key.ctrl_l, Key.ctrl_r],
+            'shift': [Key.shift, Key.shift_l, Key.shift_r],
+            'alt': [Key.alt, Key.alt_l, Key.alt_r],
+            'meta': [Key.cmd, Key.cmd_l, Key.cmd_r],  # alias for cmd
+            'super': [Key.cmd, Key.cmd_l, Key.cmd_r]  # alias for cmd
+        }
+        
+        parsed_modifiers = []
+        for mod_name in modifier_names:
+            if mod_name in modifier_map:
+                parsed_modifiers.extend(modifier_map[mod_name])
+        
+        parsed_key = key_map.get(key_name)
+        if parsed_key is None:
+            parsed_key = keyboard.KeyCode.from_char(key_name)
+        
+        return {
+            'modifiers': parsed_modifiers,
+            'key': parsed_key
+        }
 
 
 HOTKEY_CONFIG = HotkeyConfig()
@@ -56,11 +107,11 @@ class PyQtHotkeyListener:
         self.speech_toggle_reset_timer: Optional[threading.Timer] = None
 
     def connect_re_execute_callback(self, callback: Callable[[], None]) -> None:
-        """Connect callback for re-execute hotkey (Cmd/Ctrl+F1)."""
+        """Connect callback for re-execute hotkey (Cmd/Ctrl+F2)."""
         self.signals.re_execute_hotkey_pressed.connect(callback)
 
     def connect_context_menu_callback(self, callback: Callable[[], None]) -> None:
-        """Connect callback for context menu hotkey (Cmd/Ctrl+Escape)."""
+        """Connect callback for context menu hotkey (Cmd/Ctrl+F1)."""
         self.signals.context_menu_hotkey_pressed.connect(callback)
 
     def connect_speech_toggle_callback(self, callback: Callable[[], None]) -> None:
@@ -124,27 +175,30 @@ class PyQtHotkeyListener:
 
     def _is_re_execute_hotkey_pressed(self) -> bool:
         """Check if re-execute hotkey combination is pressed."""
+        config = HOTKEY_CONFIG.re_execute_parsed
         modifier_pressed = any(
-            mod in self.pressed_keys for mod in HOTKEY_CONFIG.modifier_keys
+            mod in self.pressed_keys for mod in config['modifiers']
         )
-        f1_pressed = Key.f1 in self.pressed_keys
-        return modifier_pressed and f1_pressed
+        key_pressed = config['key'] in self.pressed_keys
+        return modifier_pressed and key_pressed
 
     def _is_context_menu_hotkey_pressed(self) -> bool:
         """Check if context menu hotkey combination is pressed."""
+        config = HOTKEY_CONFIG.context_menu_parsed
         modifier_pressed = any(
-            mod in self.pressed_keys for mod in HOTKEY_CONFIG.modifier_keys
+            mod in self.pressed_keys for mod in config['modifiers']
         )
-        escape_pressed = Key.esc in self.pressed_keys
-        return modifier_pressed and escape_pressed
+        key_pressed = config['key'] in self.pressed_keys
+        return modifier_pressed and key_pressed
 
     def _is_speech_toggle_hotkey_pressed(self) -> bool:
         """Check if speech toggle hotkey combination is pressed."""
-        shift_pressed = any(
-            mod in self.pressed_keys for mod in HOTKEY_CONFIG.shift_keys
+        config = HOTKEY_CONFIG.speech_toggle_parsed
+        modifier_pressed = any(
+            mod in self.pressed_keys for mod in config['modifiers']
         )
-        f1_pressed = Key.f1 in self.pressed_keys
-        return shift_pressed and f1_pressed
+        key_pressed = config['key'] in self.pressed_keys
+        return modifier_pressed and key_pressed
 
     def _trigger_re_execute_hotkey(self) -> None:
         """Trigger re-execute hotkey signal if not already triggered."""
