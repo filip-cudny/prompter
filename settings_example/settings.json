@@ -7,6 +7,33 @@
       }
     ]
   },
+  "keymaps": [
+    {
+      "context": "os == macos",
+      "bindings": {
+        "cmd+f1": "open_context_menu",
+        "cmd+f3": "open_context_menu",
+        "cmd+f2": "execute_active_prompt",
+        "shift+f1": "speech_to_text_toggle"
+      }
+    },
+    {
+      "context": "os == linux",
+      "bindings": {
+        "ctrl+f1": "open_context_menu",
+        "ctrl+f2": "execute_active_prompt",
+        "shift+f1": "speech_to_text_toggle"
+      }
+    },
+    {
+      "context": "os == windows",
+      "bindings": {
+        "ctrl+f1": "open_context_menu",
+        "ctrl+f2": "execute_active_prompt",
+        "shift+f1": "speech_to_text_toggle"
+      }
+    }
+  ],
   "prompts": [
     {
       "id": "72153ef6-f011-4f3f-8b3f-e87cc9796a3d",

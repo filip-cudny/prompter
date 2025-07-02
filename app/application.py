@@ -257,7 +257,7 @@ class PromptStoreApp(QObject):
             raise RuntimeError("Configuration or prompt store service not initialized")
 
         # Initialize hotkey manager
-        self.hotkey_manager = PyQtHotkeyManager()
+        self.hotkey_manager = PyQtHotkeyManager(keymap_manager=self.config.keymap_manager)
         self.hotkey_manager.connect_context_menu_callback(self._on_f2_hotkey_pressed)
         self.hotkey_manager.connect_re_execute_callback(self._on_f1_hotkey_pressed)
         self.hotkey_manager.connect_speech_toggle_callback(
@@ -576,7 +576,9 @@ class PromptStoreApp(QObject):
         """Get application status information."""
         return {
             "running": self.running,
-            "hotkey": self.config.hotkey if self.config else None,
+            "hotkey": (
+                self.hotkey_manager.hotkey if self.hotkey_manager else None
+            ),
             "api_url": self.config.base_url if self.config else None,
             "prompt_providers_count": len(self.prompt_providers),
             "menu_providers_count": len(self.menu_providers),
@@ -696,8 +698,8 @@ class PromptStoreApp(QObject):
                 self.prompt_store_service.primary_provider = primary_provider
 
             # Reinitialize hotkey manager with new config
-            if self.hotkey_manager and self.config:
-                self.hotkey_manager.set_hotkey(self.config.hotkey)
+            if self.hotkey_manager and self.config and self.config.keymap_manager:
+                self.hotkey_manager.reload_config()
 
             # Update menu position offset
             if self.menu_coordinator and self.config:
