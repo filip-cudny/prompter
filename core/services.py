@@ -12,6 +12,7 @@ from modules.utils.speech_to_text import SpeechToTextService
 from .exceptions import DataError
 from .models import (
     ErrorCode,
+    ExecutionHandler,
     ExecutionResult,
     HistoryEntry,
     MenuItem,
@@ -45,9 +46,8 @@ class PromptStoreService:
         self.clipboard_manager = clipboard_manager
         self.notification_manager = notification_manager or PyQtNotificationManager()
         self.speech_service = speech_service
-        self.execution_service = ExecutionService(
-            self.primary_provider, clipboard_manager
-        )
+        self.execution_service = ExecutionService()
+        self.execution_service.set_speech_service(self.speech_service)
         self.data_manager = DataManager(self.prompt_providers)
         self.history_service = HistoryService()
         self.active_prompt_service = ActivePromptService()
@@ -76,17 +76,31 @@ class PromptStoreService:
     def execute_item(self, item: MenuItem) -> ExecutionResult:
         """Execute a menu item and track in history."""
         try:
-            if item.data.get("alternative_execution", False):
-                # Alternative execution always triggers transcription
-                return self._handle_transcription_execution(item)
+            if item.data and item.data.get("alternative_execution", False):
+                # Alternative execution triggers speech-to-text
+                result = self.execution_service.execute_item(
+                    item, None, use_speech=True
+                )
+                return result
             else:
                 input_content = self.clipboard_manager.get_content()
-
-            result = self.execution_service.execute_item(item, input_content)
-            self._add_history_entry(item, input_content, result)
-            return result
+                result = self.execution_service.execute_item(item, input_content)
+                self._add_history_entry(item, input_content, result)
+                return result
         except Exception as e:
             return ExecutionResult(success=False, error=str(e))
+
+    def is_recording(self) -> bool:
+        """Check if currently recording."""
+        return self.execution_service.is_recording()
+
+    def get_recording_action_id(self) -> Optional[str]:
+        """Get the ID of the action that started recording."""
+        return self.execution_service.get_recording_action_id()
+
+    def should_disable_action(self, action_id: str) -> bool:
+        """Check if action should be disabled due to recording state."""
+        return self.execution_service.should_disable_action(action_id)
 
     def _handle_transcription_execution(self, item: MenuItem) -> ExecutionResult:
         """Handle execution that should trigger transcription first."""
@@ -286,24 +300,52 @@ class PromptStoreService:
 
 
 class ExecutionService:
-    """Service for executing prompts and presets."""
+    """Service for executing menu items with different handlers."""
 
-    def __init__(self, prompt_provider, clipboard_manager):
-        self.prompt_provider = prompt_provider
-        self.clipboard_manager = clipboard_manager
-        self.handlers = []
+    def __init__(self):
+        self.handlers: List[ExecutionHandler] = []
+        self.speech_service = None
+        self.recording_action_id: Optional[str] = None
+        self.pending_execution_item: Optional[MenuItem] = None
 
-    def register_handler(self, handler) -> None:
+    def register_handler(self, handler: ExecutionHandler) -> None:
         """Register an execution handler."""
         self.handlers.append(handler)
 
+    def set_speech_service(self, speech_service) -> None:
+        """Set the speech-to-text service instance."""
+        self.speech_service = speech_service
+        if speech_service:
+            speech_service.add_transcription_callback(
+                self._on_transcription_complete, run_always=True
+            )
+
+    def is_recording(self) -> bool:
+        """Check if currently recording."""
+        return self.speech_service and self.speech_service.is_recording()
+
+    def get_recording_action_id(self) -> Optional[str]:
+        """Get the ID of the action that started recording."""
+        return self.recording_action_id
+
+    def should_disable_action(self, action_id: str) -> bool:
+        """Check if action should be disabled due to recording state."""
+        return self.is_recording() and self.recording_action_id != action_id
+
     def execute_item(
-        self, item: MenuItem, input_content: Optional[str] = None
+        self,
+        item: MenuItem,
+        input_content: Optional[str] = None,
+        use_speech: bool = False,
     ) -> ExecutionResult:
         """Execute a menu item using the appropriate handler."""
 
         if not item.enabled:
             return ExecutionResult(success=False, error="Menu item is disabled")
+
+        # If recording is active, any click should stop recording
+        if self.speech_service and (use_speech or self.speech_service.is_recording()):
+            return self._execute_with_speech(item)
 
         for handler in self.handlers:
             if handler.can_handle(item):
@@ -315,6 +357,55 @@ class ExecutionService:
         return ExecutionResult(
             success=False, error="No handler found for this item type"
         )
+
+    def _execute_with_speech(self, item: MenuItem) -> ExecutionResult:
+        """Execute item with speech-to-text input."""
+        try:
+            if self.speech_service.is_recording():
+                self.speech_service.stop_recording()
+                self.recording_action_id = None
+                return ExecutionResult(
+                    success=True,
+                    content="Recording stopped",
+                    metadata={"action": "speech_recording_stopped"},
+                )
+            else:
+                action_id = getattr(item, "id", str(id(item)))
+                self.recording_action_id = action_id
+                self.pending_execution_item = item
+
+                self.speech_service.start_recording(handler_name=action_id)
+                return ExecutionResult(
+                    success=True,
+                    content="Recording started",
+                    metadata={"action": "speech_recording_started"},
+                )
+
+        except Exception as e:
+            self.recording_action_id = None
+            self.pending_execution_item = None
+            return ExecutionResult(success=False, error=f"Speech execution failed: {e}")
+
+    def _on_transcription_complete(self, transcription: str, duration: float) -> None:
+        """Handle transcription completion and execute pending item."""
+        if self.pending_execution_item:
+            item = self.pending_execution_item
+            self.pending_execution_item = None
+            self.recording_action_id = None
+
+            if transcription.strip():
+                for handler in self.handlers:
+                    if handler.can_handle(item):
+                        try:
+                            handler.execute(item, transcription)
+                            break
+                        except Exception as e:
+                            print(f"Handler execution failed: {e}")
+            else:
+                print("Empty transcription received, execution cancelled")
+        else:
+            self.recording_action_id = None
+            self.pending_execution_item = None
 
 
 class DataManager:

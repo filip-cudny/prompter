@@ -474,6 +474,10 @@ class PyQtMenuCoordinator(QObject):
         ] or item_type in [MenuItemType.PROMPT, MenuItemType.PRESET]:
             self._invalidate_dynamic_cache()
 
+        # Speech recording actions affect enabled state of prompt/preset items
+        if action in ["speech_recording_started", "speech_recording_stopped"]:
+            self._invalidate_static_cache()
+
     def _invalidate_cache_for_result(self, result: ExecutionResult) -> None:
         """Invalidate cache based on execution result (for submenu items)."""
         if not result.success:
@@ -490,6 +494,10 @@ class PyQtMenuCoordinator(QObject):
             "execute_active_prompt",
         ]:
             self._invalidate_dynamic_cache()
+
+        # Speech recording actions affect enabled state of prompt/preset items
+        if action in ["speech_recording_started", "speech_recording_stopped"]:
+            self._invalidate_static_cache()
 
     def _invalidate_dynamic_cache(self) -> None:
         """Invalidate only dynamic items cache."""

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import Dict, Any, List, Optional, Callable
+from typing import Dict, Any, List, Optional, Callable, Protocol
 from enum import Enum
 
 
@@ -161,3 +161,17 @@ class SettingsConfig:
     prompts: List[PromptConfig] = field(default_factory=list)
     providers: List[ProviderConfig] = field(default_factory=list)
     settings_path: Optional[str] = None
+
+
+class ExecutionHandler(Protocol):
+    """Protocol for execution handlers."""
+
+    def can_handle(self, item: MenuItem) -> bool:
+        """Check if this handler can handle the given menu item."""
+        ...
+
+    def execute(
+        self, item: MenuItem, input_content: Optional[str] = None
+    ) -> ExecutionResult:
+        """Execute the menu item with optional input content."""
+        ...

@@ -288,14 +288,22 @@ class PromptStoreApp(QObject):
 
         # Create menu providers
         self.menu_providers = [
-            PromptMenuProvider(data_manager, self._execute_menu_item),
-            PresetMenuProvider(data_manager, self._execute_menu_item),
-            HistoryMenuProvider(history_service, self._execute_menu_item),
+            PromptMenuProvider(
+                data_manager, self._execute_menu_item, self.prompt_store_service
+            ),
+            PresetMenuProvider(
+                data_manager, self._execute_menu_item, self.prompt_store_service
+            ),
+            HistoryMenuProvider(
+                history_service, self._execute_menu_item, self.prompt_store_service
+            ),
             SystemMenuProvider(
                 self._refresh_data,
                 self._speech_to_text,
                 self.prompt_store_service.speech_history_service,
                 self._execute_menu_item,
+                None,
+                self.prompt_store_service,
             ),
         ]
 

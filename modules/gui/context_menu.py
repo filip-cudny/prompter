@@ -129,9 +129,6 @@ class PyQtContextMenu(QObject):
     def _add_menu_items(self, menu: QMenu, items: List[MenuItem]) -> None:
         """Add menu items to a QMenu."""
         for item in items:
-            if not item.enabled and not self._should_show_disabled_item(item):
-                continue
-
             # Check if item has submenu
             if hasattr(item, "submenu_items") and item.submenu_items:
                 self.create_submenu(menu, item.label, item.submenu_items)
@@ -166,14 +163,6 @@ class PyQtContextMenu(QObject):
                 QTimer.singleShot(0, item.action)
         except Exception as e:
             print(f"Error executing menu action: {e}")
-
-    def _should_show_disabled_item(self, item: MenuItem) -> bool:
-        """Determine if a disabled item should still be shown."""
-        # Show disabled history and speech items so users can see what's available
-        return (
-            item.item_type == MenuItemType.HISTORY
-            or item.item_type == MenuItemType.SPEECH
-        )
 
     def eventFilter(self, obj, event):
         """Filter events to detect shift key state and mouse clicks."""
@@ -243,80 +232,3 @@ class PyQtContextMenu(QObject):
                 QTimer.singleShot(0, item.action)
         except Exception as e:
             print(f"Error executing alternative menu action: {e}")
-
-
-class PyQtMenuBuilder:
-    """Builder for creating structured menus."""
-
-    def __init__(self):
-        self.items: List[MenuItem] = []
-
-    def add_items(self, items: List[MenuItem]) -> "PyQtMenuBuilder":
-        """Add multiple items to the menu."""
-        self.items.extend(items)
-        return self
-
-    def add_separator(self) -> "PyQtMenuBuilder":
-        """Add a separator to the menu."""
-        if self.items and not getattr(self.items[-1], "separator_after", False):
-            self.items[-1].separator_after = True
-        return self
-
-    def add_items_with_separator(self, items: List[MenuItem]) -> "PyQtMenuBuilder":
-        """Add items with a separator before them."""
-        if self.items:
-            self.add_separator()
-        return self.add_items(items)
-
-    def build(self) -> List[MenuItem]:
-        """Build and return the menu items."""
-        return self.items
-
-    def clear(self) -> "PyQtMenuBuilder":
-        """Clear all items."""
-        self.items.clear()
-        return self
-
-    def filter_enabled(self) -> "PyQtMenuBuilder":
-        """Filter to only enabled items."""
-        self.items = [item for item in self.items if item.enabled]
-        return self
-
-    def sort_by_label(self) -> "PyQtMenuBuilder":
-        """Sort items by label."""
-        self.items.sort(key=lambda x: x.label.lower())
-        return self
-
-    def group_by_type(self) -> "PyQtMenuBuilder":
-        """Group items by type with separators."""
-        if not self.items:
-            return self
-
-        # Group items by type
-        grouped: Dict[MenuItemType, List[MenuItem]] = {}
-        for item in self.items:
-            item_type = item.item_type
-            if item_type not in grouped:
-                grouped[item_type] = []
-            grouped[item_type].append(item)
-
-        # Rebuild items with separators between groups
-        new_items: List[MenuItem] = []
-        type_order = [
-            MenuItemType.PROMPT,
-            MenuItemType.PRESET,
-            MenuItemType.HISTORY,
-            MenuItemType.SPEECH,
-            MenuItemType.SYSTEM,
-        ]
-
-        for i, item_type in enumerate(type_order):
-            if item_type in grouped:
-                if (
-                    i > 0 and new_items
-                ):  # Add separator before each group (except first)
-                    new_items[-1].separator_after = True
-                new_items.extend(grouped[item_type])
-
-        self.items = new_items
-        return self
