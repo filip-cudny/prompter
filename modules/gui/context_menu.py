@@ -215,7 +215,6 @@ class PyQtContextMenu(QObject):
             item.item_type == MenuItemType.PROMPT
             or item.item_type == MenuItemType.PRESET
         ):
-            print(f"It Works! Shift+Click on {item.item_type.value}: {item.label}")
             # Close the menu after handling
             self._execute_alternative_action(item)
             if self.menu:

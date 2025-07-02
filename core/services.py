@@ -390,7 +390,6 @@ class ExecutionService:
             self.pending_execution_item = None
             self.recording_action_id = None
 
-            print("transrictpip: ", transcription)
             if transcription.strip():
                 for handler in self.handlers:
                     if handler.can_handle(item):
