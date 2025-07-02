@@ -46,17 +46,13 @@ class PromptStoreService:
         self.clipboard_manager = clipboard_manager
         self.notification_manager = notification_manager or PyQtNotificationManager()
         self.speech_service = speech_service
-        self.execution_service = ExecutionService()
+        self.execution_service = ExecutionService(self)
         self.execution_service.set_speech_service(self.speech_service)
         self.data_manager = DataManager(self.prompt_providers)
         self.history_service = HistoryService()
         self.active_prompt_service = ActivePromptService()
         self.speech_history_service = SpeechHistoryService()
         self.pending_alternative_execution = None
-        self.speech_service.add_transcription_callback(
-            self._on_transcription_for_execution,
-            handler_name="PromptStoreService",
-        )
 
     def refresh_data(self) -> None:
         """Refresh all data from providers."""
@@ -85,7 +81,7 @@ class PromptStoreService:
             else:
                 input_content = self.clipboard_manager.get_content()
                 result = self.execution_service.execute_item(item, input_content)
-                self._add_history_entry(item, input_content, result)
+                self.add_history_entry(item, input_content, result)
                 return result
         except Exception as e:
             return ExecutionResult(success=False, error=str(e))
@@ -131,7 +127,7 @@ class PromptStoreService:
                 result = self.execution_service.execute_item(
                     self.pending_alternative_execution, transcription
                 )
-                self._add_history_entry(
+                self.add_history_entry(
                     self.pending_alternative_execution, transcription, result
                 )
                 self.pending_alternative_execution = None
@@ -139,7 +135,7 @@ class PromptStoreService:
             # Handle error but don't raise to avoid breaking other callbacks
             pass
 
-    def _add_history_entry(
+    def add_history_entry(
         self, item: MenuItem, input_content: str, result: ExecutionResult
     ) -> None:
         """Add entry to history service for prompt and preset executions."""
@@ -302,11 +298,12 @@ class PromptStoreService:
 class ExecutionService:
     """Service for executing menu items with different handlers."""
 
-    def __init__(self):
+    def __init__(self, prompt_store_service: PromptStoreService):
         self.handlers: List[ExecutionHandler] = []
         self.speech_service = None
         self.recording_action_id: Optional[str] = None
         self.pending_execution_item: Optional[MenuItem] = None
+        self.prompt_store_service = prompt_store_service
 
     def register_handler(self, handler: ExecutionHandler) -> None:
         """Register an execution handler."""
@@ -344,7 +341,7 @@ class ExecutionService:
             return ExecutionResult(success=False, error="Menu item is disabled")
 
         # If recording is active, any click should stop recording
-        if self.speech_service and (use_speech or self.speech_service.is_recording()):
+        if (self.speech_service) and (use_speech or self.speech_service.is_recording()):
             return self._execute_with_speech(item)
 
         for handler in self.handlers:
@@ -386,18 +383,24 @@ class ExecutionService:
             self.pending_execution_item = None
             return ExecutionResult(success=False, error=f"Speech execution failed: {e}")
 
-    def _on_transcription_complete(self, transcription: str, duration: float) -> None:
+    def _on_transcription_complete(self, transcription: str, _duration: float) -> None:
         """Handle transcription completion and execute pending item."""
         if self.pending_execution_item:
             item = self.pending_execution_item
             self.pending_execution_item = None
             self.recording_action_id = None
 
+            print("transrictpip: ", transcription)
             if transcription.strip():
                 for handler in self.handlers:
                     if handler.can_handle(item):
                         try:
-                            handler.execute(item, transcription)
+                            result = handler.execute(item, transcription)
+                            self.prompt_store_service.add_history_entry(
+                                item,
+                                transcription,
+                                result,
+                            )
                             break
                         except Exception as e:
                             print(f"Handler execution failed: {e}")
