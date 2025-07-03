@@ -302,9 +302,20 @@ class PyQtMenuCoordinator(QObject):
         return dynamic_items
 
     def _add_active_prompt_info(self, all_items: List[MenuItem]) -> None:
-        """Add active prompt selector to the menu."""
+        """Add settings submenu and active prompt selector to the menu."""
         if not self.prompt_store_service:
             return
+
+        # Add Settings submenu
+        settings_item = MenuItem(
+            id="settings_submenu",
+            label="Settings",
+            item_type=MenuItemType.SYSTEM,
+            action=lambda: None,
+            enabled=True,
+            separator_after=False,
+        )
+        settings_item.submenu_items = self._get_settings_submenu_items()
 
         # Get active prompt display name
         display_name = "None"
@@ -330,7 +341,7 @@ class PyQtMenuCoordinator(QObject):
         # Set submenu items
         active_prompt_item.submenu_items = self._get_prompt_selector_items()
 
-        # Add separator before active prompt item if there are other items
+        # Add separator before settings item if there are other items
         if all_items:
             if hasattr(all_items[-1], "separator_after"):
                 all_items[-1].separator_after = True
@@ -338,6 +349,7 @@ class PyQtMenuCoordinator(QObject):
                 # Add separator attribute to the last item
                 setattr(all_items[-1], "separator_after", True)
 
+        all_items.append(settings_item)
         all_items.append(active_prompt_item)
 
     def _get_prompt_selector_items(self) -> List[MenuItem]:
@@ -450,6 +462,83 @@ class PyQtMenuCoordinator(QObject):
                 MenuItem(
                     id="error_prompts",
                     label=f"Error loading prompts: {str(e)}",
+                    item_type=MenuItemType.SYSTEM,
+                    action=lambda: None,
+                    enabled=False,
+                )
+            ]
+
+    def _get_settings_submenu_items(self) -> List[MenuItem]:
+        """Get settings submenu items."""
+        try:
+            from modules.utils.config import ConfigService
+            
+            config_service = ConfigService()
+            config = config_service.get_config()
+            
+            if not config.models:
+                return [
+                    MenuItem(
+                        id="no_models",
+                        label="No models available",
+                        item_type=MenuItemType.SYSTEM,
+                        action=lambda: None,
+                        enabled=False,
+                    )
+                ]
+
+            submenu_items = []
+            
+            # Add model selection items
+            for model_key, model_config in config.models.items():
+                is_default = model_key == config.default_model
+                
+                def make_set_default_model_action(key, model_config):
+                    def set_default_model():
+                        try:
+                            config_service = ConfigService()
+                            config_service.update_default_model(key)
+                            
+                            # Show confirmation through execution result
+                            result = ExecutionResult(
+                                success=True,
+                                content=f"Default model set to: {model_config.get('display_name', key)}",
+                                metadata={"action": "set_default_model", "model": key},
+                            )
+                            self.execution_completed.emit(result)
+                            self._invalidate_dynamic_cache()
+                        except Exception as e:
+                            result = ExecutionResult(
+                                success=False,
+                                content=f"Error setting default model: {str(e)}",
+                                metadata={"action": "set_default_model", "model": key},
+                            )
+                            self.execution_completed.emit(result)
+                    
+                    return set_default_model
+
+                # Add checkmark for default model
+                label = model_config.get('display_name', model_key)
+                if is_default:
+                    label = f"✓ {label}"
+                
+                submenu_item = MenuItem(
+                    id=f"set_default_model_{model_key}",
+                    label=label,
+                    item_type=MenuItemType.SYSTEM,
+                    action=make_set_default_model_action(model_key, model_config),
+                    enabled=True,
+                    separator_after=False,
+                )
+                submenu_items.append(submenu_item)
+
+            return submenu_items
+
+        except Exception as e:
+            return [
+                MenuItem(
+                    id="error_settings",
+                    label=f"Error loading settings: {str(e)}",
                     item_type=MenuItemType.SYSTEM,
                     action=lambda: None,
                     enabled=False,

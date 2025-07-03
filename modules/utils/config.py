@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 
 try:
     import json5
+
     HAS_JSON5 = True
 except ImportError:
     HAS_JSON5 = False
@@ -103,6 +104,18 @@ class ConfigService:
             )
         return self._settings_data
 
+    def update_default_model(self, model_key: str) -> None:
+        """Update the default model configuration."""
+        if self._config is None:
+            raise ConfigurationError(
+                "ConfigService not initialized. Call initialize() first."
+            )
+
+        if model_key not in self._config.models:
+            raise ConfigurationError(f"Model '{model_key}' not found in configuration")
+
+        self._config.default_model = model_key
+
     def _load_config(
         self, env_file: Optional[str] = None, settings_file: Optional[str] = None
     ) -> AppConfig:
@@ -142,7 +155,8 @@ class ConfigService:
                 )
 
                 # Set default_model to first model key
-                if config.models:
+                config.default_model = self._settings_data.get("default_model")
+                if config.models and not config.default_model:
                     config.default_model = next(iter(config.models.keys()))
 
                 # Load API keys from environment variables
