@@ -139,8 +139,9 @@ class PromptStoreApp(QObject):
 
             if self.config.speech_to_text_model:
                 self.speech_service = SpeechToTextService(
-                    api_key=self.config.speech_to_text_model.api_key,
-                    base_url=self.config.speech_to_text_model.base_url,
+                    api_key=self.config.speech_to_text_model.get("api_key"),
+                    base_url=self.config.speech_to_text_model.get("base_url"),
+                    transcribe_model=self.config.speech_to_text_model.get("model"),
                 )
                 self._setup_common_speech_notifications()
             else:

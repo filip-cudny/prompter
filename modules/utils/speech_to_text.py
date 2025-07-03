@@ -253,9 +253,11 @@ class AudioRecorder:
 class SpeechToTextService:
     """Service for speech-to-text functionality."""
 
-    def __init__(self, api_key: str, base_url: str):
+    def __init__(self, api_key: str, base_url: str, transcribe_model: str):
+        print("transcibe", transcribe_model)
         self.openai_client = OpenAIClient(api_key, base_url)
         self.recorder = AudioRecorder()
+        self.transcribe_model = transcribe_model
         self.recording_started_callback: Optional[Callable[[], None]] = None
         self.recording_stopped_callback: Optional[Callable[[], None]] = None
         self.transcription_callbacks: Dict[str, Dict] = {}
@@ -369,7 +371,9 @@ class SpeechToTextService:
         """Transcribe audio file asynchronously."""
         try:
             start_time = time.time()
-            transcription = self.openai_client.transcribe_audio_file(audio_file_path)
+            transcription = self.openai_client.transcribe_audio_file(
+                audio_file_path, self.transcribe_model
+            )
             transcription_duration = time.time() - start_time
 
             try:
