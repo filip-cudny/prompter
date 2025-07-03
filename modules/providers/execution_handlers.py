@@ -367,6 +367,29 @@ class SettingsPromptExecutionHandler:
                     execution_time=time.time() - start_time,
                 )
 
+            # Get model from MenuItem.data.model
+            model_name = item.data.get("model") if item.data else None
+
+            # Use default model if not specified
+            if not model_name:
+                model_name = self.config.default_model
+
+            # Validate model exists in config
+            if not self.config.models or model_name not in self.config.models:
+                return ExecutionResult(
+                    success=False,
+                    error=f"Model '{model_name}' not found in configuration",
+                    execution_time=time.time() - start_time,
+                )
+
+            # Get model configuration
+            model_config = self.config.models[model_name]
+
+            # Create OpenAI client with model configuration
+            openai_client = OpenAIClient(
+                api_key=model_config["api_key"], base_url=model_config.get("base_url")
+            )
+
             messages = self.settings_prompt_provider.get_prompt_messages(prompt_id)
             if not messages:
                 return ExecutionResult(
@@ -401,7 +424,11 @@ class SettingsPromptExecutionHandler:
                 )
 
             # Call OpenAI API
-            response_text = self.openai_client.complete(processed_messages)
+            response_text = openai_client.complete(
+                messages=processed_messages,
+                model=model_config["model"],
+                temperature=model_config.get("temperature"),
+            )
 
             # Copy response to clipboard
             self.clipboard_manager.set_content(response_text)
