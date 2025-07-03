@@ -43,6 +43,7 @@ class PromptMenuProvider:
                         "prompt_name": prompt.name,
                         "type": "prompt",
                         "source": prompt.source,
+                        "model": prompt.model,
                     },
                     enabled=enabled,
                 )
@@ -222,13 +223,6 @@ class SystemMenuProvider:
         """Return system menu items."""
         items = []
 
-        # Add system prompts from settings
-        if self.settings_service:
-            system_prompts = self._get_system_prompts()
-            items.extend(system_prompts)
-            if system_prompts:
-                items[-1].separator_after = True
-
         # Speech to text item
         if self.speech_callback:
             speech_enabled = True
@@ -304,35 +298,3 @@ class SystemMenuProvider:
         """Refresh the provider's data."""
         if self.settings_service:
             self.settings_service.reload_settings()
-
-    def _get_system_prompts(self) -> List[MenuItem]:
-        """Get system prompts from settings that should use OpenAI."""
-        items = []
-        try:
-            settings = self.settings_service.get_settings()
-            for prompt_config in settings.prompts:
-                item_id = f"system_prompt_{prompt_config.id}"
-                enabled = True
-                if self.prompt_store_service:
-                    enabled = not self.prompt_store_service.should_disable_action(
-                        item_id
-                    )
-
-                item = MenuItem(
-                    id=item_id,
-                    label=prompt_config.name,
-                    item_type=MenuItemType.PROMPT,
-                    action=lambda: None,
-                    data={
-                        "prompt_id": prompt_config.id,
-                        "prompt_name": prompt_config.name,
-                        "use_openai": True,
-                    },
-                    enabled=enabled,
-                )
-                if self.execute_callback:
-                    item.action = lambda item=item: self.execute_callback(item)
-                items.append(item)
-        except Exception:
-            pass
-        return items

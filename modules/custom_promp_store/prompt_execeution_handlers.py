@@ -1,11 +1,8 @@
-from typing import Optional, Callable, List
-import logging
+from typing import Optional
 from core.interfaces import ClipboardManager
 from core.models import MenuItem, MenuItemType, ExecutionResult, ErrorCode
 from core.exceptions import ClipboardError
 from api import PromptStoreAPI, APIError, create_user_message
-from modules.utils.speech_to_text import SpeechToTextService
-from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
 from modules.utils.notifications import (
     PyQtNotificationManager,
     format_execution_time,

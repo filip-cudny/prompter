@@ -4,7 +4,7 @@ import sys
 import signal
 import platform
 from typing import Optional, List
-from PyQt5.QtWidgets import QApplication, QSystemTrayIcon, QAction
+from PyQt5.QtWidgets import QApplication, QSystemTrayIcon 
 from PyQt5.QtCore import QTimer, pyqtSignal, QObject
 from PyQt5.QtGui import QIcon, QPixmap, QPainter
 from PyQt5.QtCore import Qt

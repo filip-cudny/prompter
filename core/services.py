@@ -237,6 +237,7 @@ class PromptStoreService:
                                 "prompt_id": p.id,
                                 "prompt_name": p.name,
                                 "source": p.source,
+                                "model": p.model,
                             },
                         )
                     )
@@ -252,6 +253,7 @@ class PromptStoreService:
                     "prompt_id": prompt.id,
                     "prompt_name": prompt.name,
                     "source": prompt.source,
+                    "model": prompt.model,
                 },
             )
             items.append(item)
