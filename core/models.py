@@ -50,6 +50,7 @@ class PromptData:
     id: str
     name: str
     content: str
+    model: Optional[str] = None
     description: Optional[str] = None
     tags: List[str] = field(default_factory=list)
     created_at: Optional[str] = None
@@ -151,6 +152,7 @@ class PromptConfig:
     description: Optional[str] = None
     tags: List[str] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
+    model: Optional[str] = None
 
 
 @dataclass

@@ -375,6 +375,7 @@ class PyQtMenuCoordinator(QObject):
                             data={
                                 "prompt_id": p.id,
                                 "prompt_name": p.name,
+                                "model": p.model,
                                 "source": p.source,
                             },
                         )
@@ -414,7 +415,8 @@ class PyQtMenuCoordinator(QObject):
                                 "preset_id": p.id,
                                 "preset_name": p.preset_name,
                                 "prompt_id": p.prompt_id,
-                                "source": getattr(p, "source", None),
+                                "model": p.model,
+                                "source": p.source,
                             },
                         )
                         self.prompt_store_service.set_active_prompt(active_item)

@@ -723,6 +723,7 @@ class SettingsService:
                     description=prompt_data.get("description"),
                     tags=prompt_data.get("tags", []),
                     metadata=prompt_data.get("metadata", {}),
+                    model=prompt_data.get("model"),
                 )
                 prompts.append(prompt)
 
@@ -771,6 +772,7 @@ class SettingsService:
             id=prompt_config.id,
             name=prompt_config.name,
             content=content,
+            model=prompt_config.model,
             description=prompt_config.description,
             tags=prompt_config.tags,
             source="settings",

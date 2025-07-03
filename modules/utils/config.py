@@ -19,6 +19,7 @@ class AppConfig:
     keymap_manager: Optional[KeymapManager] = None
     models: Optional[Dict[str, Any]] = None
     speech_to_text_model: Optional[Dict[str, Any]] = None
+    default_model: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert config to dictionary."""
@@ -68,13 +69,15 @@ def load_config(
             settings_data = load_settings_file(Path(keymap_settings_file))
             config.models = settings_data.get("models", {})
             config.speech_to_text_model = settings_data.get("speech_to_text_model")
-
+            
+            # Set default_model to first model key
+            if config.models:
+                config.default_model = next(iter(config.models.keys()))
+            
             # Load API keys from environment variables
             _load_api_keys(config.models)
             if config.speech_to_text_model:
-                _load_api_key_for_model(
-                    config.speech_to_text_model, "speech_to_text_model"
-                )
+                _load_api_key_for_model(config.speech_to_text_model, "speech_to_text_model")
         except Exception as e:
             raise ConfigurationError(f"Failed to load models configuration: {e}")
 

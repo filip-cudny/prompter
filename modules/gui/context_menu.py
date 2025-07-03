@@ -1,6 +1,6 @@
 """PyQt5-based context menu system for the prompt store application."""
 
-from typing import List, Optional, Tuple, Dict
+from typing import List, Optional, Tuple
 from PyQt5.QtWidgets import QMenu, QAction, QApplication
 from PyQt5.QtCore import Qt, QPoint, QTimer, QObject, QEvent
 from PyQt5.QtGui import QCursor
