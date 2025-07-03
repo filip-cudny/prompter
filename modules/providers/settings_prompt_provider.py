@@ -56,11 +56,15 @@ class SettingsPromptProvider:
             self._prompts_cache = []
 
             for prompt_config in settings.prompts:
-                prompt_data = self.settings_service.convert_to_prompt_data(prompt_config)
+                prompt_data = self.settings_service.convert_to_prompt_data(
+                    prompt_config
+                )
                 self._prompts_cache.append(prompt_data)
 
         except Exception as e:
-            raise ProviderError(f"Failed to load prompts from settings: {str(e)}") from e
+            raise ProviderError(
+                f"Failed to load prompts from settings: {str(e)}"
+            ) from e
 
     def _load_presets(self) -> None:
         """Load presets from settings configuration."""
@@ -77,18 +81,15 @@ class SettingsPromptProvider:
         """Get the raw message structure for a prompt."""
         try:
             settings = self.settings_service.get_settings()
-            
+
             for prompt_config in settings.prompts:
                 if prompt_config.id == prompt_id:
                     messages = []
                     for message in prompt_config.messages:
                         content = self.settings_service.resolve_message_content(message)
-                        messages.append({
-                            "role": message.role,
-                            "content": content
-                        })
+                        messages.append({"role": message.role, "content": content})
                     return messages
-            
+
             return None
         except Exception as e:
             raise ProviderError(f"Failed to get prompt messages: {str(e)}") from e
