@@ -7,7 +7,7 @@ import tempfile
 import threading
 import time
 import uuid
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, Optional
 
 try:
     import pyaudio
@@ -17,7 +17,6 @@ except ImportError:
     PYAUDIO_AVAILABLE = False
 import wave
 
-from api import APIError
 from open_ai_api import OpenAIClient
 
 
@@ -57,7 +56,7 @@ class AudioRecorder:
             return
 
         if not PYAUDIO_AVAILABLE:
-            raise APIError(
+            raise Exception(
                 "PyAudio is not available. Please install it with: pip install pyaudio"
             )
 
@@ -124,7 +123,7 @@ class AudioRecorder:
             )
             self.recording_thread.start()
 
-        except Exception as e:
+        except Exception:
             self._cleanup()
             error_msg = f"Failed to start audio recording: {e}"
             if "ALSA" in str(e) or "jack" in str(e).lower():
@@ -135,12 +134,12 @@ class AudioRecorder:
                     "3. Test microphone: arecord -d 3 test.wav && aplay test.wav\n"
                 )
                 error_msg += "4. Try PulseAudio: pulseaudio --start"
-            raise APIError(error_msg) from e
+            raise
 
     def stop_recording(self) -> str:
         """Stop recording and return path to recorded audio file."""
         if not self.recording:
-            raise APIError("Recording is not active")
+            raise Exception("Recording is not active")
 
         self.recording = False
 
@@ -162,9 +161,9 @@ class AudioRecorder:
             self._cleanup()
             return temp_path
 
-        except Exception as e:
+        except Exception:
             self._cleanup()
-            raise APIError(f"Failed to save audio recording: {e}") from e
+            raise
 
     def is_recording(self) -> bool:
         """Check if currently recording."""

@@ -18,20 +18,12 @@ from modules.providers.menu_providers import (
     HistoryMenuProvider,
     SystemMenuProvider,
 )
-from modules.providers.settings_menu_provider import (
-    SettingsPromptMenuProvider,
-    SettingsPresetMenuProvider,
-)
-from modules.providers.prompt_providers import APIPromptProvider
 from modules.providers.settings_prompt_provider import SettingsPromptProvider
 from modules.providers.execution_handlers import (
-    PyQtPromptExecutionHandler,
-    PyQtPresetExecutionHandler,
     PyQtHistoryExecutionHandler,
     PyQtSystemExecutionHandler,
     PyQtSpeechExecutionHandler,
     SettingsPromptExecutionHandler,
-    SettingsPresetExecutionHandler,
 )
 from modules.gui.menu_coordinator import PyQtMenuCoordinator, PyQtMenuEventHandler
 from modules.gui.hotkey_manager import PyQtHotkeyManager
@@ -39,7 +31,6 @@ from modules.utils.clipboard import SystemClipboardManager
 from modules.utils.config import load_config, validate_config
 from modules.utils.system import check_macos_permissions, show_macos_permissions_help
 from modules.utils.notifications import PyQtNotificationManager
-from api import PromptStoreAPI
 
 
 class PromptStoreApp(QObject):
@@ -60,7 +51,6 @@ class PromptStoreApp(QObject):
         self.running = False
 
         # Core services
-        self.api: Optional[PromptStoreAPI] = None
         self.clipboard_manager: Optional[SystemClipboardManager] = None
         self.prompt_store_service: Optional[PromptStoreService] = None
 
@@ -107,7 +97,7 @@ class PromptStoreApp(QObject):
                 raise RuntimeError("Configuration not loaded")
 
             # Initialize API client
-            self.api = PromptStoreAPI(self.config.base_url, self.config.api_key)
+            # self.api = PromptStoreAPI(self.config.base_url, self.config.api_key)
 
             # Initialize clipboard manager
             self.clipboard_manager = SystemClipboardManager()
@@ -147,7 +137,7 @@ class PromptStoreApp(QObject):
         try:
             from modules.utils.speech_to_text import SpeechToTextService
 
-            if self.config.openai_api_key:
+            if self.config.:
                 self.speech_service = SpeechToTextService(self.config.openai_api_key)
                 self._setup_common_speech_notifications()
             else:
@@ -189,8 +179,6 @@ class PromptStoreApp(QObject):
 
     def _initialize_prompt_providers(self) -> None:
         """Initialize prompt providers."""
-        if not self.api:
-            raise RuntimeError("API not initialized")
 
         # Initialize API prompt provider
         # api_provider = APIPromptProvider(self.api)
@@ -205,16 +193,10 @@ class PromptStoreApp(QObject):
 
     def _register_execution_handlers(self) -> None:
         """Register execution handlers with the service."""
-        if not self.api or not self.clipboard_manager or not self.prompt_store_service:
+        if not self.clipboard_manager or not self.prompt_store_service:
             raise RuntimeError("Required services not initialized")
 
         handlers = [
-            PyQtPromptExecutionHandler(
-                self.api, self.clipboard_manager, self.notification_manager
-            ),
-            PyQtPresetExecutionHandler(
-                self.api, self.clipboard_manager, self.notification_manager
-            ),
             PyQtHistoryExecutionHandler(self.clipboard_manager),
             PyQtSystemExecutionHandler(
                 refresh_callback=self._refresh_data,
@@ -240,11 +222,6 @@ class PromptStoreApp(QObject):
                         self.clipboard_manager,
                         self.notification_manager,
                     ),
-                    SettingsPresetExecutionHandler(
-                        settings_provider,
-                        self.clipboard_manager,
-                        self.notification_manager,
-                    ),
                 ]
             )
 
@@ -257,7 +234,9 @@ class PromptStoreApp(QObject):
             raise RuntimeError("Configuration or prompt store service not initialized")
 
         # Initialize hotkey manager
-        self.hotkey_manager = PyQtHotkeyManager(keymap_manager=self.config.keymap_manager)
+        self.hotkey_manager = PyQtHotkeyManager(
+            keymap_manager=self.config.keymap_manager
+        )
         self.hotkey_manager.connect_context_menu_callback(self._on_f2_hotkey_pressed)
         self.hotkey_manager.connect_re_execute_callback(self._on_f1_hotkey_pressed)
         self.hotkey_manager.connect_speech_toggle_callback(
@@ -576,10 +555,7 @@ class PromptStoreApp(QObject):
         """Get application status information."""
         return {
             "running": self.running,
-            "hotkey": (
-                self.hotkey_manager.hotkey if self.hotkey_manager else None
-            ),
-            "api_url": self.config.base_url if self.config else None,
+            "hotkey": (self.hotkey_manager.hotkey if self.hotkey_manager else None),
             "prompt_providers_count": len(self.prompt_providers),
             "menu_providers_count": len(self.menu_providers),
             "hotkey_active": self.hotkey_manager.is_running()
@@ -683,10 +659,6 @@ class PromptStoreApp(QObject):
         try:
             # Reload config
             self._load_config(config_file)
-
-            # Reinitialize API with new config
-            if self.config:
-                self.api = PromptStoreAPI(self.config.base_url, self.config.api_key)
 
             # Reinitialize prompt providers
             self.prompt_providers.clear()

@@ -4,7 +4,7 @@ import logging
 from typing import Dict, Any, Optional, List
 from pathlib import Path
 
-from .keymap import KeymapManager, load_keymaps_from_settings
+from .keymap import load_keymaps_from_settings
 from .keymap_actions import execute_keymap_action, get_available_actions
 from .config import load_settings_file
 

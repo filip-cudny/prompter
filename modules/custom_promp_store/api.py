@@ -92,19 +92,6 @@ class PromptStoreAPI:
 
         return response.get("prompts", [])
 
-    def get_presets(self) -> List[Dict[str, Any]]:
-        response = self._make_request(
-            "GET", "/api/prompt-store", params={"type": "presets"}
-        )
-
-        if isinstance(response, str):
-            raise APIError("Expected JSON response for presets")
-
-        if not response.get("success"):
-            raise APIError("Failed to fetch presets")
-
-        return response.get("presets", [])
-
     def get_prompt_details(self, prompt_id: str) -> Dict[str, Any]:
         params = {"type": "prompt-details", "id": prompt_id}
         response = self._make_request("GET", "/api/prompt-store", params=params)
