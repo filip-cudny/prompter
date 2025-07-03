@@ -10,13 +10,12 @@ class OpenAIClient:
     """Client for OpenAI API operations."""
 
     def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None):
-        self.api_key = api_key
-        if not self.api_key:
+        if not api_key:
             raise Exception(
                 "OpenAI API key not found. Set OPENAI_API_KEY environment variable."
             )
 
-        self.client = OpenAI(api_key=self.api_key, base_url=base_url)
+        self.client = OpenAI(api_key=api_key, base_url=base_url)
 
     def transcribe_audio(
         self, audio_file: BinaryIO, model: str = "gpt-4o-transcribe"

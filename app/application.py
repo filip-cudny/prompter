@@ -137,8 +137,11 @@ class PromptStoreApp(QObject):
         try:
             from modules.utils.speech_to_text import SpeechToTextService
 
-            if self.config.:
-                self.speech_service = SpeechToTextService(self.config.openai_api_key)
+            if self.config.speech_to_text_model:
+                self.speech_service = SpeechToTextService(
+                    api_key=self.config.speech_to_text_model.api_key,
+                    base_url=self.config.speech_to_text_model.base_url,
+                )
                 self._setup_common_speech_notifications()
             else:
                 self.speech_service = None
@@ -221,6 +224,7 @@ class PromptStoreApp(QObject):
                         settings_provider,
                         self.clipboard_manager,
                         self.notification_manager,
+                        self.config,
                     ),
                 ]
             )

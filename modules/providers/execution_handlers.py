@@ -4,6 +4,7 @@ from typing import Optional, Callable, List
 import logging
 from core.interfaces import ClipboardManager
 from core.models import MenuItem, MenuItemType, ExecutionResult, ErrorCode
+from modules.utils.config import AppConfig
 from modules.utils.speech_to_text import SpeechToTextService
 from open_ai_api import OpenAIClient
 from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
@@ -334,12 +335,13 @@ class SettingsPromptExecutionHandler:
         self,
         settings_prompt_provider,
         clipboard_manager: ClipboardManager,
-        notification_manager: Optional[PyQtNotificationManager] = None,
+        notification_manager: Optional[PyQtNotificationManager],
+        config: AppConfig,
     ):
         self.settings_prompt_provider = settings_prompt_provider
         self.clipboard_manager = clipboard_manager
         self.notification_manager = notification_manager or PyQtNotificationManager()
-        self.openai_client = OpenAIClient()
+        self.config = config
 
     def can_handle(self, item: MenuItem) -> bool:
         """Check if this handler can execute the given menu item."""
