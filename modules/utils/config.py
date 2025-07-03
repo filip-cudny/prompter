@@ -2,13 +2,41 @@
 
 import os
 import json
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, TYPE_CHECKING
 from dataclasses import dataclass, asdict
 from pathlib import Path
 from dotenv import load_dotenv
 
+try:
+    import json5
+    HAS_JSON5 = True
+except ImportError:
+    HAS_JSON5 = False
+
+if TYPE_CHECKING:
+    from .keymap import KeymapManager
+
 from core.exceptions import ConfigurationError
-from .keymap import KeymapManager, load_keymaps_from_settings
+
+
+def safe_load_json(file_path: Path) -> Dict[str, Any]:
+    """Load JSON file with optional comment support."""
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        if HAS_JSON5:
+            return json5.loads(content)
+        else:
+            content = _strip_json_comments(content)
+            return json.loads(content)
+
+    except FileNotFoundError:
+        raise ConfigurationError(f"Settings file not found: {file_path}")
+    except (json.JSONDecodeError, ValueError) as e:
+        raise ConfigurationError(f"Invalid JSON in settings file: {e}")
+    except Exception as e:
+        raise ConfigurationError(f"Error loading settings file: {e}")
 
 
 @dataclass
@@ -16,7 +44,7 @@ class AppConfig:
     """Application configuration."""
 
     menu_position_offset: tuple = (0, 0)
-    keymap_manager: Optional[KeymapManager] = None
+    keymap_manager: Optional["KeymapManager"] = None
     models: Optional[Dict[str, Any]] = None
     speech_to_text_model: Optional[Dict[str, Any]] = None
     default_model: Optional[str] = None
@@ -35,54 +63,140 @@ class AppConfig:
         return cls(**data_copy)
 
 
+class ConfigService:
+    """Singleton service for configuration management."""
+
+    _instance = None
+    _initialized = False
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+    def __init__(self):
+        if not self._initialized:
+            self._config = None
+            self._settings_data = None
+            self._initialized = True
+
+    def initialize(
+        self, env_file: Optional[str] = None, settings_file: Optional[str] = None
+    ):
+        """Initialize the configuration service."""
+        self._config = self._load_config(env_file, settings_file)
+        return self._config
+
+    def get_config(self) -> AppConfig:
+        """Get the current configuration."""
+        if self._config is None:
+            raise ConfigurationError(
+                "ConfigService not initialized. Call initialize() first."
+            )
+        return self._config
+
+    def get_settings_data(self) -> Dict[str, Any]:
+        """Get the raw settings data."""
+        if self._settings_data is None:
+            raise ConfigurationError(
+                "ConfigService not initialized. Call initialize() first."
+            )
+        return self._settings_data
+
+    def _load_config(
+        self, env_file: Optional[str] = None, settings_file: Optional[str] = None
+    ) -> AppConfig:
+        """Load configuration from environment variables and settings file."""
+        if env_file:
+            load_dotenv(env_file, override=True)
+        else:
+            load_dotenv(override=True)
+
+        config = AppConfig()
+
+        # Parse menu position offset
+        offset_str = os.getenv("MENU_POSITION_OFFSET", "0,0")
+        try:
+            x, y = map(int, offset_str.split(","))
+            config.menu_position_offset = (x, y)
+        except ValueError:
+            config.menu_position_offset = (0, 0)
+
+        # Load settings file
+        keymap_settings_file = settings_file or "settings/settings.json"
+        if Path(keymap_settings_file).exists():
+            try:
+                self._settings_data = safe_load_json(Path(keymap_settings_file))
+
+                # Load keymap configuration
+                from .keymap import KeymapManager
+
+                config.keymap_manager = KeymapManager(
+                    self._settings_data.get("keymaps", [])
+                )
+
+                # Load models and speech_to_text_model configuration
+                config.models = self._settings_data.get("models", {})
+                config.speech_to_text_model = self._settings_data.get(
+                    "speech_to_text_model"
+                )
+
+                # Set default_model to first model key
+                if config.models:
+                    config.default_model = next(iter(config.models.keys()))
+
+                # Load API keys from environment variables
+                _load_api_keys(config.models)
+                if config.speech_to_text_model:
+                    _load_api_key_for_model(
+                        config.speech_to_text_model, "speech_to_text_model"
+                    )
+
+            except Exception as e:
+                raise ConfigurationError(f"Failed to load configuration: {e}")
+        else:
+            raise ConfigurationError(f"Settings file not found: {keymap_settings_file}")
+
+        validate_config(config)
+        return config
+
+
+def get_config_service(
+    env_file: Optional[str] = None, settings_file: Optional[str] = None
+) -> ConfigService:
+    """Get initialized ConfigService singleton."""
+    config_service = ConfigService()
+    if config_service._config is None:
+        config_service.initialize(env_file, settings_file)
+    return config_service
+
+
+def initialize_config(
+    env_file: Optional[str] = None, settings_file: Optional[str] = None
+) -> AppConfig:
+    """Initialize configuration for the application.
+
+    Usage example:
+        # In your main application startup:
+        from modules.utils.config import initialize_config
+        config = initialize_config()
+
+        # Then in other services:
+        from modules.utils.config import ConfigService
+        config_service = ConfigService()
+        settings_data = config_service.get_settings_data()
+        app_config = config_service.get_config()
+    """
+    config_service = get_config_service(env_file, settings_file)
+    return config_service.get_config()
+
+
 def load_config(
     env_file: Optional[str] = None, settings_file: Optional[str] = None
 ) -> AppConfig:
     """Load configuration from environment variables and .env file."""
-    if env_file:
-        load_dotenv(env_file, override=True)
-    else:
-        load_dotenv(override=True)
-
-    config = AppConfig()
-
-    # Parse menu position offset
-    offset_str = os.getenv("MENU_POSITION_OFFSET", "0,0")
-    try:
-        x, y = map(int, offset_str.split(","))
-        config.menu_position_offset = (x, y)
-    except ValueError:
-        config.menu_position_offset = (0, 0)
-
-    # Load keymap configuration - use default settings file if not specified
-    keymap_settings_file = settings_file or "settings/settings.json"
-    if Path(keymap_settings_file).exists():
-        try:
-            config.keymap_manager = load_keymaps_from_settings(
-                Path(keymap_settings_file)
-            )
-        except Exception as e:
-            raise ConfigurationError(f"Failed to load keymap configuration: {e}")
-
-        try:
-            # Load models and speech_to_text_model configuration
-            settings_data = load_settings_file(Path(keymap_settings_file))
-            config.models = settings_data.get("models", {})
-            config.speech_to_text_model = settings_data.get("speech_to_text_model")
-            
-            # Set default_model to first model key
-            if config.models:
-                config.default_model = next(iter(config.models.keys()))
-            
-            # Load API keys from environment variables
-            _load_api_keys(config.models)
-            if config.speech_to_text_model:
-                _load_api_key_for_model(config.speech_to_text_model, "speech_to_text_model")
-        except Exception as e:
-            raise ConfigurationError(f"Failed to load models configuration: {e}")
-
-    validate_config(config)
-    return config
+    config_service = get_config_service(env_file, settings_file)
+    return config_service.get_config()
 
 
 def validate_config(config: AppConfig) -> None:
@@ -182,13 +296,41 @@ def _load_api_key_for_model(model_config: Dict[str, Any], model_name: str) -> No
 
 
 def load_settings_file(settings_path: Path) -> Dict[str, Any]:
-    """Load settings from JSON file."""
-    try:
-        with open(settings_path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except FileNotFoundError:
-        raise ConfigurationError(f"Settings file not found: {settings_path}")
-    except json.JSONDecodeError as e:
-        raise ConfigurationError(f"Invalid JSON in settings file: {e}")
-    except Exception as e:
-        raise ConfigurationError(f"Error loading settings file: {e}")
+    """Load settings from JSON file with optional comment support."""
+    return safe_load_json(settings_path)
+
+
+def _strip_json_comments(content: str) -> str:
+    """Strip // comments from JSON content."""
+    lines = content.split("\n")
+    cleaned_lines = []
+
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("//"):
+            continue
+
+        comment_pos = line.find("//")
+        if comment_pos != -1:
+            in_string = False
+            escaped = False
+            for i, char in enumerate(line):
+                if escaped:
+                    escaped = False
+                    continue
+                if char == "\\":
+                    escaped = True
+                elif char == '"':
+                    in_string = not in_string
+                elif (
+                    char == "/"
+                    and i + 1 < len(line)
+                    and line[i + 1] == "/"
+                    and not in_string
+                ):
+                    line = line[:i].rstrip()
+                    break
+
+        cleaned_lines.append(line)
+
+    return "\n".join(cleaned_lines)

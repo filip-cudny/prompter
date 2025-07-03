@@ -6,10 +6,11 @@ from collections import deque
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from modules.utils.config import ConfigService
 from modules.utils.notifications import PyQtNotificationManager
 from modules.utils.speech_to_text import SpeechToTextService
 
-from .exceptions import DataError
+from .exceptions import ConfigurationError, DataError
 from .models import (
     ErrorCode,
     ExecutionHandler,
@@ -648,6 +649,7 @@ class SettingsService:
         self.settings_path = settings_path or "settings/settings.json"
         self._settings: Optional[SettingsConfig] = None
         self._base_path: Optional[Path] = None
+        self._config_service = ConfigService()
 
     def load_settings(self) -> SettingsConfig:
         """Load settings from the configuration file."""
@@ -693,13 +695,16 @@ class SettingsService:
             if not settings_file.exists():
                 raise DataError(f"Settings file not found: {self.settings_path}")
 
-            with open(settings_file, "r", encoding="utf-8") as f:
-                data = json.load(f)
+            # Initialize ConfigService if needed
+            if self._config_service._config is None:
+                self._config_service.initialize(settings_file=str(settings_file))
+
+            data = self._config_service.get_settings_data()
 
             return self._parse_settings_data(data)
 
-        except json.JSONDecodeError as e:
-            raise DataError(f"Invalid JSON in settings file: {str(e)}") from e
+        except ConfigurationError as e:
+            raise DataError(f"Configuration error: {str(e)}") from e
         except Exception as e:
             raise DataError(f"Failed to load settings: {str(e)}") from e
 

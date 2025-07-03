@@ -1,6 +1,5 @@
 """Keymap configuration management utilities."""
 
-import json
 import platform
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
@@ -132,23 +131,6 @@ def get_current_os() -> str:
         return "linux"
     else:
         return "linux"
-
-
-def load_keymaps_from_settings(settings_path: Path) -> KeymapManager:
-    """Load keymaps from settings file."""
-    try:
-        with open(settings_path, "r", encoding="utf-8") as f:
-            settings_data = json.load(f)
-
-        keymaps_data = settings_data.get("keymaps", [])
-        return KeymapManager(keymaps_data)
-
-    except FileNotFoundError:
-        raise ConfigurationError(f"Settings file not found: {settings_path}")
-    except json.JSONDecodeError as e:
-        raise ConfigurationError(f"Invalid JSON in settings file: {e}")
-    except Exception as e:
-        raise ConfigurationError(f"Error loading keymaps: {e}")
 
 
 def validate_keymap_data(keymaps: List[Dict[str, Any]]) -> None:

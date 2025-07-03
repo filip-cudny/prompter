@@ -1,13 +1,14 @@
 """PyQt5-based hotkey manager for global hotkey detection."""
 
 import threading
-from typing import Set, Optional, Callable, Dict, Any, List
+from typing import Set, Optional, Callable, Dict, List
 from pathlib import Path
 from PyQt5.QtCore import QObject, pyqtSignal
 from pynput import keyboard
 from pynput.keyboard import Key
 from core.exceptions import HotkeyError
-from modules.utils.keymap import KeymapManager, load_keymaps_from_settings
+from modules.utils.keymap import KeymapManager
+from modules.utils.config import ConfigService
 
 
 class HotkeySignals(QObject):
@@ -411,7 +412,11 @@ class PyQtHotkeyManager:
         if keymap_manager:
             self.keymap_manager = keymap_manager
         elif settings_path:
-            self.keymap_manager = load_keymaps_from_settings(settings_path)
+            config_service = ConfigService()
+            if config_service._config is None:
+                config_service.initialize(settings_file=str(settings_path))
+            config = config_service.get_config()
+            self.keymap_manager = config.keymap_manager
         else:
             self.keymap_manager = KeymapManager([])
 
@@ -593,7 +598,11 @@ class PyQtHotkeyManager:
             self.stop()
 
         if settings_path:
-            self.keymap_manager = load_keymaps_from_settings(settings_path)
+            config_service = ConfigService()
+            if config_service._config is None:
+                config_service.initialize(settings_file=str(settings_path))
+            config = config_service.get_config()
+            self.keymap_manager = config.keymap_manager
 
         # Update execute hotkey
         execute_hotkey = None

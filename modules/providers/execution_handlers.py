@@ -367,7 +367,6 @@ class SettingsPromptExecutionHandler:
                     execution_time=time.time() - start_time,
                 )
 
-            print(item.data)
             # Get model from MenuItem.data.model
             model_name = item.data.get("model") if item.data else None
 
