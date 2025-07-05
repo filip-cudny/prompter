@@ -2,7 +2,8 @@
 
 from typing import List, Callable, Optional
 from core.models import MenuItem, MenuItemType
-from core.services import HistoryService, DataManager
+from core.services import  DataManager
+from modules.history.history_service import  HistoryService
 
 
 class PromptMenuProvider:

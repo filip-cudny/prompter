@@ -66,6 +66,7 @@ class PromptStoreApp(QObject):
 
         # Speech service
         self.speech_service = None
+        self.speech_history_service= None
 
         # Recording state
         self.normal_icon = None
@@ -109,7 +110,7 @@ class PromptStoreApp(QObject):
 
             # Initialize speech service
             self._initialize_speech_service()
-
+            self._initialize_speech_history_service()
             # Initialize core service
             self.prompt_store_service = PromptStoreService(
                 self.prompt_providers,
@@ -147,6 +148,14 @@ class PromptStoreApp(QObject):
                 self.speech_service = None
         except Exception as e:
             self.speech_service = None
+    def _initialize_speech_history_service(self) -> None:
+        """Initialize speech-to-text service as singleton."""
+        try:
+            from core.services import SpeechHistoryService
+
+            self.speech_history_service=SpeechHistoryService()
+        except Exception as e:
+            self.speech_history_service = None
 
     def _setup_common_speech_notifications(self) -> None:
         """Setup common speech notifications that run for all transcriptions."""
@@ -209,7 +218,7 @@ class PromptStoreApp(QObject):
                 self.clipboard_manager,
                 self.notification_manager,
                 self.set_recording_indicator,
-                self.prompt_store_service.speech_history_service,
+                self.speech_history_service,
                 self._refresh_ui_after_speech,
                 self.speech_service,
             ),
@@ -280,7 +289,7 @@ class PromptStoreApp(QObject):
             SystemMenuProvider(
                 self._refresh_data,
                 self._speech_to_text,
-                self.prompt_store_service.speech_history_service,
+                self.speech_history_service,
                 self._execute_menu_item,
                 None,
                 self.prompt_store_service,

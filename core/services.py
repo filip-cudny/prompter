@@ -5,8 +5,8 @@ from collections import deque
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from core.interfaces import PromptStoreServiceProtocol
 from modules.utils.config import ConfigService
-from modules.prompts.prompt_service import PromptStoreService
 
 from .exceptions import ConfigurationError, DataError
 from .models import (
@@ -29,7 +29,7 @@ from .models import (
 class ExecutionService:
     """Service for executing menu items with different handlers."""
 
-    def __init__(self, prompt_store_service: PromptStoreService):
+    def __init__(self, prompt_store_service: PromptStoreServiceProtocol):
         self.handlers: List[ExecutionHandler] = []
         self.speech_service = None
         self.recording_action_id: Optional[str] = None

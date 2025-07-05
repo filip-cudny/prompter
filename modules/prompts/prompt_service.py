@@ -1,7 +1,21 @@
-from core.services import DataManager, PyQtNotificationManager, ExecutionService, SpeechToTextService
+from typing import List,Optional
+from core.services import DataManager, ExecutionService
+from utils.speech_to_text import SpeechToTextService
+from core.interfaces import PromptStoreServiceProtocol
 from modules.history.history_service import HistoryService
+from modules.utils.notifications import PyQtNotificationManager
+from core.models import (
+    ErrorCode,
+    ExecutionResult,
+    HistoryEntry,
+    MenuItem,
+    MenuItemType,
+    PresetData,
+    PromptData,
+)
 
-class PromptStoreService:
+
+class PromptStoreService(PromptStoreServiceProtocol):
     """Main business logic coordinator for the prompt store."""
 
     def __init__(
@@ -27,7 +41,6 @@ class PromptStoreService:
         self.data_manager = DataManager(self.prompt_providers)
         self.history_service = HistoryService()
         self.active_prompt_service = ActivePromptService()
-        # self.speech_history_service = SpeechHistoryService()
         self.pending_alternative_execution = None
 
     def refresh_data(self) -> None:

@@ -1,16 +1,12 @@
 """PyQt5-specific execution handlers that accept shared notification manager."""
 
-from typing import Optional, Callable, List
+from typing import Optional, Callable
 import logging
 from core.interfaces import ClipboardManager
 from core.models import MenuItem, MenuItemType, ExecutionResult, ErrorCode
-from modules.utils.config import AppConfig
 from modules.utils.speech_to_text import SpeechToTextService
-from core.open_ai_api import OpenAIClient
-from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
 from modules.utils.notifications import (
     PyQtNotificationManager,
-    format_execution_time,
     truncate_text,
 )
 import time
@@ -326,5 +322,3 @@ class PyQtSpeechExecutionHandler:
     def _on_speech_error(self, error_msg: str) -> None:
         """Handle speech service errors."""
         self.notification_manager.show_error_notification("Speech Error", error_msg)
-
-
