@@ -1,23 +1,21 @@
 """OpenAI API client for speech-to-text transcription."""
 
 import os
-from typing import Optional, BinaryIO, List, Dict, Any
+from typing import Optional, BinaryIO, List, Any
 from openai import OpenAI
 from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
-from api import APIError
 
 
 class OpenAIClient:
     """Client for OpenAI API operations."""
 
-    def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
-        if not self.api_key:
-            raise APIError(
+    def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None):
+        if not api_key:
+            raise Exception(
                 "OpenAI API key not found. Set OPENAI_API_KEY environment variable."
             )
 
-        self.client = OpenAI(api_key=self.api_key)
+        self.client = OpenAI(api_key=api_key, base_url=base_url)
 
     def transcribe_audio(
         self, audio_file: BinaryIO, model: str = "gpt-4o-transcribe"
@@ -62,19 +60,19 @@ class OpenAIClient:
             APIError: If transcription fails
         """
         if not os.path.exists(file_path):
-            raise APIError(f"Audio file not found: {file_path}")
+            raise Exeception(f"Audio file not found: {file_path}")
 
         try:
             with open(file_path, "rb") as audio_file:
                 return self.transcribe_audio(audio_file, model)
         except IOError as e:
-            raise APIError(f"Failed to read audio file: {e}") from e
+            raise Exeception(f"Failed to read audio file: {e}") from e
 
     def complete(
         self,
         messages: List[ChatCompletionMessageParam],
         model: str = "gpt-4.1",
-        temperature: float = 0.0,
+        temperature: float = 0.7,
         max_tokens: Optional[int] = None,
         **kwargs: Any,
     ) -> str:
@@ -94,6 +92,8 @@ class OpenAIClient:
         Raises:
             APIError: If completion fails
         """
+        print("model", model)
+        print("temps", temperature)
         try:
             response = self.client.chat.completions.create(
                 model=model,
@@ -105,4 +105,4 @@ class OpenAIClient:
             return response.choices[0].message.content.strip()
 
         except Exception as e:
-            raise APIError(f"Failed to generate completion: {e}") from e
+            raise Exception(f"Failed to generate completion: {e}") from e

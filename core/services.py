@@ -1,32 +1,41 @@
 """Core business services for the prompt store application."""
 
-from typing import List, Dict, Optional, Any
-import time
 import json
-from pathlib import Path
+import time
 from collections import deque
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
+from modules.utils.config import ConfigService
+from modules.utils.notifications import PyQtNotificationManager
+from modules.utils.speech_to_text import SpeechToTextService
 
+from .exceptions import ConfigurationError, DataError
 from .models import (
-    PromptData,
-    PresetData,
+    ErrorCode,
+    ExecutionHandler,
     ExecutionResult,
     HistoryEntry,
     MenuItem,
     MenuItemType,
-    ErrorCode,
-    SettingsConfig,
-    PromptConfig,
     MessageConfig,
+    PresetData,
+    PromptConfig,
+    PromptData,
+    SettingsConfig,
 )
-from .exceptions import DataError
-from utils.pyqt_notifications import PyQtNotificationManager
 
 
 class PromptStoreService:
     """Main business logic coordinator for the prompt store."""
 
-    def __init__(self, prompt_providers, clipboard_manager, notification_manager=None):
+    def __init__(
+        self,
+        prompt_providers,
+        clipboard_manager,
+        notification_manager=None,
+        speech_service=SpeechToTextService,
+    ):
         self.prompt_providers = (
             prompt_providers
             if isinstance(prompt_providers, list)
@@ -37,13 +46,14 @@ class PromptStoreService:
         )
         self.clipboard_manager = clipboard_manager
         self.notification_manager = notification_manager or PyQtNotificationManager()
-        self.execution_service = ExecutionService(
-            self.primary_provider, clipboard_manager
-        )
+        self.speech_service = speech_service
+        self.execution_service = ExecutionService(self)
+        self.execution_service.set_speech_service(self.speech_service)
         self.data_manager = DataManager(self.prompt_providers)
         self.history_service = HistoryService()
         self.active_prompt_service = ActivePromptService()
         self.speech_history_service = SpeechHistoryService()
+        self.pending_alternative_execution = None
 
     def refresh_data(self) -> None:
         """Refresh all data from providers."""
@@ -63,35 +73,92 @@ class PromptStoreService:
     def execute_item(self, item: MenuItem) -> ExecutionResult:
         """Execute a menu item and track in history."""
         try:
-            input_content = self.clipboard_manager.get_content()
-            result = self.execution_service.execute_item(item, input_content)
-
-            # Only add to history for prompt and preset executions, not history or system operations
-            if item.item_type in [MenuItemType.PROMPT, MenuItemType.PRESET]:
-                # Track active prompt/preset
-                if result.success and item.data:
-                    self.active_prompt_service.update_active_on_execution(item)
-
-                    self.history_service.add_entry(
-                        input_content=input_content,
-                        output_content=result.content,
-                        prompt_id=item.data.get("prompt_id"),
-                        preset_id=item.data.get("preset_id"),
-                        success=True,
-                    )
-                elif not result.success:
-                    self.history_service.add_entry(
-                        input_content=input_content,
-                        output_content=None,
-                        prompt_id=item.data.get("prompt_id") if item.data else None,
-                        preset_id=item.data.get("preset_id") if item.data else None,
-                        success=False,
-                        error=result.error,
-                    )
-
-            return result
+            if item.data and item.data.get("alternative_execution", False):
+                # Alternative execution triggers speech-to-text
+                result = self.execution_service.execute_item(
+                    item, None, use_speech=True
+                )
+                return result
+            else:
+                input_content = self.clipboard_manager.get_content()
+                result = self.execution_service.execute_item(item, input_content)
+                self.add_history_entry(item, input_content, result)
+                return result
         except Exception as e:
             return ExecutionResult(success=False, error=str(e))
+
+    def is_recording(self) -> bool:
+        """Check if currently recording."""
+        return self.execution_service.is_recording()
+
+    def get_recording_action_id(self) -> Optional[str]:
+        """Get the ID of the action that started recording."""
+        return self.execution_service.get_recording_action_id()
+
+    def should_disable_action(self, action_id: str) -> bool:
+        """Check if action should be disabled due to recording state."""
+        return self.execution_service.should_disable_action(action_id)
+
+    def _handle_transcription_execution(self, item: MenuItem) -> ExecutionResult:
+        """Handle execution that should trigger transcription first."""
+        try:
+            self.pending_alternative_execution = item
+
+            if self.speech_service:
+                self.speech_service.start_recording("PromptStoreService")
+                return ExecutionResult(
+                    success=True, content="Recording started for transcription..."
+                )
+            else:
+                return ExecutionResult(
+                    success=False, error="Speech service not available"
+                )
+        except Exception as e:
+            return ExecutionResult(
+                success=False, error=f"Failed to start transcription: {str(e)}"
+            )
+
+    def _on_transcription_for_execution(
+        self, transcription: str, _duration: float
+    ) -> None:
+        """Handle transcription completion for pending execution."""
+        try:
+            if self.pending_alternative_execution and transcription:
+                # Execute the pending item with transcribed text
+                result = self.execution_service.execute_item(
+                    self.pending_alternative_execution, transcription
+                )
+                self.add_history_entry(
+                    self.pending_alternative_execution, transcription, result
+                )
+                self.pending_alternative_execution = None
+        except Exception:
+            # Handle error but don't raise to avoid breaking other callbacks
+            pass
+
+    def add_history_entry(
+        self, item: MenuItem, input_content: str, result: ExecutionResult
+    ) -> None:
+        """Add entry to history service for prompt and preset executions."""
+        # Only add to history for prompt and preset executions, not history or system operations
+        if item.item_type in [MenuItemType.PROMPT, MenuItemType.PRESET]:
+            if result.success and item.data:
+                self.history_service.add_entry(
+                    input_content=input_content,
+                    output_content=result.content,
+                    prompt_id=item.data.get("prompt_id"),
+                    preset_id=item.data.get("preset_id"),
+                    success=True,
+                )
+            elif not result.success:
+                self.history_service.add_entry(
+                    input_content=input_content,
+                    output_content=None,
+                    prompt_id=item.data.get("prompt_id") if item.data else None,
+                    preset_id=item.data.get("preset_id") if item.data else None,
+                    success=False,
+                    error=result.error,
+                )
 
     def get_history(self) -> List[HistoryEntry]:
         """Get execution history."""
@@ -146,7 +213,7 @@ class PromptStoreService:
         if not active_prompt:
             return ExecutionResult(
                 success=False,
-                error="No default prompt selected",
+                error="No active prompt selected",
                 error_code=ErrorCode.NO_ACTIVE_PROMPT,
             )
 
@@ -171,6 +238,7 @@ class PromptStoreService:
                                 "prompt_id": p.id,
                                 "prompt_name": p.name,
                                 "source": p.source,
+                                "model": p.model,
                             },
                         )
                     )
@@ -186,6 +254,7 @@ class PromptStoreService:
                     "prompt_id": prompt.id,
                     "prompt_name": prompt.name,
                     "source": prompt.source,
+                    "model": prompt.model,
                 },
             )
             items.append(item)
@@ -230,24 +299,53 @@ class PromptStoreService:
 
 
 class ExecutionService:
-    """Service for executing prompts and presets."""
+    """Service for executing menu items with different handlers."""
 
-    def __init__(self, prompt_provider, clipboard_manager):
-        self.prompt_provider = prompt_provider
-        self.clipboard_manager = clipboard_manager
-        self.handlers = []
+    def __init__(self, prompt_store_service: PromptStoreService):
+        self.handlers: List[ExecutionHandler] = []
+        self.speech_service = None
+        self.recording_action_id: Optional[str] = None
+        self.pending_execution_item: Optional[MenuItem] = None
+        self.prompt_store_service = prompt_store_service
 
-    def register_handler(self, handler) -> None:
+    def register_handler(self, handler: ExecutionHandler) -> None:
         """Register an execution handler."""
         self.handlers.append(handler)
 
+    def set_speech_service(self, speech_service) -> None:
+        """Set the speech-to-text service instance."""
+        self.speech_service = speech_service
+        if speech_service:
+            speech_service.add_transcription_callback(
+                self._on_transcription_complete, run_always=True
+            )
+
+    def is_recording(self) -> bool:
+        """Check if currently recording."""
+        return self.speech_service and self.speech_service.is_recording()
+
+    def get_recording_action_id(self) -> Optional[str]:
+        """Get the ID of the action that started recording."""
+        return self.recording_action_id
+
+    def should_disable_action(self, action_id: str) -> bool:
+        """Check if action should be disabled due to recording state."""
+        return self.is_recording() and self.recording_action_id != action_id
+
     def execute_item(
-        self, item: MenuItem, input_content: Optional[str] = None
+        self,
+        item: MenuItem,
+        input_content: Optional[str] = None,
+        use_speech: bool = False,
     ) -> ExecutionResult:
         """Execute a menu item using the appropriate handler."""
 
         if not item.enabled:
             return ExecutionResult(success=False, error="Menu item is disabled")
+
+        # If recording is active, any click should stop recording
+        if (self.speech_service) and (use_speech or self.speech_service.is_recording()):
+            return self._execute_with_speech(item)
 
         for handler in self.handlers:
             if handler.can_handle(item):
@@ -259,6 +357,60 @@ class ExecutionService:
         return ExecutionResult(
             success=False, error="No handler found for this item type"
         )
+
+    def _execute_with_speech(self, item: MenuItem) -> ExecutionResult:
+        """Execute item with speech-to-text input."""
+        try:
+            if self.speech_service.is_recording():
+                self.speech_service.stop_recording()
+                self.recording_action_id = None
+                return ExecutionResult(
+                    success=True,
+                    content="Recording stopped",
+                    metadata={"action": "speech_recording_stopped"},
+                )
+            else:
+                action_id = getattr(item, "id", str(id(item)))
+                self.recording_action_id = action_id
+                self.pending_execution_item = item
+
+                self.speech_service.start_recording(handler_name=action_id)
+                return ExecutionResult(
+                    success=True,
+                    content="Recording started",
+                    metadata={"action": "speech_recording_started"},
+                )
+
+        except Exception as e:
+            self.recording_action_id = None
+            self.pending_execution_item = None
+            return ExecutionResult(success=False, error=f"Speech execution failed: {e}")
+
+    def _on_transcription_complete(self, transcription: str, _duration: float) -> None:
+        """Handle transcription completion and execute pending item."""
+        if self.pending_execution_item:
+            item = self.pending_execution_item
+            self.pending_execution_item = None
+            self.recording_action_id = None
+
+            if transcription.strip():
+                for handler in self.handlers:
+                    if handler.can_handle(item):
+                        try:
+                            result = handler.execute(item, transcription)
+                            self.prompt_store_service.add_history_entry(
+                                item,
+                                transcription,
+                                result,
+                            )
+                            break
+                        except Exception as e:
+                            print(f"Handler execution failed: {e}")
+            else:
+                print("Empty transcription received, execution cancelled")
+        else:
+            self.recording_action_id = None
+            self.pending_execution_item = None
 
 
 class DataManager:
@@ -274,7 +426,7 @@ class DataManager:
         self._presets_cache: Optional[List[PresetData]] = None
         self._prompt_id_to_name: Dict[str, str] = {}
         self._last_refresh = 0.0
-        self._cache_ttl = 300.0  # 5 minutes
+        self._cache_ttl = 60 * 60 * 10  # 10h
 
     def get_prompts(self) -> List[PromptData]:
         """Get prompts with caching."""
@@ -458,11 +610,6 @@ class ActivePromptService:
         """Clear the active prompt/preset."""
         self._active_prompt = None
 
-    def update_active_on_execution(self, item: MenuItem) -> None:
-        """Update active prompt when a prompt/preset is executed."""
-        if item.item_type in [MenuItemType.PROMPT, MenuItemType.PRESET]:
-            self._active_prompt = item
-
 
 class SpeechHistoryService:
     """Service for tracking speech transcriptions."""
@@ -502,6 +649,7 @@ class SettingsService:
         self.settings_path = settings_path or "settings/settings.json"
         self._settings: Optional[SettingsConfig] = None
         self._base_path: Optional[Path] = None
+        self._config_service = ConfigService()
 
     def load_settings(self) -> SettingsConfig:
         """Load settings from the configuration file."""
@@ -547,13 +695,16 @@ class SettingsService:
             if not settings_file.exists():
                 raise DataError(f"Settings file not found: {self.settings_path}")
 
-            with open(settings_file, "r", encoding="utf-8") as f:
-                data = json.load(f)
+            # Initialize ConfigService if needed
+            if self._config_service._config is None:
+                self._config_service.initialize(settings_file=str(settings_file))
+
+            data = self._config_service.get_settings_data()
 
             return self._parse_settings_data(data)
 
-        except json.JSONDecodeError as e:
-            raise DataError(f"Invalid JSON in settings file: {str(e)}") from e
+        except ConfigurationError as e:
+            raise DataError(f"Configuration error: {str(e)}") from e
         except Exception as e:
             raise DataError(f"Failed to load settings: {str(e)}") from e
 
@@ -579,6 +730,7 @@ class SettingsService:
                     description=prompt_data.get("description"),
                     tags=prompt_data.get("tags", []),
                     metadata=prompt_data.get("metadata", {}),
+                    model=prompt_data.get("model"),
                 )
                 prompts.append(prompt)
 
@@ -627,6 +779,7 @@ class SettingsService:
             id=prompt_config.id,
             name=prompt_config.name,
             content=content,
+            model=prompt_config.model,
             description=prompt_config.description,
             tags=prompt_config.tags,
             source="settings",

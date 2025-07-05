@@ -1,11 +1,13 @@
 """Speech-to-text service with audio recording functionality."""
 
+import contextlib
 import os
+import sys
 import tempfile
 import threading
-import contextlib
-import sys
-from typing import Optional, Callable
+import time
+import uuid
+from typing import Callable, Dict, Optional
 
 try:
     import pyaudio
@@ -14,8 +16,8 @@ try:
 except ImportError:
     PYAUDIO_AVAILABLE = False
 import wave
+
 from open_ai_api import OpenAIClient
-from api import APIError
 
 
 @contextlib.contextmanager
@@ -54,7 +56,7 @@ class AudioRecorder:
             return
 
         if not PYAUDIO_AVAILABLE:
-            raise APIError(
+            raise Exception(
                 "PyAudio is not available. Please install it with: pip install pyaudio"
             )
 
@@ -121,7 +123,7 @@ class AudioRecorder:
             )
             self.recording_thread.start()
 
-        except Exception as e:
+        except Exception:
             self._cleanup()
             error_msg = f"Failed to start audio recording: {e}"
             if "ALSA" in str(e) or "jack" in str(e).lower():
@@ -132,12 +134,12 @@ class AudioRecorder:
                     "3. Test microphone: arecord -d 3 test.wav && aplay test.wav\n"
                 )
                 error_msg += "4. Try PulseAudio: pulseaudio --start"
-            raise APIError(error_msg) from e
+            raise
 
     def stop_recording(self) -> str:
         """Stop recording and return path to recorded audio file."""
         if not self.recording:
-            raise APIError("Recording is not active")
+            raise Exception("Recording is not active")
 
         self.recording = False
 
@@ -159,9 +161,9 @@ class AudioRecorder:
             self._cleanup()
             return temp_path
 
-        except Exception as e:
+        except Exception:
             self._cleanup()
-            raise APIError(f"Failed to save audio recording: {e}") from e
+            raise
 
     def is_recording(self) -> bool:
         """Check if currently recording."""
@@ -251,13 +253,16 @@ class AudioRecorder:
 class SpeechToTextService:
     """Service for speech-to-text functionality."""
 
-    def __init__(self, api_key: Optional[str] = None):
-        self.openai_client = OpenAIClient(api_key)
+    def __init__(self, api_key: str, base_url: str, transcribe_model: str):
+        print("transcibe", transcribe_model)
+        self.openai_client = OpenAIClient(api_key, base_url)
         self.recorder = AudioRecorder()
+        self.transcribe_model = transcribe_model
         self.recording_started_callback: Optional[Callable[[], None]] = None
         self.recording_stopped_callback: Optional[Callable[[], None]] = None
-        self.transcription_callback: Optional[Callable[[str], None]] = None
+        self.transcription_callbacks: Dict[str, Dict] = {}
         self.error_callback: Optional[Callable[[str], None]] = None
+        self.current_handler_name: Optional[str] = None
 
     def set_recording_started_callback(self, callback: Callable[[], None]) -> None:
         """Set callback for when recording starts."""
@@ -267,24 +272,61 @@ class SpeechToTextService:
         """Set callback for when recording stops."""
         self.recording_stopped_callback = callback
 
-    def set_transcription_callback(self, callback: Callable[[str], None]) -> None:
-        """Set callback for when transcription is complete."""
-        self.transcription_callback = callback
+    def add_transcription_callback(
+        self,
+        callback: Callable[[str, float], None],
+        handler_name: Optional[str] = None,
+        run_always: bool = False,
+    ) -> Callable[[], None]:
+        """Add a transcription callback.
+
+        Args:
+            callback: Function to call when transcription is complete (receives transcription and duration)
+            handler_name: Name of the handler (mutually exclusive with run_always)
+            run_always: Whether to run for all recordings (mutually exclusive with handler_name)
+
+        Returns:
+            Function to remove this callback
+        """
+        if handler_name is not None and run_always:
+            raise ValueError("handler_name and run_always are mutually exclusive")
+
+        if handler_name is None and not run_always:
+            raise ValueError(
+                "Either handler_name must be provided or run_always must be True"
+            )
+
+        callback_id = str(uuid.uuid4())
+        self.transcription_callbacks[callback_id] = {
+            "callback": callback,
+            "handler_name": handler_name,
+            "run_always": run_always,
+        }
+
+        def remove_callback():
+            self.transcription_callbacks.pop(callback_id, None)
+
+        return remove_callback
 
     def set_error_callback(self, callback: Callable[[str], None]) -> None:
         """Set callback for error handling."""
         self.error_callback = callback
 
-    def toggle_recording(self) -> None:
+    def toggle_recording(self, handler_name: Optional[str] = None) -> None:
         """Toggle recording state - start if stopped, stop if started."""
         if self.recorder.is_recording():
             self.stop_recording()
         else:
-            self.start_recording()
+            self.start_recording(handler_name)
 
-    def start_recording(self) -> None:
-        """Start audio recording."""
+    def start_recording(self, handler_name: Optional[str] = None) -> None:
+        """Start audio recording.
+
+        Args:
+            handler_name: Name of the handler for targeted callback execution
+        """
         try:
+            self.current_handler_name = handler_name
             self.recorder.start_recording()
             if self.recording_started_callback:
                 self.recording_started_callback()
@@ -307,7 +349,9 @@ class SpeechToTextService:
                 self.recording_stopped_callback()
 
             threading.Thread(
-                target=self._transcribe_async, args=(audio_file_path,), daemon=True
+                target=self._transcribe_async,
+                args=(audio_file_path, self.current_handler_name),
+                daemon=True,
             ).start()
 
         except Exception as e:
@@ -321,18 +365,26 @@ class SpeechToTextService:
         """Check if currently recording."""
         return self.recorder.is_recording()
 
-    def _transcribe_async(self, audio_file_path: str) -> None:
+    def _transcribe_async(
+        self, audio_file_path: str, handler_name: Optional[str] = None
+    ) -> None:
         """Transcribe audio file asynchronously."""
         try:
-            transcription = self.openai_client.transcribe_audio_file(audio_file_path)
+            start_time = time.time()
+            transcription = self.openai_client.transcribe_audio_file(
+                audio_file_path, self.transcribe_model
+            )
+            transcription_duration = time.time() - start_time
 
             try:
                 os.unlink(audio_file_path)
             except:
                 pass
 
-            if transcription and self.transcription_callback:
-                self.transcription_callback(transcription)
+            if transcription:
+                self._execute_transcription_callbacks(
+                    transcription, transcription_duration, handler_name
+                )
 
         except Exception as e:
             try:
@@ -343,3 +395,31 @@ class SpeechToTextService:
             error_msg = f"Transcription failed: {e}"
             if self.error_callback:
                 self.error_callback(error_msg)
+
+    def _execute_transcription_callbacks(
+        self,
+        transcription: str,
+        transcription_duration: float,
+        handler_name: Optional[str] = None,
+    ) -> None:
+        """Execute appropriate transcription callbacks based on handler_name."""
+        for callback_info in self.transcription_callbacks.values():
+            should_execute = False
+
+            if callback_info["run_always"]:
+                should_execute = True
+            elif (
+                handler_name is not None
+                and callback_info["handler_name"] == handler_name
+            ):
+                should_execute = True
+            elif handler_name is None and callback_info["handler_name"] is None:
+                should_execute = True
+
+            if should_execute:
+                try:
+                    callback_info["callback"](transcription, transcription_duration)
+                except Exception as e:
+                    error_msg = f"Transcription callback failed: {e}"
+                    if self.error_callback:
+                        self.error_callback(error_msg)

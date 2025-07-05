@@ -1,16 +1,53 @@
 {
-  "models": {
-    "openai": [
-      {
-        "model": "gpt-4.1",
-        "temperature": 0.7
-      }
-    ]
+  "speech_to_text_model": {
+    "model": "gpt-4o-transcribe",
+    "display_name": "gpt-4o-transcribe",
+    "api_key_env": "OPENAI_API_KEY",
+    "base_url": "https://api.openai.com/v1"
   },
+  "default_model": "gpt-4.1-model",
+  "models": {
+    "gpt-4.1-model": {
+      "model": "gpt-4.1",
+      "display_name": "gpt-4.1",
+      "temperature": 0.3,
+      "api_key_env": "OPENAI_API_KEY",
+      "base_url": "https://api.openai.com/v1"
+    }
+  },
+  "keymaps": [
+    {
+      "context": "os == macos",
+      "bindings": {
+        "cmd+f1": "open_context_menu",
+        "cmd+f3": "open_context_menu",
+        "cmd+f2": "execute_active_prompt",
+        "shift+f1": "speech_to_text_toggle"
+      }
+    },
+    {
+      "context": "os == linux",
+      "bindings": {
+        "ctrl+f1": "open_context_menu",
+        "ctrl+f2": "execute_active_prompt",
+        "shift+f1": "speech_to_text_toggle"
+      }
+    },
+    {
+      "context": "os == windows",
+      "bindings": {
+        "ctrl+f1": "open_context_menu",
+        "ctrl+f2": "execute_active_prompt",
+        "shift+f1": "speech_to_text_toggle"
+      }
+    }
+  ],
   "prompts": [
     {
       "id": "72153ef6-f011-4f3f-8b3f-e87cc9796a3d",
       "name": "Prompt refine - local",
+      // optional model - to assign model value is key of "models"
+      // "model": "gpt-4.1-model",
       "messages": [
         {
           "role": "system",

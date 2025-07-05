@@ -4,7 +4,7 @@ import sys
 import signal
 import platform
 from typing import Optional, List
-from PyQt5.QtWidgets import QApplication, QSystemTrayIcon, QMenu, QAction
+from PyQt5.QtWidgets import QApplication, QSystemTrayIcon 
 from PyQt5.QtCore import QTimer, pyqtSignal, QObject
 from PyQt5.QtGui import QIcon, QPixmap, QPainter
 from PyQt5.QtCore import Qt
@@ -12,34 +12,25 @@ from PyQt5.QtCore import Qt
 from core.services import PromptStoreService
 from core.exceptions import ConfigurationError
 
-from providers.menu_providers import (
+from modules.providers.menu_providers import (
     PromptMenuProvider,
     PresetMenuProvider,
     HistoryMenuProvider,
     SystemMenuProvider,
 )
-from providers.settings_menu_provider import (
-    SettingsPromptMenuProvider,
-    SettingsPresetMenuProvider,
-)
-from providers.prompt_providers import APIPromptProvider
-from providers.settings_prompt_provider import SettingsPromptProvider
-from providers.pyqt_execution_handlers import (
-    PyQtPromptExecutionHandler,
-    PyQtPresetExecutionHandler,
+from modules.providers.settings_prompt_provider import SettingsPromptProvider
+from modules.providers.execution_handlers import (
     PyQtHistoryExecutionHandler,
     PyQtSystemExecutionHandler,
     PyQtSpeechExecutionHandler,
     SettingsPromptExecutionHandler,
-    SettingsPresetExecutionHandler,
 )
-from gui.pyqt_menu_coordinator import PyQtMenuCoordinator, PyQtMenuEventHandler
-from gui.pyqt_hotkey_manager import PyQtHotkeyManager
-from utils.clipboard import SystemClipboardManager
-from utils.config import load_config, validate_config
-from utils.system import check_macos_permissions, show_macos_permissions_help
-from utils.pyqt_notifications import PyQtNotificationManager
-from api import PromptStoreAPI
+from modules.gui.menu_coordinator import PyQtMenuCoordinator, PyQtMenuEventHandler
+from modules.gui.hotkey_manager import PyQtHotkeyManager
+from modules.utils.clipboard import SystemClipboardManager
+from modules.utils.config import load_config, validate_config
+from modules.utils.system import check_macos_permissions, show_macos_permissions_help
+from modules.utils.notifications import PyQtNotificationManager
 
 
 class PromptStoreApp(QObject):
@@ -60,7 +51,6 @@ class PromptStoreApp(QObject):
         self.running = False
 
         # Core services
-        self.api: Optional[PromptStoreAPI] = None
         self.clipboard_manager: Optional[SystemClipboardManager] = None
         self.prompt_store_service: Optional[PromptStoreService] = None
 
@@ -74,6 +64,9 @@ class PromptStoreApp(QObject):
         self.event_handler: Optional[PyQtMenuEventHandler] = None
         self.notification_manager: Optional[PyQtNotificationManager] = None
         self.system_tray: Optional[QSystemTrayIcon] = None
+
+        # Speech service
+        self.speech_service = None
 
         # Recording state
         self.normal_icon = None
@@ -104,7 +97,7 @@ class PromptStoreApp(QObject):
                 raise RuntimeError("Configuration not loaded")
 
             # Initialize API client
-            self.api = PromptStoreAPI(self.config.base_url, self.config.api_key)
+            # self.api = PromptStoreAPI(self.config.base_url, self.config.api_key)
 
             # Initialize clipboard manager
             self.clipboard_manager = SystemClipboardManager()
@@ -115,9 +108,15 @@ class PromptStoreApp(QObject):
             # Initialize notification manager
             self.notification_manager = PyQtNotificationManager(self.app)
 
+            # Initialize speech service
+            self._initialize_speech_service()
+
             # Initialize core service
             self.prompt_store_service = PromptStoreService(
-                self.prompt_providers, self.clipboard_manager, self.notification_manager
+                self.prompt_providers,
+                self.clipboard_manager,
+                self.notification_manager,
+                self.speech_service,
             )
 
             # Initialize GUI components
@@ -133,10 +132,57 @@ class PromptStoreApp(QObject):
             print(f"Failed to initialize application: {e}")
             sys.exit(1)
 
+    def _initialize_speech_service(self) -> None:
+        """Initialize speech-to-text service as singleton."""
+        try:
+            from modules.utils.speech_to_text import SpeechToTextService
+
+            if self.config.speech_to_text_model:
+                self.speech_service = SpeechToTextService(
+                    api_key=self.config.speech_to_text_model.get("api_key"),
+                    base_url=self.config.speech_to_text_model.get("base_url"),
+                    transcribe_model=self.config.speech_to_text_model.get("model"),
+                )
+                self._setup_common_speech_notifications()
+            else:
+                self.speech_service = None
+        except Exception as e:
+            self.speech_service = None
+
+    def _setup_common_speech_notifications(self) -> None:
+        """Setup common speech notifications that run for all transcriptions."""
+        if self.speech_service and self.notification_manager:
+            from modules.utils.notifications import format_execution_time
+
+            def _on_transcription_notification(
+                transcription: str, duration: float
+            ) -> None:
+                """Handle common transcription notifications."""
+                try:
+                    if transcription:
+                        notification_message = (
+                            f"Processed in {format_execution_time(duration)}"
+                        )
+                        self.notification_manager.show_success_notification(
+                            "Transcription completed", notification_message
+                        )
+                    else:
+                        self.notification_manager.show_info_notification(
+                            "No Speech Detected",
+                            "No speech was detected in the recording",
+                        )
+                except Exception as e:
+                    self.notification_manager.show_error_notification(
+                        "Notification Error",
+                        f"Failed to show transcription notification: {str(e)}",
+                    )
+
+            self.speech_service.add_transcription_callback(
+                _on_transcription_notification, run_always=True
+            )
+
     def _initialize_prompt_providers(self) -> None:
         """Initialize prompt providers."""
-        if not self.api:
-            raise RuntimeError("API not initialized")
 
         # Initialize API prompt provider
         # api_provider = APIPromptProvider(self.api)
@@ -151,16 +197,10 @@ class PromptStoreApp(QObject):
 
     def _register_execution_handlers(self) -> None:
         """Register execution handlers with the service."""
-        if not self.api or not self.clipboard_manager or not self.prompt_store_service:
+        if not self.clipboard_manager or not self.prompt_store_service:
             raise RuntimeError("Required services not initialized")
 
         handlers = [
-            PyQtPromptExecutionHandler(
-                self.api, self.clipboard_manager, self.notification_manager
-            ),
-            PyQtPresetExecutionHandler(
-                self.api, self.clipboard_manager, self.notification_manager
-            ),
             PyQtHistoryExecutionHandler(self.clipboard_manager),
             PyQtSystemExecutionHandler(
                 refresh_callback=self._refresh_data,
@@ -171,6 +211,8 @@ class PromptStoreApp(QObject):
                 self.notification_manager,
                 self.set_recording_indicator,
                 self.prompt_store_service.speech_history_service,
+                self._refresh_ui_after_speech,
+                self.speech_service,
             ),
         ]
 
@@ -183,11 +225,7 @@ class PromptStoreApp(QObject):
                         settings_provider,
                         self.clipboard_manager,
                         self.notification_manager,
-                    ),
-                    SettingsPresetExecutionHandler(
-                        settings_provider,
-                        self.clipboard_manager,
-                        self.notification_manager,
+                        self.config,
                     ),
                 ]
             )
@@ -201,7 +239,9 @@ class PromptStoreApp(QObject):
             raise RuntimeError("Configuration or prompt store service not initialized")
 
         # Initialize hotkey manager
-        self.hotkey_manager = PyQtHotkeyManager(self.config.hotkey)
+        self.hotkey_manager = PyQtHotkeyManager(
+            keymap_manager=self.config.keymap_manager
+        )
         self.hotkey_manager.connect_context_menu_callback(self._on_f2_hotkey_pressed)
         self.hotkey_manager.connect_re_execute_callback(self._on_f1_hotkey_pressed)
         self.hotkey_manager.connect_speech_toggle_callback(
@@ -232,14 +272,22 @@ class PromptStoreApp(QObject):
 
         # Create menu providers
         self.menu_providers = [
-            PromptMenuProvider(data_manager, self._execute_menu_item),
-            PresetMenuProvider(data_manager, self._execute_menu_item),
-            HistoryMenuProvider(history_service, self._execute_menu_item),
+            PromptMenuProvider(
+                data_manager, self._execute_menu_item, self.prompt_store_service
+            ),
+            PresetMenuProvider(
+                data_manager, self._execute_menu_item, self.prompt_store_service
+            ),
+            HistoryMenuProvider(
+                history_service, self._execute_menu_item, self.prompt_store_service
+            ),
             SystemMenuProvider(
                 self._refresh_data,
                 self._speech_to_text,
                 self.prompt_store_service.speech_history_service,
                 self._execute_menu_item,
+                None,
+                self.prompt_store_service,
             ),
         ]
 
@@ -366,6 +414,14 @@ class PromptStoreApp(QObject):
         except Exception as e:
             print(f"Failed to refresh data: {e}")
 
+    def _refresh_ui_after_speech(self) -> None:
+        """Refresh UI after speech-to-text completion to show 'Copy last speech' item."""
+        try:
+            if self.menu_coordinator:
+                self.menu_coordinator.force_rebuild_dynamic_items()
+        except Exception as e:
+            print(f"Failed to refresh UI after speech: {e}")
+
     def _speech_to_text(self) -> None:
         """Handle speech-to-text action."""
         try:
@@ -429,7 +485,7 @@ class PromptStoreApp(QObject):
 
     def run(self) -> int:
         """Run the application."""
-        print("Starting Prompt Store Service...")
+        print("Starting Prompt Store...")
         system = platform.system()
         hotkey_f1 = "Cmd+F1" if system == "Darwin" else "Ctrl+F1"
         hotkey_f2 = "Cmd+F2" if system == "Darwin" else "Ctrl+F2"
@@ -504,8 +560,7 @@ class PromptStoreApp(QObject):
         """Get application status information."""
         return {
             "running": self.running,
-            "hotkey": self.config.hotkey if self.config else None,
-            "api_url": self.config.base_url if self.config else None,
+            "hotkey": (self.hotkey_manager.hotkey if self.hotkey_manager else None),
             "prompt_providers_count": len(self.prompt_providers),
             "menu_providers_count": len(self.menu_providers),
             "hotkey_active": self.hotkey_manager.is_running()
@@ -610,10 +665,6 @@ class PromptStoreApp(QObject):
             # Reload config
             self._load_config(config_file)
 
-            # Reinitialize API with new config
-            if self.config:
-                self.api = PromptStoreAPI(self.config.base_url, self.config.api_key)
-
             # Reinitialize prompt providers
             self.prompt_providers.clear()
             self._initialize_prompt_providers()
@@ -624,8 +675,8 @@ class PromptStoreApp(QObject):
                 self.prompt_store_service.primary_provider = primary_provider
 
             # Reinitialize hotkey manager with new config
-            if self.hotkey_manager and self.config:
-                self.hotkey_manager.set_hotkey(self.config.hotkey)
+            if self.hotkey_manager and self.config and self.config.keymap_manager:
+                self.hotkey_manager.reload_config()
 
             # Update menu position offset
             if self.menu_coordinator and self.config:

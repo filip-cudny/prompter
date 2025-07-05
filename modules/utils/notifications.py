@@ -1,6 +1,14 @@
 """PyQt5-based notification utilities."""
 
-from PyQt5.QtWidgets import QApplication, QLabel, QGraphicsOpacityEffect
+from PyQt5.QtWidgets import (
+    QApplication,
+    QLabel,
+    QGraphicsOpacityEffect,
+    QWidget,
+    QHBoxLayout,
+    QVBoxLayout,
+    QFrame,
+)
 from PyQt5.QtCore import (
     QTimer,
     QPropertyAnimation,
@@ -15,26 +23,86 @@ import threading
 import platform
 
 
-class NotificationWidget(QLabel):
+class NotificationWidget(QFrame):
     """Custom notification widget with fade animations."""
 
-    def __init__(self, message: str, bg_color: str = "#323232", parent=None):
+    def __init__(
+        self, title: str, message: str | None = None, icon: str = "", bg_color: str = "#323232", parent=None
+    ):
         super().__init__(parent)
-        self.setText(message)
+
         self.setStyleSheet(f"""
-            QLabel {{
+            QFrame {{
                 background-color: {bg_color};
-                color: white;
-                padding: 12px 24px;
                 border-radius: 8px;
-                font-family: Arial;
-                font-size: 13px;
-                border: 1px solid rgba(255, 255, 255, 0.1);
+                border: 1px solid rgba(255, 255, 255, 0.3);
             }}
         """)
-        self.setWordWrap(True)
-        self.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
+
+        # Create main layout
+        main_layout = QHBoxLayout(self)
+        main_layout.setContentsMargins(12, 12, 24, 12)
+        main_layout.setSpacing(8)
+
+        # Create icon label
+        self.icon_label = QLabel()
+        self.icon_label.setText(icon)
+        self.icon_label.setStyleSheet("""
+            QLabel {
+                color: white;
+                font-size: 16px;
+                font-weight: bold;
+                min-width: 20px;
+                max-width: 20px;
+                background: transparent;
+                border: none;
+            }
+        """)
+        self.icon_label.setAlignment(Qt.AlignCenter)
+
+        # Create vertical layout for text content
+        text_layout = QVBoxLayout()
+        text_layout.setSpacing(2)
+
+        # Create title label (bold header)
+        if title:
+            self.title_label = QLabel()
+            self.title_label.setText(title)
+            self.title_label.setStyleSheet("""
+                QLabel {
+                    color: white;
+                    font-size: 14px;
+                    font-weight: 600;
+                    background: transparent;
+                    border: none;
+                }
+            """)
+            self.title_label.setWordWrap(False)
+            self.title_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            text_layout.addWidget(self.title_label)
+
+        # Create body label
+        if message:
+            self.body_label = QLabel()
+            self.body_label.setText(message)
+            self.body_label.setStyleSheet("""
+                QLabel {
+                    color: white;
+                    font-size: 13px;
+                    background: transparent;
+                    border: none;
+                }
+            """)
+            self.body_label.setWordWrap(False)
+            self.body_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            text_layout.addWidget(self.body_label)
+
+        # Add widgets to main layout
+        if icon:
+            main_layout.addWidget(self.icon_label)
+        main_layout.addLayout(text_layout)
+        main_layout.addStretch()
 
         # Set up opacity effect for animations
         self.opacity_effect = QGraphicsOpacityEffect()
@@ -101,7 +169,7 @@ class NotificationWidget(QLabel):
 class NotificationDispatcher(QObject):
     """Thread-safe notification dispatcher using Qt signals."""
 
-    show_notification_signal = pyqtSignal(str, str, int)
+    show_notification_signal = pyqtSignal(str, object, str, int, str)
 
     def __init__(self, notification_manager):
         super().__init__()
@@ -110,10 +178,12 @@ class NotificationDispatcher(QObject):
             self._show_notification_slot, Qt.QueuedConnection
         )
 
-    def _show_notification_slot(self, message: str, bg_color: str, duration: int):
+    def _show_notification_slot(
+        self, title: str, message: str | None, bg_color: str, duration: int, icon: str = ""
+    ):
         """Slot to handle notification display on main thread."""
         self.notification_manager._show_notification_internal(
-            message, duration, bg_color
+            title, message, duration, bg_color, icon
         )
 
 
@@ -128,33 +198,27 @@ class PyQtNotificationManager:
 
     def show_success_notification(self, title: str, message: str | None = None) -> None:
         """Show a success notification."""
-        if message:
-            full_message = f"✔ {title}\n{message}"
-        else:
-            full_message = f"✔ {title}"
-
-        self._display_notification(full_message, "#6B7A4A", 2000)
+        self._display_notification(title, message, "#6B7A4A", 2000, "✔")
 
     def show_error_notification(
-        self, title: str, message: str, prompt_name: Optional[str] = None
+        self,
+        title: str,
+        message: str | None = None,
     ) -> None:
         """Show an error notification."""
-        if prompt_name:
-            full_message = f"✗ {title} - {prompt_name}\n{message}"
-        else:
-            full_message = f"✗ {title}\n{message}"
-
-        self._display_notification(full_message, "#9B6B67", 4000)
+        self._display_notification(title, message, "#9B6B67", 4000, "✗")
 
     def show_info_notification(self, title: str, message: str) -> None:
         """Show an info notification."""
-        full_message = f"ⓘ {title}\n{message}"
-        self._display_notification(full_message, "#6A7D93", 2000)
+        self._display_notification(title, message, "#6A7D93", 2000, "ⓘ")
 
-    def _display_notification(self, message: str, bg_color: str, duration: int) -> None:
+    def _display_notification(
+        self, title: str, message: str | None, bg_color: str, duration: int, icon: str = ""
+    ) -> None:
         """Display a notification immediately, handling threading properly."""
         if not self.app or not self.dispatcher:
-            print(f"🔔 {message}")
+            display_text = f"{title}: {message}" if message else title
+            print(f"🔔 {display_text}")
             return
 
         current_thread = threading.current_thread()
@@ -167,20 +231,22 @@ class PyQtNotificationManager:
                 QTimer.singleShot(
                     0,
                     lambda: self._show_notification_internal(
-                        message, duration, bg_color
+                        title, message, duration, bg_color, icon
                     ),
                 )
             else:
                 # Use signal for cross-thread communication
                 self.dispatcher.show_notification_signal.emit(
-                    message, bg_color, duration
+                    title, message, bg_color, duration, icon
                 )
         elif is_main_thread:
             # On Linux/Windows, show immediately if on main thread
-            self._show_notification_internal(message, duration, bg_color)
+            self._show_notification_internal(title, message, duration, bg_color, icon)
         else:
             # We're on a background thread, use signal to show on main thread
-            self.dispatcher.show_notification_signal.emit(message, bg_color, duration)
+            self.dispatcher.show_notification_signal.emit(
+                title, message, bg_color, duration, icon
+            )
 
     def _get_active_screen_geometry(self):
         """Get the geometry of the screen where the mouse cursor is currently located."""
@@ -239,12 +305,13 @@ class PyQtNotificationManager:
             return QRect(0, 0, 1920, 1080)
 
     def _show_notification_internal(
-        self, message: str, duration: int = 2000, bg_color: str = "#323232"
+        self, title: str, message: str | None, duration: int, bg_color: str = "#323232", icon: str = ""
     ) -> None:
         """Internal method to show notification (must be called on main thread)."""
         try:
             if not self.app:
-                print(f"🔔 {message}")
+                display_text = f"{title}: {message}" if message else title
+                print(f"🔔 {display_text}")
                 return
 
             current_thread = threading.current_thread()
@@ -266,7 +333,7 @@ class PyQtNotificationManager:
             ]
 
             # Create and show new notification
-            notification = NotificationWidget(message, bg_color)
+            notification = NotificationWidget(title, message, icon, bg_color)
             self.active_notifications.append(notification)
 
             # Always use the active screen geometry for positioning
@@ -275,7 +342,8 @@ class PyQtNotificationManager:
 
         except (RuntimeError, Exception) as e:
             print(f"Failed to show notification: {e}")
-            print(f"🔔 {message}")
+            display_text = f"{title}: {message}" if message else title
+            print(f"🔔 {display_text}")
 
     def is_available(self) -> bool:
         """Check if notifications are available."""
