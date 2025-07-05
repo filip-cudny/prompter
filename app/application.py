@@ -13,17 +13,18 @@ from modules.prompts.prompt_service import PromptStoreService
 from core.exceptions import ConfigurationError
 
 from modules.providers.menu_providers import (
-    HistoryMenuProvider,
     SystemMenuProvider,
 )
 from modules.prompts.prompt_menu_provider import PromptMenuProvider
 from modules.prompts.prompt_provider import PromptProvider
 from modules.providers.execution_handlers import (
-    PyQtHistoryExecutionHandler,
     PyQtSystemExecutionHandler,
     PyQtSpeechExecutionHandler,
 )
+
+from modules.history.history_menu_provider import HistoryMenuProvider
 from modules.prompts.prompt_execution_handler import PromptExecutionHandler
+from modules.history.history_execution_handler import HistoryExecutionHandler
 from modules.gui.menu_coordinator import PyQtMenuCoordinator, PyQtMenuEventHandler
 from modules.gui.hotkey_manager import PyQtHotkeyManager
 from modules.utils.clipboard import SystemClipboardManager
@@ -209,7 +210,7 @@ class PromptStoreApp(QObject):
             raise RuntimeError("Required services not initialized")
 
         handlers = [
-            PyQtHistoryExecutionHandler(self.clipboard_manager),
+            HistoryExecutionHandler(self.clipboard_manager),
             PyQtSystemExecutionHandler(
                 refresh_callback=self._refresh_data,
                 notification_manager=self.notification_manager,

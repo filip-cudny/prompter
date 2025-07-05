@@ -160,14 +160,6 @@ class PromptStoreService(PromptStoreServiceProtocol):
         """Get the last output from history."""
         return self.history_service.get_last_output()
 
-    # def get_last_speech_transcription(self) -> Optional[str]:
-    #     """Get the last speech transcription."""
-    #     return self.speech_history_service.get_last_transcription()
-
-    # def add_speech_transcription(self, transcription: str) -> None:
-    #     """Add a speech transcription to history."""
-    #     self.speech_history_service.add_transcription(transcription)
-
     def get_active_prompt(self) -> Optional[MenuItem]:
         """Get the active prompt/preset."""
         return self.active_prompt_service.get_active_prompt()
