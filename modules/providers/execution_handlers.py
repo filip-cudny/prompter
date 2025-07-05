@@ -6,7 +6,7 @@ from core.interfaces import ClipboardManager
 from core.models import MenuItem, MenuItemType, ExecutionResult, ErrorCode
 from modules.utils.config import AppConfig
 from modules.utils.speech_to_text import SpeechToTextService
-from open_ai_api import OpenAIClient
+from core.open_ai_api import OpenAIClient
 from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
 from modules.utils.notifications import (
     PyQtNotificationManager,

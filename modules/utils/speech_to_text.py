@@ -17,7 +17,7 @@ except ImportError:
     PYAUDIO_AVAILABLE = False
 import wave
 
-from open_ai_api import OpenAIClient
+from core.open_ai_api import OpenAIClient
 
 
 @contextlib.contextmanager
