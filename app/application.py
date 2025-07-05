@@ -4,27 +4,26 @@ import sys
 import signal
 import platform
 from typing import Optional, List
-from PyQt5.QtWidgets import QApplication, QSystemTrayIcon 
+from PyQt5.QtWidgets import QApplication, QSystemTrayIcon
 from PyQt5.QtCore import QTimer, pyqtSignal, QObject
 from PyQt5.QtGui import QIcon, QPixmap, QPainter
 from PyQt5.QtCore import Qt
 
-from core.services import PromptStoreService
+from modules.prompts.prompt_service import PromptStoreService
 from core.exceptions import ConfigurationError
 
 from modules.providers.menu_providers import (
-    PromptMenuProvider,
-    PresetMenuProvider,
     HistoryMenuProvider,
     SystemMenuProvider,
 )
-from modules.providers.settings_prompt_provider import SettingsPromptProvider
+from modules.prompts.prompt_menu_provider import PromptMenuProvider
+from modules.prompts.prompt_provider import PromptProvider
 from modules.providers.execution_handlers import (
     PyQtHistoryExecutionHandler,
     PyQtSystemExecutionHandler,
     PyQtSpeechExecutionHandler,
-    SettingsPromptExecutionHandler,
 )
+from modules.prompts.prompt_execution_handler import PromptExecutionHandler
 from modules.gui.menu_coordinator import PyQtMenuCoordinator, PyQtMenuEventHandler
 from modules.gui.hotkey_manager import PyQtHotkeyManager
 from modules.utils.clipboard import SystemClipboardManager
@@ -190,7 +189,7 @@ class PromptStoreApp(QObject):
 
         # Initialize settings prompt provider
         try:
-            settings_provider = SettingsPromptProvider()
+            settings_provider = PromptProvider()
             self.prompt_providers.append(settings_provider)
         except Exception as e:
             print(f"Warning: Failed to initialize settings prompt provider: {e}")
@@ -221,7 +220,7 @@ class PromptStoreApp(QObject):
         if settings_provider:
             handlers.extend(
                 [
-                    SettingsPromptExecutionHandler(
+                    PromptExecutionHandler(
                         settings_provider,
                         self.clipboard_manager,
                         self.notification_manager,
@@ -275,9 +274,6 @@ class PromptStoreApp(QObject):
             PromptMenuProvider(
                 data_manager, self._execute_menu_item, self.prompt_store_service
             ),
-            PresetMenuProvider(
-                data_manager, self._execute_menu_item, self.prompt_store_service
-            ),
             HistoryMenuProvider(
                 history_service, self._execute_menu_item, self.prompt_store_service
             ),
@@ -309,10 +305,10 @@ class PromptStoreApp(QObject):
         for provider in self.menu_providers:
             self.menu_coordinator.add_provider(provider)
 
-    def _get_settings_prompt_provider(self) -> Optional[SettingsPromptProvider]:
+    def _get_settings_prompt_provider(self) -> Optional[PromptProvider]:
         """Get the SettingsPromptProvider from the initialized providers."""
         for provider in self.prompt_providers:
-            if isinstance(provider, SettingsPromptProvider):
+            if isinstance(provider, PromptProvider):
                 return provider
         return None
 

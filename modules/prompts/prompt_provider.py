@@ -6,7 +6,7 @@ from core.exceptions import ProviderError
 from core.services import SettingsService
 
 
-class SettingsPromptProvider:
+class PromptProvider:
     """Prompt provider that reads from settings configuration files."""
 
     def __init__(self, settings_path: Optional[str] = None):
