@@ -1,6 +1,6 @@
 """PyQt5-specific execution handlers that accept shared notification manager."""
 
-from typing import Optional, List, Callable
+from typing import Optional, List
 import logging
 from core.interfaces import ClipboardManager
 from core.models import MenuItem, MenuItemType, ExecutionResult
@@ -126,9 +126,7 @@ class PromptExecutionHandler:
                 item.data.get("prompt_name", prompt_id) if item.data else prompt_id
             )
             execution_time = time.time() - start_time
-            notification_message = (
-                f"Processed in {format_execution_time(execution_time)}"
-            )
+            notification_message = f"{model_config['display_name']} processed in {format_execution_time(execution_time)}".strip()
             self.notification_manager.show_success_notification(
                 f"{prompt_name} completed", notification_message
             )

@@ -92,8 +92,6 @@ class OpenAIClient:
         Raises:
             APIError: If completion fails
         """
-        print("model", model)
-        print("temps", temperature)
         try:
             response = self.client.chat.completions.create(
                 model=model,
