@@ -2,7 +2,11 @@
 
 from abc import ABC, abstractmethod
 from typing import List, Optional, Protocol
-from .models import MenuItem, PromptData, PresetData, ExecutionResult
+from .models import (
+    MenuItem,
+    PromptData,
+    ExecutionResult,
+)
 
 
 class MenuItemProvider(Protocol):
@@ -22,10 +26,6 @@ class PromptProvider(Protocol):
 
     def get_prompts(self) -> List[PromptData]:
         """Return a list of available prompts."""
-        ...
-
-    def get_presets(self) -> List[PresetData]:
-        """Return a list of available presets."""
         ...
 
     def get_prompt_details(self, prompt_id: str) -> Optional[PromptData]:
@@ -66,3 +66,56 @@ class ClipboardManager(ABC):
     def is_empty(self) -> bool:
         """Check if the clipboard is empty."""
         pass
+
+
+class PromptStoreServiceProtocol(Protocol):
+    """Protocol for the main prompt store service."""
+
+    def refresh_data(self) -> None:
+        """Refresh all data from providers."""
+        ...
+
+    def get_prompts(self) -> List[PromptData]:
+        """Get all available prompts."""
+        ...
+
+    def execute_item(self, item: MenuItem) -> ExecutionResult:
+        """Execute a menu item and track in history."""
+        ...
+
+    def is_recording(self) -> bool:
+        """Check if currently recording."""
+        ...
+
+    def get_recording_action_id(self) -> Optional[str]:
+        """Get the ID of the action that started recording."""
+        ...
+
+    def should_disable_action(self, action_id: str) -> bool:
+        """Check if action should be disabled due to recording state."""
+        ...
+
+    def add_history_entry(
+        self,
+        item: MenuItem,
+        input_content: str,
+        result: ExecutionResult,
+    ) -> None:
+        """Add entry to history service for prompt and preset executions."""
+        ...
+
+    def get_active_prompt(self) -> Optional[MenuItem]:
+        """Get the active prompt/preset."""
+        ...
+
+    def set_active_prompt(self, item: MenuItem) -> None:
+        """Set the active prompt/preset."""
+        ...
+
+    def execute_active_prompt(self) -> ExecutionResult:
+        """Execute the active prompt/preset with current clipboard content."""
+        ...
+
+    def get_all_available_prompts(self) -> List[MenuItem]:
+        """Get all available prompts and presets as menu items."""
+        ...

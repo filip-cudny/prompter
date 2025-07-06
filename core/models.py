@@ -16,6 +16,13 @@ class MenuItemType(Enum):
     SPEECH = "speech"
 
 
+class HistoryEntryType(Enum):
+    """Types of history entries."""
+
+    SPEECH = "speech"
+    TEXT = "text"
+
+
 class ErrorCode(Enum):
     """Error codes for execution results."""
 
@@ -60,23 +67,8 @@ class PromptData:
 
 
 @dataclass
-class PresetData:
-    """Represents a preset configuration for a prompt."""
-
-    id: str
-    preset_name: str
-    prompt_id: str
-    temperature: Optional[float] = None
-    model: Optional[str] = None
-    context: Optional[str] = None
-    placeholder_values: Dict[str, str] = field(default_factory=dict)
-    source: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass
 class ExecutionResult:
-    """Result of executing a prompt or preset."""
+    """Result of executing a prompt."""
 
     success: bool
     content: Optional[str] = None
@@ -93,9 +85,9 @@ class HistoryEntry:
     id: str
     timestamp: str
     input_content: str
+    entry_type: HistoryEntryType
     output_content: Optional[str] = None
     prompt_id: Optional[str] = None
-    preset_id: Optional[str] = None
     success: bool = True
     error: Optional[str] = None
 

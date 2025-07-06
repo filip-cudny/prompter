@@ -17,7 +17,7 @@ except ImportError:
     PYAUDIO_AVAILABLE = False
 import wave
 
-from open_ai_api import OpenAIClient
+from core.open_ai_api import OpenAIClient
 
 
 @contextlib.contextmanager
@@ -188,6 +188,7 @@ class AudioRecorder:
 
     def _cleanup(self) -> None:
         """Clean up audio resources."""
+        self.recording = False
         if self.stream:
             try:
                 self.stream.stop_stream()
@@ -254,7 +255,6 @@ class SpeechToTextService:
     """Service for speech-to-text functionality."""
 
     def __init__(self, api_key: str, base_url: str, transcribe_model: str):
-        print("transcibe", transcribe_model)
         self.openai_client = OpenAIClient(api_key, base_url)
         self.recorder = AudioRecorder()
         self.transcribe_model = transcribe_model

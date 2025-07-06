@@ -1,0 +1,264 @@
+from typing import List, Optional
+from core.exceptions import DataError
+from core.services import ExecutionService
+from modules.utils.speech_to_text import SpeechToTextService
+from core.interfaces import PromptStoreServiceProtocol
+from modules.history.history_service import HistoryService
+from modules.utils.notifications import PyQtNotificationManager
+from core.models import (
+    ErrorCode,
+    ExecutionResult,
+    HistoryEntryType,
+    MenuItem,
+    MenuItemType,
+    PromptData,
+)
+
+
+class PromptStoreService(PromptStoreServiceProtocol):
+    """Main business logic coordinator for the prompt store."""
+
+    def __init__(
+        self,
+        prompt_providers,
+        clipboard_manager,
+        notification_manager=None,
+        speech_service=SpeechToTextService,
+    ):
+        self.prompt_providers = (
+            prompt_providers
+            if isinstance(prompt_providers, list)
+            else [prompt_providers]
+        )
+        self.primary_provider = (
+            self.prompt_providers[0] if self.prompt_providers else None
+        )
+        self.clipboard_manager = clipboard_manager
+        self.notification_manager = notification_manager or PyQtNotificationManager()
+        self.speech_service = speech_service
+        self.execution_service = ExecutionService(self)
+        self.execution_service.set_speech_service(self.speech_service)
+        self.history_service = HistoryService()
+        self.active_prompt_service = ActivePromptService()
+        self.pending_alternative_execution = None
+        self._prompts_cache = None
+
+    def get_prompts(self) -> List[PromptData]:
+        """Get prompts with caching."""
+
+        if self._prompts_cache is None:
+            return self._refresh_prompts()
+
+        return self._prompts_cache
+
+    def _refresh_prompts(self) -> List[PromptData]:
+        """Refresh prompts cache."""
+        try:
+            all_prompts = []
+            for provider in self.prompt_providers:
+                if provider and hasattr(provider, "get_prompts"):
+                    try:
+                        provider_prompts = provider.get_prompts()
+                        all_prompts.extend(provider_prompts)
+                    except Exception as e:
+                        print(
+                            f"Warning: Failed to get prompts from provider {type(provider).__name__}: {e}"
+                        )
+
+            self._prompts_cache = all_prompts
+            return self._prompts_cache
+        except Exception as e:
+            raise DataError(f"Failed to refresh prompts: {str(e)}") from e
+
+    def execute_item(self, item: MenuItem) -> ExecutionResult:
+        """Execute a menu item and track in history."""
+        try:
+            if item.data and item.data.get("alternative_execution", False):
+                # Alternative execution triggers speech-to-text
+                result = self.execution_service.execute_item(
+                    item, None, use_speech=True
+                )
+                return result
+            else:
+                input_content = self.clipboard_manager.get_content()
+                result = self.execution_service.execute_item(item, input_content)
+                self.add_history_entry(item, input_content, result)
+                return result
+        except Exception as e:
+            return ExecutionResult(success=False, error=str(e))
+
+    def is_recording(self) -> bool:
+        """Check if currently recording."""
+        return self.speech_service.is_recording()
+
+    def get_recording_action_id(self) -> Optional[str]:
+        """Get the ID of the action that started recording."""
+        return self.execution_service.get_recording_action_id()
+
+    def should_disable_action(self, action_id: str) -> bool:
+        """Check if action should be disabled due to recording state."""
+        return self.execution_service.should_disable_action(action_id)
+
+    def _handle_transcription_execution(self, item: MenuItem) -> ExecutionResult:
+        """Handle execution that should trigger transcription first."""
+        try:
+            self.pending_alternative_execution = item
+
+            if self.speech_service:
+                self.speech_service.start_recording("PromptStoreService")
+                return ExecutionResult(
+                    success=True, content="Recording started for transcription..."
+                )
+            else:
+                return ExecutionResult(
+                    success=False, error="Speech service not available"
+                )
+        except Exception as e:
+            return ExecutionResult(
+                success=False, error=f"Failed to start transcription: {str(e)}"
+            )
+
+    def _on_transcription_for_execution(
+        self, transcription: str, _duration: float
+    ) -> None:
+        """Handle transcription completion for pending execution."""
+        try:
+            if self.pending_alternative_execution and transcription:
+                # Execute the pending item with transcribed text
+                result = self.execution_service.execute_item(
+                    self.pending_alternative_execution, transcription
+                )
+                self.add_history_entry(
+                    self.pending_alternative_execution, transcription, result
+                )
+                self.pending_alternative_execution = None
+        except Exception:
+            # Handle error but don't raise to avoid breaking other callbacks
+            pass
+
+    def add_history_entry(
+        self, item: MenuItem, input_content: str, result: ExecutionResult
+    ) -> None:
+        """Add entry to history service for prompt executions."""
+        if item.item_type in [MenuItemType.PROMPT]:
+            if result.success and item.data:
+                self.history_service.add_entry(
+                    input_content=input_content,
+                    entry_type=HistoryEntryType.TEXT,
+                    output_content=result.content,
+                    prompt_id=item.data.get("prompt_id"),
+                    success=True,
+                )
+            elif not result.success:
+                self.history_service.add_entry(
+                    input_content=input_content,
+                    entry_type=HistoryEntryType.TEXT,
+                    output_content=None,
+                    prompt_id=item.data.get("prompt_id") if item.data else None,
+                    success=False,
+                    error=result.error,
+                )
+
+    def get_active_prompt(self) -> Optional[MenuItem]:
+        """Get the active prompt/preset."""
+        return self.active_prompt_service.get_active_prompt()
+
+    def set_active_prompt(self, item: MenuItem) -> None:
+        """Set the active prompt/preset."""
+        self.active_prompt_service.set_active_prompt(item)
+        if item.item_type == MenuItemType.PROMPT:
+            prompt_name = (
+                item.data.get("prompt_name", "Unknown Prompt")
+                if item.data
+                else "Unknown Prompt"
+            )
+            self.notification_manager.show_success_notification(
+                f"{prompt_name} is active",
+            )
+
+    def execute_active_prompt(self) -> ExecutionResult:
+        """Execute the active prompt with current clipboard content."""
+        active_prompt = self.active_prompt_service.get_active_prompt()
+        if not active_prompt:
+            return ExecutionResult(
+                success=False,
+                error="No active prompt selected",
+                error_code=ErrorCode.NO_ACTIVE_PROMPT,
+            )
+
+        return self.execute_item(active_prompt)
+
+    def get_all_available_prompts(self) -> List[MenuItem]:
+        """Get all available prompts as menu items."""
+        items = []
+        for prompt in self.get_prompts():
+
+            def make_prompt_action(p):
+                def action():
+                    self.set_active_prompt(
+                        MenuItem(
+                            id=f"prompt_{p.id}",
+                            label=p.name,
+                            item_type=MenuItemType.PROMPT,
+                            action=lambda: None,
+                            data={
+                                "prompt_id": p.id,
+                                "prompt_name": p.name,
+                                "source": p.source,
+                                "model": p.model,
+                            },
+                        )
+                    )
+
+                return action
+
+            item = MenuItem(
+                id=f"prompt_{prompt.id}",
+                label=prompt.name,
+                item_type=MenuItemType.PROMPT,
+                action=make_prompt_action(prompt),
+                data={
+                    "prompt_id": prompt.id,
+                    "prompt_name": prompt.name,
+                    "source": prompt.source,
+                    "model": prompt.model,
+                },
+            )
+            items.append(item)
+
+        return items
+
+
+class ActivePromptService:
+    """Service for tracking the actively selected prompt or preset."""
+
+    def __init__(self):
+        self._active_prompt: Optional[MenuItem] = None
+
+    def set_active_prompt(self, item: MenuItem) -> None:
+        """Set the active prompt/preset."""
+        if item.item_type in [MenuItemType.PROMPT, MenuItemType.PRESET]:
+            self._active_prompt = item
+
+    def get_active_prompt(self) -> Optional[MenuItem]:
+        """Get the active prompt/preset."""
+
+        return self._active_prompt
+
+    def get_active_prompt_display_name(self) -> Optional[str]:
+        """Get a display name for the active prompt/preset."""
+        if not self._active_prompt or not self._active_prompt.data:
+            return None
+
+        if self._active_prompt.item_type == MenuItemType.PRESET:
+            return self._active_prompt.data.get("preset_name", "Unknown Preset")
+        else:
+            return self._active_prompt.data.get("prompt_name", "Unknown Prompt")
+
+    def has_active_prompt(self) -> bool:
+        """Check if there is an active prompt/preset."""
+        return self._active_prompt is not None
+
+    def clear_active_prompt(self) -> None:
+        """Clear the active prompt/preset."""
+        self._active_prompt = None

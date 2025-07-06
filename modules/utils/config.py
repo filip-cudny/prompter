@@ -2,20 +2,12 @@
 
 import os
 import json
-from typing import Optional, Dict, Any, TYPE_CHECKING
+import json5
+from typing import Optional, Dict, Any
 from dataclasses import dataclass, asdict
 from pathlib import Path
 from dotenv import load_dotenv
-
-try:
-    import json5
-
-    HAS_JSON5 = True
-except ImportError:
-    HAS_JSON5 = False
-
-if TYPE_CHECKING:
-    from .keymap import KeymapManager
+from .keymap import KeymapManager
 
 from core.exceptions import ConfigurationError
 
@@ -26,11 +18,7 @@ def safe_load_json(file_path: Path) -> Dict[str, Any]:
         with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
 
-        if HAS_JSON5:
-            return json5.loads(content)
-        else:
-            content = _strip_json_comments(content)
-            return json.loads(content)
+        return json5.loads(content)
 
     except FileNotFoundError:
         raise ConfigurationError(f"Settings file not found: {file_path}")
@@ -302,10 +290,6 @@ def _load_api_key_for_model(model_config: Dict[str, Any], model_name: str) -> No
     api_key_env = model_config.get("api_key_env")
     if api_key_env:
         api_key = os.getenv(api_key_env)
-        if not api_key:
-            raise ConfigurationError(
-                f"Environment variable '{api_key_env}' for model '{model_name}' is not set or empty"
-            )
         model_config["api_key"] = api_key
 
 

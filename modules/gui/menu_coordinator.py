@@ -6,6 +6,7 @@ from PyQt5.QtWidgets import QApplication
 
 from core.models import MenuItem, ExecutionResult, MenuItemType
 from core.exceptions import MenuError
+from modules.utils.config import ConfigService
 from .context_menu import PyQtContextMenu
 
 
@@ -105,19 +106,6 @@ class PyQtMenuCoordinator(QObject):
 
         except (RuntimeError, Exception) as e:
             self._handle_error(f"Failed to show menu at position: {str(e)}")
-
-    def refresh_providers(self) -> None:
-        """Refresh provider data - this invalidates static provider cache."""
-        try:
-            for provider in self.providers:
-                if hasattr(provider, "refresh_data"):
-                    provider.refresh_data()
-
-            # Only invalidate static cache, keep dynamic items
-            self._invalidate_static_cache()
-            self._start_cache_timer()
-        except (RuntimeError, Exception) as e:
-            self._handle_error(f"Failed to refresh providers: {str(e)}")
 
     def cleanup(self) -> None:
         """Clean up resources."""
@@ -306,10 +294,19 @@ class PyQtMenuCoordinator(QObject):
         if not self.prompt_store_service:
             return
 
-        # Add Settings submenu
+        # Get default model display name
+        config = ConfigService().get_config()
+        default_model_display_name = config.default_model
+        if config.models and config.default_model in config.models:
+            default_model_config = config.models[config.default_model]
+            default_model_display_name = default_model_config.get(
+                "display_name", config.default_model
+            )
+
+        # Add Settings subdmenu
         settings_item = MenuItem(
             id="settings_submenu",
-            label="Settings",
+            label=f"Settings ({default_model_display_name})",
             item_type=MenuItemType.SYSTEM,
             action=lambda: None,
             enabled=True,
@@ -357,9 +354,8 @@ class PyQtMenuCoordinator(QObject):
         try:
             # Get prompts and presets directly from service
             prompts = self.prompt_store_service.get_prompts()
-            presets = self.prompt_store_service.get_presets()
 
-            if not prompts and not presets:
+            if not prompts:
                 return [
                     MenuItem(
                         id="no_prompts",
@@ -412,49 +408,6 @@ class PyQtMenuCoordinator(QObject):
                 )
                 submenu_items.append(submenu_item)
 
-            # Add presets
-            for preset in presets:
-
-                def make_set_active_preset_action(p):
-                    def set_active():
-                        # Create MenuItem with proper data structure
-                        active_item = MenuItem(
-                            id=f"preset_{p.id}",
-                            label=p.preset_name,
-                            item_type=MenuItemType.PRESET,
-                            action=lambda: None,
-                            data={
-                                "preset_id": p.id,
-                                "preset_name": p.preset_name,
-                                "prompt_id": p.prompt_id,
-                                "model": p.model,
-                                "source": p.source,
-                            },
-                        )
-                        self.prompt_store_service.set_active_prompt(active_item)
-                        # Show confirmation through execution result
-                        result = ExecutionResult(
-                            success=True,
-                            content=f"Active prompt set to: {p.preset_name}",
-                            metadata={
-                                "action": "set_active_prompt",
-                                "prompt": p.preset_name,
-                            },
-                        )
-                        self.execution_completed.emit(result)
-
-                    return set_active
-
-                submenu_item = MenuItem(
-                    id=f"select_preset_{preset.id}",
-                    label=preset.preset_name,
-                    item_type=MenuItemType.PRESET,
-                    action=make_set_active_preset_action(preset),
-                    enabled=True,
-                    separator_after=False,
-                )
-                submenu_items.append(submenu_item)
-
             return submenu_items
 
         except Exception as e:
@@ -472,10 +425,10 @@ class PyQtMenuCoordinator(QObject):
         """Get settings submenu items."""
         try:
             from modules.utils.config import ConfigService
-            
+
             config_service = ConfigService()
             config = config_service.get_config()
-            
+
             if not config.models:
                 return [
                     MenuItem(
@@ -488,17 +441,17 @@ class PyQtMenuCoordinator(QObject):
                 ]
 
             submenu_items = []
-            
+
             # Add model selection items
             for model_key, model_config in config.models.items():
                 is_default = model_key == config.default_model
-                
+
                 def make_set_default_model_action(key, model_config):
                     def set_default_model():
                         try:
                             config_service = ConfigService()
                             config_service.update_default_model(key)
-                            
+
                             # Show confirmation through execution result
                             result = ExecutionResult(
                                 success=True,
@@ -506,7 +459,7 @@ class PyQtMenuCoordinator(QObject):
                                 metadata={"action": "set_default_model", "model": key},
                             )
                             self.execution_completed.emit(result)
-                            self._invalidate_dynamic_cache()
+                            self._invalidate_cache()
                         except Exception as e:
                             result = ExecutionResult(
                                 success=False,
@@ -514,14 +467,14 @@ class PyQtMenuCoordinator(QObject):
                                 metadata={"action": "set_default_model", "model": key},
                             )
                             self.execution_completed.emit(result)
-                    
+
                     return set_default_model
 
                 # Add checkmark for default model
-                label = model_config.get('display_name', model_key)
+                label = model_config.get("display_name", model_key)
                 if is_default:
                     label = f"✓ {label}"
-                
+
                 submenu_item = MenuItem(
                     id=f"set_default_model_{model_key}",
                     label=label,
@@ -562,12 +515,10 @@ class PyQtMenuCoordinator(QObject):
             "execute_prompt",
             "execute_preset",
             "execute_active_prompt",
-        ] or item_type in [MenuItemType.PROMPT, MenuItemType.PRESET]:
-            self._invalidate_dynamic_cache()
-
-        # Speech recording actions affect enabled state of prompt/preset items
-        if action in ["speech_recording_started", "speech_recording_stopped"]:
-            self._invalidate_static_cache()
+            "speech_recording_started",
+            "speech_recording_stopped",
+        ] or item_type in [MenuItemType.PROMPT]:
+            self._invalidate_cache()
 
     def _invalidate_cache_for_result(self, result: ExecutionResult) -> None:
         """Invalidate cache based on execution result (for submenu items)."""
@@ -583,26 +534,17 @@ class PyQtMenuCoordinator(QObject):
             "execute_prompt",
             "execute_preset",
             "execute_active_prompt",
+            "speech_recording_started",
+            "speech_recording_stopped",
         ]:
-            self._invalidate_dynamic_cache()
+            self._invalidate_cache()
 
-        # Speech recording actions affect enabled state of prompt/preset items
-        if action in ["speech_recording_started", "speech_recording_stopped"]:
-            self._invalidate_static_cache()
-
-    def _invalidate_dynamic_cache(self) -> None:
+    def _invalidate_cache(self) -> None:
         """Invalidate only dynamic items cache."""
         self._cached_dynamic_items = None
         self._dynamic_items_dirty = True
-
-    def _invalidate_static_cache(self) -> None:
-        """Invalidate static provider items cache."""
         self._cached_static_items = None
         self._static_items_dirty = True
-
-    def invalidate_dynamic_cache_for_testing(self) -> None:
-        """Manually invalidate dynamic cache - useful for testing."""
-        self._invalidate_dynamic_cache()
 
     def get_cache_status(self) -> Dict[str, Any]:
         """Get detailed cache status for debugging."""
@@ -621,11 +563,6 @@ class PyQtMenuCoordinator(QObject):
             "dynamic_dirty": self._dynamic_items_dirty,
             "dynamic_provider_classes": self._dynamic_provider_classes,
         }
-
-    def force_rebuild_dynamic_items(self) -> List[MenuItem]:
-        """Force rebuild dynamic items and return them - for testing."""
-        self._invalidate_dynamic_cache()
-        return self._build_dynamic_items()
 
 
 class PyQtMenuEventHandler:
