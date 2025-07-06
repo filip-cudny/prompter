@@ -11,7 +11,6 @@ from core.models import (
     HistoryEntryType,
     MenuItem,
     MenuItemType,
-    PresetData,
     PromptData,
 )
 

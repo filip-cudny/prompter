@@ -15,7 +15,6 @@ from modules.providers.menu_providers import (
 from modules.prompts.prompt_menu_provider import PromptMenuProvider
 from modules.prompts.prompt_provider import PromptProvider
 from modules.providers.execution_handlers import (
-    PyQtSystemExecutionHandler,
     PyQtSpeechExecutionHandler,
 )
 
@@ -195,15 +194,10 @@ class PromptStoreApp(QObject):
 
         handlers = [
             HistoryExecutionHandler(self.clipboard_manager),
-            PyQtSystemExecutionHandler(
-                refresh_callback=self._refresh_data,
-                notification_manager=self.notification_manager,
-            ),
             PyQtSpeechExecutionHandler(
                 self.clipboard_manager,
                 self.notification_manager,
                 self.history_service,
-                self._refresh_ui_copy_buttons,
                 self.speech_service,
             ),
         ]
@@ -275,7 +269,6 @@ class PromptStoreApp(QObject):
                 history_service, self._execute_menu_item, self.prompt_store_service
             ),
             SystemMenuProvider(
-                self._refresh_data,
                 self._speech_to_text,
                 self.history_service,
                 self._execute_menu_item,
@@ -343,25 +336,6 @@ class PromptStoreApp(QObject):
     def _execute_menu_item(self, item) -> None:
         """Execute a menu item (placeholder for provider callbacks)."""
         return
-
-    def _refresh_data(self) -> None:
-        """Refresh all data from providers."""
-        try:
-            if self.prompt_store_service:
-                self.prompt_store_service.refresh_data()
-            if self.menu_coordinator:
-                self.menu_coordinator.refresh_providers()
-            print("Data refreshed successfully")
-        except Exception as e:
-            print(f"Failed to refresh data: {e}")
-
-    def _refresh_ui_copy_buttons(self) -> None:
-        """Refresh UI after speech-to-text completion to show 'Copy last speech' item."""
-        try:
-            if self.menu_coordinator:
-                self.menu_coordinator.force_rebuild_dynamic_items()
-        except Exception as e:
-            print(f"Failed to refresh UI after speech: {e}")
 
     def _speech_to_text(self) -> None:
         """Handle speech-to-text action."""

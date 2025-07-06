@@ -357,9 +357,8 @@ class PyQtMenuCoordinator(QObject):
         try:
             # Get prompts and presets directly from service
             prompts = self.prompt_store_service.get_prompts()
-            presets = self.prompt_store_service.get_presets()
 
-            if not prompts and not presets:
+            if not prompts:
                 return [
                     MenuItem(
                         id="no_prompts",
@@ -412,49 +411,6 @@ class PyQtMenuCoordinator(QObject):
                 )
                 submenu_items.append(submenu_item)
 
-            # Add presets
-            for preset in presets:
-
-                def make_set_active_preset_action(p):
-                    def set_active():
-                        # Create MenuItem with proper data structure
-                        active_item = MenuItem(
-                            id=f"preset_{p.id}",
-                            label=p.preset_name,
-                            item_type=MenuItemType.PRESET,
-                            action=lambda: None,
-                            data={
-                                "preset_id": p.id,
-                                "preset_name": p.preset_name,
-                                "prompt_id": p.prompt_id,
-                                "model": p.model,
-                                "source": p.source,
-                            },
-                        )
-                        self.prompt_store_service.set_active_prompt(active_item)
-                        # Show confirmation through execution result
-                        result = ExecutionResult(
-                            success=True,
-                            content=f"Active prompt set to: {p.preset_name}",
-                            metadata={
-                                "action": "set_active_prompt",
-                                "prompt": p.preset_name,
-                            },
-                        )
-                        self.execution_completed.emit(result)
-
-                    return set_active
-
-                submenu_item = MenuItem(
-                    id=f"select_preset_{preset.id}",
-                    label=preset.preset_name,
-                    item_type=MenuItemType.PRESET,
-                    action=make_set_active_preset_action(preset),
-                    enabled=True,
-                    separator_after=False,
-                )
-                submenu_items.append(submenu_item)
-
             return submenu_items
 
         except Exception as e:
@@ -472,10 +428,10 @@ class PyQtMenuCoordinator(QObject):
         """Get settings submenu items."""
         try:
             from modules.utils.config import ConfigService
-            
+
             config_service = ConfigService()
             config = config_service.get_config()
-            
+
             if not config.models:
                 return [
                     MenuItem(
@@ -488,17 +444,17 @@ class PyQtMenuCoordinator(QObject):
                 ]
 
             submenu_items = []
-            
+
             # Add model selection items
             for model_key, model_config in config.models.items():
                 is_default = model_key == config.default_model
-                
+
                 def make_set_default_model_action(key, model_config):
                     def set_default_model():
                         try:
                             config_service = ConfigService()
                             config_service.update_default_model(key)
-                            
+
                             # Show confirmation through execution result
                             result = ExecutionResult(
                                 success=True,
@@ -514,14 +470,14 @@ class PyQtMenuCoordinator(QObject):
                                 metadata={"action": "set_default_model", "model": key},
                             )
                             self.execution_completed.emit(result)
-                    
+
                     return set_default_model
 
                 # Add checkmark for default model
-                label = model_config.get('display_name', model_key)
+                label = model_config.get("display_name", model_key)
                 if is_default:
                     label = f"✓ {label}"
-                
+
                 submenu_item = MenuItem(
                     id=f"set_default_model_{model_key}",
                     label=label,

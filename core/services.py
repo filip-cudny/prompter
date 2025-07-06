@@ -13,7 +13,6 @@ from .models import (
     ExecutionResult,
     MenuItem,
     MessageConfig,
-    PresetData,
     PromptConfig,
     PromptData,
     SettingsConfig,

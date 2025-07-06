@@ -9,13 +9,11 @@ class SystemMenuProvider:
 
     def __init__(
         self,
-        refresh_callback: Callable[[], None],
         speech_callback: Optional[Callable[[], None]] = None,
         history_service=None,
         execute_callback: Optional[Callable[[MenuItem], None]] = None,
         prompt_store_service=None,
     ):
-        self.refresh_callback = refresh_callback
         self.speech_callback = speech_callback
         self.history_service = history_service
         self.execute_callback = execute_callback

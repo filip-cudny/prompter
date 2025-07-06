@@ -5,7 +5,6 @@ from typing import List, Optional, Protocol
 from .models import (
     MenuItem,
     PromptData,
-    PresetData,
     ExecutionResult,
 )
 
@@ -27,10 +26,6 @@ class PromptProvider(Protocol):
 
     def get_prompts(self) -> List[PromptData]:
         """Return a list of available prompts."""
-        ...
-
-    def get_presets(self) -> List[PresetData]:
-        """Return a list of available presets."""
         ...
 
     def get_prompt_details(self, prompt_id: str) -> Optional[PromptData]:
@@ -82,10 +77,6 @@ class PromptStoreServiceProtocol(Protocol):
 
     def get_prompts(self) -> List[PromptData]:
         """Get all available prompts."""
-        ...
-
-    def get_presets(self) -> List[PresetData]:
-        """Get all available presets."""
         ...
 
     def execute_item(self, item: MenuItem) -> ExecutionResult:

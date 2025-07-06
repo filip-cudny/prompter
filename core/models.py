@@ -67,21 +67,6 @@ class PromptData:
 
 
 @dataclass
-class PresetData:
-    """Represents a preset configuration for a prompt."""
-
-    id: str
-    preset_name: str
-    prompt_id: str
-    temperature: Optional[float] = None
-    model: Optional[str] = None
-    context: Optional[str] = None
-    placeholder_values: Dict[str, str] = field(default_factory=dict)
-    source: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass
 class ExecutionResult:
     """Result of executing a prompt."""
 

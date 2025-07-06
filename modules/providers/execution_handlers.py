@@ -20,72 +20,6 @@ import time
 logger = logging.getLogger(__name__)
 
 
-class PyQtSystemExecutionHandler:
-    """PyQt5 handler for executing system menu items with shared notification manager."""
-
-    def __init__(
-        self,
-        refresh_callback=None,
-        notification_manager: Optional[PyQtNotificationManager] = None,
-    ):
-        self.refresh_callback = refresh_callback
-        self.notification_manager = notification_manager or PyQtNotificationManager()
-
-    def can_handle(self, item: MenuItem) -> bool:
-        """Check if this handler can execute the given menu item."""
-        return item.item_type == MenuItemType.SYSTEM
-
-    def execute(self, item: MenuItem, context: Optional[str] = None) -> ExecutionResult:
-        """Execute a system menu item."""
-        start_time = time.time()
-
-        try:
-            if item.id == "refresh_data":
-                if self.refresh_callback:
-                    self.refresh_callback()
-                    execution_time = time.time() - start_time
-
-                    self.notification_manager.show_success_notification(
-                        "Data Refreshed", "All data has been refreshed successfully"
-                    )
-
-                    return ExecutionResult(
-                        success=True,
-                        content="Data refreshed successfully",
-                        execution_time=execution_time,
-                        metadata={"action": "refresh_data"},
-                    )
-                else:
-                    return ExecutionResult(
-                        success=False,
-                        error="No refresh callback available",
-                        error_code=ErrorCode.VALIDATION_ERROR,
-                    )
-            else:
-                return ExecutionResult(
-                    success=False,
-                    error=f"Unknown system action: {item.id}",
-                    error_code=ErrorCode.VALIDATION_ERROR,
-                )
-
-        except Exception as e:
-            execution_time = time.time() - start_time
-            logger.error(f"Error executing system item {item.id}: {str(e)}")
-
-            execution_result = ExecutionResult(
-                success=False,
-                error=f"System action failed: {str(e)}",
-                error_code=ErrorCode.UNKNOWN_ERROR,
-                execution_time=execution_time,
-            )
-
-            self.notification_manager.show_error_notification(
-                "System Error", truncate_text(str(e))
-            )
-
-            return execution_result
-
-
 class PyQtSpeechExecutionHandler:
     """PyQt5 handler for executing speech-to-text menu items."""
 
@@ -94,13 +28,11 @@ class PyQtSpeechExecutionHandler:
         clipboard_manager: ClipboardManager,
         notification_manager: Optional[PyQtNotificationManager] = None,
         history_service=None,
-        ui_refresh_callback: Optional[Callable[[], None]] = None,
         speech_service=SpeechToTextService,
     ):
         self.clipboard_manager = clipboard_manager
         self.notification_manager = notification_manager or PyQtNotificationManager()
         self.history_service = history_service
-        self.ui_refresh_callback = ui_refresh_callback
         self.speech_service = speech_service
         self._transcription_start_time: Optional[float] = None
         self._setup_speech_callbacks()
@@ -213,9 +145,6 @@ class PyQtSpeechExecutionHandler:
                     )
                     return
 
-                # Trigger UI refresh to show "Copy last speech" item
-                if self.ui_refresh_callback:
-                    self.ui_refresh_callback()
         except Exception as e:
             self.notification_manager.show_error_notification(
                 "Transcription Error", f"Failed to process transcription: {str(e)}"
