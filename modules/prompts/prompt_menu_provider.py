@@ -35,7 +35,7 @@ class PromptMenuProvider:
 
                 item = MenuItem(
                     id=item_id,
-                    label=prompt.name,
+                    label=f"{prompt.name}{f' <i style="color: rgba(128, 128, 128, 0.5)">({prompt.model})</i>' if prompt.model else ''}",
                     item_type=MenuItemType.PROMPT,
                     action=lambda: None,
                     data={

@@ -6,6 +6,9 @@ from PyQt5.QtCore import Qt, QPoint, QTimer, QObject, QEvent
 from PyQt5.QtGui import QCursor
 from core.models import MenuItem, MenuItemType
 
+from PyQt5.QtWidgets import QWidgetAction, QLabel
+from PyQt5.QtCore import Qt
+
 
 class PyQtContextMenu(QObject):
     """PyQt5-based context menu implementation."""
@@ -17,6 +20,7 @@ class PyQtContextMenu(QObject):
         self.menu_position_offset = (0, 0)
         self.shift_pressed = False
         self.event_filter_installed = False
+        self.hovered_widgets = set()  # Track all currently hovered widgets
         self._menu_stylesheet = """
             QMenu {
                 background-color: #2b2b2b;
@@ -31,12 +35,17 @@ class PyQtContextMenu(QObject):
                 padding: 8px 16px;
                 border-radius: 4px;
                 margin: 1px;
+                color: #f0f0f0;
+                font-size: 13px;
+                min-height: 24px;
+                border: none;
             }
             QMenu::item:selected {
-                background-color: #0066cc;
+                background-color: #454545;
+                border-radius: 4px;
             }
             QMenu::item:disabled {
-                color: #888888;
+                color: #666666;
             }
             QMenu::separator {
                 height: 1px;
@@ -65,9 +74,9 @@ class PyQtContextMenu(QObject):
     def create_submenu(
         self, parent_menu: QMenu, title: str, items: List[MenuItem]
     ) -> QMenu:
-        """Create a submenu."""
-        submenu = parent_menu.addMenu(title)
-
+        """Create a submenu with consistent styling."""
+        title_with_arrow = f"{title}"
+        submenu = parent_menu.addMenu(title_with_arrow)
         submenu.setWindowFlags(
             Qt.Popup | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint
         )
@@ -125,35 +134,97 @@ class PyQtContextMenu(QObject):
             self.menu = None
         self.shift_pressed = False
         self.event_filter_installed = False
+        self.hovered_widgets.clear()
 
     def _add_menu_items(self, menu: QMenu, items: List[MenuItem]) -> None:
         """Add menu items to a QMenu."""
         for item in items:
-            # Check if item has submenu
             if hasattr(item, "submenu_items") and item.submenu_items:
                 self.create_submenu(menu, item.label, item.submenu_items)
             else:
-                action = self._create_action(menu, item)
+                action = self._create_custom_menu_item(menu, item)
                 menu.addAction(action)
 
             if hasattr(item, "separator_after") and item.separator_after:
                 menu.addSeparator()
 
-    def _create_action(self, menu: QMenu, item: MenuItem) -> QAction:
-        """Create a QAction from a MenuItem."""
-        action = QAction(item.label, menu)
-        action.setEnabled(item.enabled)
+    def _create_custom_menu_item(self, parent, item: MenuItem) -> QWidgetAction:
+        """Create a custom menu item widget with consistent appearance and behavior."""
 
-        # Store reference to MenuItem for shift+right click handling
-        action._menu_item = item
+        class ClickableLabel(QLabel):
+            def __init__(self, text, menu_item, context_menu, parent=None):
+                super().__init__(text, parent)
+                self.menu_item = menu_item
+                self.context_menu = context_menu
+                self.is_hovered = False
+                self.setTextFormat(Qt.RichText)
+                self.setCursor(Qt.ArrowCursor)
+                self._normal_style = """
+                    QLabel {
+                        padding: 8px 16px;
+                        min-height: 24px;
+                        font-size: 13px;
+                        color: #f0f0f0;
+                        background: transparent;
+                        border-radius: 4px;
+                        margin: 1px;
+                    }
+                    QLabel:disabled {
+                        color: #666666;
+                    }
+                """
+                self._hover_style = """
+                    QLabel {
+                        padding: 8px 16px;
+                        min-height: 24px;
+                        font-size: 13px;
+                        color: #f0f0f0;
+                        background: #454545;
+                        border-radius: 4px;
+                        margin: 1px;
+                    }
+                    QLabel:disabled {
+                        color: #666666;
+                    }
+                """
+                self.setStyleSheet(self._normal_style)
 
+            def mousePressEvent(self, event):
+                if self.menu_item.enabled and self.menu_item.action is not None:
+                    # Close the menu first to prevent timing issues
+                    if self.context_menu and self.context_menu.menu:
+                        self.context_menu.menu.close()
+                    # Execute action with slight delay to ensure menu closes properly
+                    QTimer.singleShot(10, self.menu_item.action)
+                super().mousePressEvent(event)
+            
+            def enterEvent(self, event):
+                if self.menu_item.enabled:
+                    # Clear all other hovered widgets first
+                    self.context_menu._clear_all_hover_states()
+                    # Set this widget as hovered
+                    self.is_hovered = True
+                    self.context_menu.hovered_widgets.add(self)
+                    self.setStyleSheet(self._hover_style)
+                super().enterEvent(event)
+            
+            def leaveEvent(self, event):
+                if self.is_hovered:
+                    self.is_hovered = False
+                    self.context_menu.hovered_widgets.discard(self)
+                    self.setStyleSheet(self._normal_style)
+                super().leaveEvent(event)
+
+        label = ClickableLabel(item.label, item, self)
+        label.setEnabled(item.enabled)
         if hasattr(item, "tooltip") and item.tooltip:
-            action.setToolTip(item.tooltip)
+            label.setToolTip(item.tooltip)
 
-        if item.action is not None:
-            action.triggered.connect(lambda checked, i=item: self._execute_action(i))
+        widget_action = QWidgetAction(parent)
+        widget_action.setDefaultWidget(label)
+        widget_action._menu_item = item
 
-        return action
+        return widget_action
 
     def _execute_action(self, item: MenuItem) -> None:
         """Execute a menu item action asynchronously to prevent menu blocking."""
@@ -205,6 +276,14 @@ class PyQtContextMenu(QObject):
                 self.shift_pressed = bool(
                     QApplication.keyboardModifiers() & Qt.ShiftModifier
                 )
+            # Handle leave event to clear hover states
+            elif event.type() == QEvent.Leave:
+                self._clear_all_hover_states()
+            # Handle mouse move to detect when mouse leaves menu area
+            elif event.type() == QEvent.MouseMove:
+                # Check if mouse is still within menu bounds
+                if not obj.rect().contains(event.pos()):
+                    self._clear_all_hover_states()
         return False
 
     def _handle_shift_right_click(self, action: QAction):
@@ -231,3 +310,12 @@ class PyQtContextMenu(QObject):
                 QTimer.singleShot(0, item.action)
         except Exception as e:
             print(f"Error executing alternative menu action: {e}")
+
+    def _clear_all_hover_states(self) -> None:
+        """Clear hover states from all custom menu items."""
+        # Clear all tracked hovered widgets
+        for widget in list(self.hovered_widgets):
+            if hasattr(widget, 'is_hovered') and widget.is_hovered:
+                widget.is_hovered = False
+                widget.setStyleSheet(widget._normal_style)
+        self.hovered_widgets.clear()
