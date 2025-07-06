@@ -24,6 +24,13 @@ class PromptMenuProvider:
 
         try:
             prompts = self.prompt_store.get_prompts()
+            
+            model_configs = {}
+            if self.prompt_store.primary_provider and hasattr(self.prompt_store.primary_provider, 'get_model_configs'):
+                try:
+                    model_configs = self.prompt_store.primary_provider.get_model_configs()
+                except Exception:
+                    pass
 
             for prompt in prompts:
                 item_id = f"prompt_{prompt.id}"
@@ -33,9 +40,13 @@ class PromptMenuProvider:
                         item_id
                     )
 
+                model_display_name = prompt.model
+                if prompt.model and model_configs.get(prompt.model):
+                    model_display_name = model_configs[prompt.model].get('display_name', prompt.model)
+                
                 item = MenuItem(
                     id=item_id,
-                    label=f"{prompt.name}{f' <i style="color: rgba(128, 128, 128, 0.5)">({prompt.model})</i>' if prompt.model else ''}",
+                    label=f"{prompt.name}{f' <i style="color: rgba(128, 128, 128, 0.5)">({model_display_name})</i>' if prompt.model else ''}",
                     item_type=MenuItemType.PROMPT,
                     action=lambda: None,
                     data={

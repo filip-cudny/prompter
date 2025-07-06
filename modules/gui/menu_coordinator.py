@@ -6,6 +6,7 @@ from PyQt5.QtWidgets import QApplication
 
 from core.models import MenuItem, ExecutionResult, MenuItemType
 from core.exceptions import MenuError
+from modules.utils.config import ConfigService
 from .context_menu import PyQtContextMenu
 
 
@@ -293,10 +294,19 @@ class PyQtMenuCoordinator(QObject):
         if not self.prompt_store_service:
             return
 
-        # Add Settings submenu
+        # Get default model display name
+        config = ConfigService().get_config()
+        default_model_display_name = config.default_model
+        if config.models and config.default_model in config.models:
+            default_model_config = config.models[config.default_model]
+            default_model_display_name = default_model_config.get(
+                "display_name", config.default_model
+            )
+
+        # Add Settings subdmenu
         settings_item = MenuItem(
             id="settings_submenu",
-            label="Settings",
+            label=f"Settings ({default_model_display_name})",
             item_type=MenuItemType.SYSTEM,
             action=lambda: None,
             enabled=True,

@@ -8,6 +8,7 @@ from core.models import MenuItem, MenuItemType
 
 from PyQt5.QtWidgets import QWidgetAction, QLabel
 from PyQt5.QtCore import Qt
+import sip
 
 
 class PyQtContextMenu(QObject):
@@ -85,6 +86,9 @@ class PyQtContextMenu(QObject):
 
         # Install event filter on submenu too
         submenu.installEventFilter(self)
+
+        # Clean up stale widget references when creating submenu
+        self._cleanup_deleted_widgets()
 
         self._add_menu_items(submenu, items)
         return submenu
@@ -211,8 +215,12 @@ class PyQtContextMenu(QObject):
             def leaveEvent(self, event):
                 if self.is_hovered:
                     self.is_hovered = False
-                    self.context_menu.hovered_widgets.discard(self)
-                    self.setStyleSheet(self._normal_style)
+                    try:
+                        self.context_menu.hovered_widgets.discard(self)
+                        self.setStyleSheet(self._normal_style)
+                    except (RuntimeError, AttributeError):
+                        # Widget may have been deleted, ignore the error
+                        pass
                 super().leaveEvent(event)
 
         label = ClickableLabel(item.label, item, self)
@@ -313,9 +321,35 @@ class PyQtContextMenu(QObject):
 
     def _clear_all_hover_states(self) -> None:
         """Clear hover states from all custom menu items."""
-        # Clear all tracked hovered widgets
+        # Clear all tracked hovered widgets, checking if they're still valid
+        widgets_to_remove = []
         for widget in list(self.hovered_widgets):
-            if hasattr(widget, 'is_hovered') and widget.is_hovered:
-                widget.is_hovered = False
-                widget.setStyleSheet(widget._normal_style)
-        self.hovered_widgets.clear()
+            try:
+                # Check if widget is still valid (not deleted by Qt)
+                if sip.isdeleted(widget):
+                    widgets_to_remove.append(widget)
+                    continue
+                
+                if hasattr(widget, 'is_hovered') and widget.is_hovered:
+                    widget.is_hovered = False
+                    widget.setStyleSheet(widget._normal_style)
+            except (RuntimeError, AttributeError):
+                # Widget has been deleted or is no longer accessible
+                widgets_to_remove.append(widget)
+        
+        # Remove invalid widgets from tracking set
+        for widget in widgets_to_remove:
+            self.hovered_widgets.discard(widget)
+
+    def _cleanup_deleted_widgets(self) -> None:
+        """Remove deleted widgets from tracking set."""
+        widgets_to_remove = []
+        for widget in list(self.hovered_widgets):
+            try:
+                if sip.isdeleted(widget):
+                    widgets_to_remove.append(widget)
+            except (RuntimeError, AttributeError):
+                widgets_to_remove.append(widget)
+        
+        for widget in widgets_to_remove:
+            self.hovered_widgets.discard(widget)
