@@ -83,7 +83,7 @@ class PresetData:
 
 @dataclass
 class ExecutionResult:
-    """Result of executing a prompt or preset."""
+    """Result of executing a prompt."""
 
     success: bool
     content: Optional[str] = None
@@ -103,7 +103,6 @@ class HistoryEntry:
     entry_type: HistoryEntryType
     output_content: Optional[str] = None
     prompt_id: Optional[str] = None
-    preset_id: Optional[str] = None
     success: bool = True
     error: Optional[str] = None
 

@@ -1,6 +1,5 @@
-
 from typing import List, Callable
-from core.models import MenuItem, MenuItemType
+from core.models import MenuItem, MenuItemType, HistoryEntryType
 from modules.history.history_service import HistoryService
 
 
@@ -21,10 +20,17 @@ class HistoryMenuProvider:
         """Return menu items for history operations."""
         items = []
 
-        last_input = self.history_service.get_last_input()
-        last_output = self.history_service.get_last_output()
+        last_history_text_prompt_item = self.history_service.get_last_item_by_type(
+            entry_type=HistoryEntryType
+        )
+        print("last_history_text_prompt_item")
+        print(last_history_text_prompt_item)
+        last_input = None
+        last_output = None
+        if last_history_text_prompt_item is not None:
+            last_input = last_history_text_prompt_item.input_content
+            last_output = last_history_text_prompt_item.output_content
 
-        # Last Input item
         input_label = "⎘ Copy last input"
         if last_input:
             preview = last_input[:30] + "..." if len(last_input) > 30 else last_input

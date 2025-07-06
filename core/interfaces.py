@@ -2,7 +2,14 @@
 
 from abc import ABC, abstractmethod
 from typing import List, Optional, Protocol
-from .models import MenuItem, PromptData, PresetData, ExecutionResult, HistoryEntry
+from .models import (
+    MenuItem,
+    PromptData,
+    PresetData,
+    ExecutionResult,
+    HistoryEntry,
+    HistoryEntryType,
+)
 
 
 class MenuItemProvider(Protocol):
@@ -99,7 +106,13 @@ class PromptStoreServiceProtocol(Protocol):
         """Check if action should be disabled due to recording state."""
         ...
 
-    def add_history_entry(self, item: MenuItem, input_content: str, result: ExecutionResult) -> None:
+    def add_history_entry(
+        self,
+        item: MenuItem,
+        entry_type: HistoryEntryType,
+        input_content: str,
+        result: ExecutionResult,
+    ) -> None:
         """Add entry to history service for prompt and preset executions."""
         ...
 

@@ -3,7 +3,7 @@
 import sys
 import signal
 from typing import Optional, List
-from PyQt5.QtWidgets import QApplication, QSystemTrayIcon
+from PyQt5.QtWidgets import QApplication
 from PyQt5.QtCore import QTimer, pyqtSignal, QObject
 
 from modules.prompts.prompt_service import PromptStoreService
@@ -64,11 +64,6 @@ class PromptStoreApp(QObject):
         # Speech service
         self.speech_service = None
         self.speech_history_service = None
-
-        # Recording state
-        self.normal_icon = None
-        self.recording_icon = None
-        self.is_recording = False
 
         # Load configuration
         self._load_config(config_file)
@@ -284,7 +279,6 @@ class PromptStoreApp(QObject):
                 self._speech_to_text,
                 self.history_service,
                 self._execute_menu_item,
-                None,
                 self.prompt_store_service,
             ),
         ]

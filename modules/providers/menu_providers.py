@@ -13,14 +13,12 @@ class SystemMenuProvider:
         speech_callback: Optional[Callable[[], None]] = None,
         history_service=None,
         execute_callback: Optional[Callable[[MenuItem], None]] = None,
-        settings_service=None,
         prompt_store_service=None,
     ):
         self.refresh_callback = refresh_callback
         self.speech_callback = speech_callback
         self.history_service = history_service
         self.execute_callback = execute_callback
-        self.settings_service = settings_service
         self.prompt_store_service = prompt_store_service
 
     def get_menu_items(self) -> List[MenuItem]:
@@ -94,5 +92,3 @@ class SystemMenuProvider:
 
     def refresh(self) -> None:
         """Refresh the provider's data."""
-        if self.settings_service:
-            self.settings_service.reload_settings()

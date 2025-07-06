@@ -1,12 +1,13 @@
-
 import time
 from collections import deque
-from typing import  List, Optional
+from typing import List, Optional
 
 from core.models import (
     HistoryEntry,
     HistoryEntryType,
 )
+
+
 class HistoryService:
     """Service for tracking execution history."""
 
@@ -20,7 +21,6 @@ class HistoryService:
         entry_type: HistoryEntryType,
         output_content: Optional[str] = None,
         prompt_id: Optional[str] = None,
-        preset_id: Optional[str] = None,
         success: bool = True,
         error: Optional[str] = None,
     ) -> None:
@@ -32,7 +32,6 @@ class HistoryService:
             entry_type=entry_type,
             output_content=output_content,
             prompt_id=prompt_id,
-            preset_id=preset_id,
             success=success,
             error=error,
         )
@@ -41,19 +40,6 @@ class HistoryService:
     def get_history(self) -> List[HistoryEntry]:
         """Get all history entries, most recent first."""
         return list(reversed(self._history))
-
-    def get_last_input(self) -> Optional[str]:
-        """Get the last input content."""
-        if self._history:
-            return self._history[-1].input_content
-        return None
-
-    def get_last_output(self) -> Optional[str]:
-        """Get the last successful output content."""
-        for entry in reversed(self._history):
-            if entry.success and entry.output_content:
-                return entry.output_content
-        return None
 
     def clear_history(self) -> None:
         """Clear all history entries."""
@@ -66,7 +52,9 @@ class HistoryService:
                 return entry
         return None
 
-    def get_last_item_by_type(self, entry_type: HistoryEntryType) -> Optional[HistoryEntry]:
+    def get_last_item_by_type(
+        self, entry_type: HistoryEntryType
+    ) -> Optional[HistoryEntry]:
         """Get the most recent history entry of the specified type."""
         for entry in reversed(self._history):
             if entry.entry_type == entry_type:

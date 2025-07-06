@@ -1,4 +1,4 @@
-from typing import List,Optional
+from typing import List, Optional
 from core.services import DataManager, ExecutionService
 from modules.utils.speech_to_text import SpeechToTextService
 from core.interfaces import PromptStoreServiceProtocol
@@ -54,10 +54,6 @@ class PromptStoreService(PromptStoreServiceProtocol):
     def get_prompts(self) -> List[PromptData]:
         """Get all available prompts."""
         return self.data_manager.get_prompts()
-
-    def get_presets(self) -> List[PresetData]:
-        """Get all available presets."""
-        return self.data_manager.get_presets()
 
     def execute_item(self, item: MenuItem) -> ExecutionResult:
         """Execute a menu item and track in history."""
@@ -128,16 +124,14 @@ class PromptStoreService(PromptStoreServiceProtocol):
     def add_history_entry(
         self, item: MenuItem, input_content: str, result: ExecutionResult
     ) -> None:
-        """Add entry to history service for prompt and preset executions."""
-        # Only add to history for prompt and preset executions, not history or system operations
-        if item.item_type in [MenuItemType.PROMPT, MenuItemType.PRESET]:
+        """Add entry to history service for prompt executions."""
+        if item.item_type in [MenuItemType.PROMPT]:
             if result.success and item.data:
                 self.history_service.add_entry(
                     input_content=input_content,
                     entry_type=HistoryEntryType.TEXT,
                     output_content=result.content,
                     prompt_id=item.data.get("prompt_id"),
-                    preset_id=item.data.get("preset_id"),
                     success=True,
                 )
             elif not result.success:
@@ -146,7 +140,6 @@ class PromptStoreService(PromptStoreServiceProtocol):
                     entry_type=HistoryEntryType.TEXT,
                     output_content=None,
                     prompt_id=item.data.get("prompt_id") if item.data else None,
-                    preset_id=item.data.get("preset_id") if item.data else None,
                     success=False,
                     error=result.error,
                 )
@@ -170,7 +163,6 @@ class PromptStoreService(PromptStoreServiceProtocol):
     def set_active_prompt(self, item: MenuItem) -> None:
         """Set the active prompt/preset."""
         self.active_prompt_service.set_active_prompt(item)
-
         if item.item_type == MenuItemType.PROMPT:
             prompt_name = (
                 item.data.get("prompt_name", "Unknown Prompt")
@@ -180,18 +172,9 @@ class PromptStoreService(PromptStoreServiceProtocol):
             self.notification_manager.show_success_notification(
                 f"{prompt_name} is active",
             )
-        elif item.item_type == MenuItemType.PRESET:
-            preset_name = (
-                item.data.get("preset_name", "Unknown Preset")
-                if item.data
-                else "Unknown Preset"
-            )
-            self.notification_manager.show_success_notification(
-                f"{preset_name} is active",
-            )
 
     def execute_active_prompt(self) -> ExecutionResult:
-        """Execute the active prompt/preset with current clipboard content."""
+        """Execute the active prompt with current clipboard content."""
         active_prompt = self.active_prompt_service.get_active_prompt()
         if not active_prompt:
             return ExecutionResult(
@@ -203,10 +186,8 @@ class PromptStoreService(PromptStoreServiceProtocol):
         return self.execute_item(active_prompt)
 
     def get_all_available_prompts(self) -> List[MenuItem]:
-        """Get all available prompts and presets as menu items."""
+        """Get all available prompts as menu items."""
         items = []
-
-        # Add prompts
         for prompt in self.get_prompts():
 
             def make_prompt_action(p):
@@ -242,43 +223,8 @@ class PromptStoreService(PromptStoreServiceProtocol):
             )
             items.append(item)
 
-        # Add presets
-        for preset in self.get_presets():
-
-            def make_preset_action(p):
-                def action():
-                    self.set_active_prompt(
-                        MenuItem(
-                            id=f"preset_{p.id}",
-                            label=p.preset_name,
-                            item_type=MenuItemType.PRESET,
-                            action=lambda: None,
-                            data={
-                                "preset_id": p.id,
-                                "preset_name": p.preset_name,
-                                "prompt_id": p.prompt_id,
-                                "source": p.source,
-                            },
-                        )
-                    )
-
-                return action
-
-            item = MenuItem(
-                id=f"preset_{preset.id}",
-                label=preset.preset_name,
-                item_type=MenuItemType.PRESET,
-                action=make_preset_action(preset),
-                data={
-                    "preset_id": preset.id,
-                    "preset_name": preset.preset_name,
-                    "prompt_id": preset.prompt_id,
-                    "source": preset.source,
-                },
-            )
-            items.append(item)
-
         return items
+
 
 class ActivePromptService:
     """Service for tracking the actively selected prompt or preset."""
