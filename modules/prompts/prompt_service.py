@@ -8,7 +8,6 @@ from modules.utils.notifications import PyQtNotificationManager
 from core.models import (
     ErrorCode,
     ExecutionResult,
-    HistoryEntry,
     HistoryEntryType,
     MenuItem,
     MenuItemType,
@@ -90,7 +89,7 @@ class PromptStoreService(PromptStoreServiceProtocol):
 
     def is_recording(self) -> bool:
         """Check if currently recording."""
-        return self.execution_service.is_recording()
+        return self.speech_service.is_recording()
 
     def get_recording_action_id(self) -> Optional[str]:
         """Get the ID of the action that started recording."""
@@ -159,18 +158,6 @@ class PromptStoreService(PromptStoreServiceProtocol):
                     success=False,
                     error=result.error,
                 )
-
-    def get_history(self) -> List[HistoryEntry]:
-        """Get execution history."""
-        return self.history_service.get_history()
-
-    def get_last_input(self) -> Optional[str]:
-        """Get the last input from history."""
-        return self.history_service.get_last_input()
-
-    def get_last_output(self) -> Optional[str]:
-        """Get the last output from history."""
-        return self.history_service.get_last_output()
 
     def get_active_prompt(self) -> Optional[MenuItem]:
         """Get the active prompt/preset."""

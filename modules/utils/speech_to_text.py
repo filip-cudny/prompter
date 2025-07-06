@@ -188,6 +188,7 @@ class AudioRecorder:
 
     def _cleanup(self) -> None:
         """Clean up audio resources."""
+        self.recording = False
         if self.stream:
             try:
                 self.stream.stop_stream()

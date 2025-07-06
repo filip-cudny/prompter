@@ -106,19 +106,6 @@ class PyQtMenuCoordinator(QObject):
         except (RuntimeError, Exception) as e:
             self._handle_error(f"Failed to show menu at position: {str(e)}")
 
-    def refresh_providers(self) -> None:
-        """Refresh provider data - this invalidates static provider cache."""
-        try:
-            for provider in self.providers:
-                if hasattr(provider, "refresh_data"):
-                    provider.refresh_data()
-
-            # Only invalidate static cache, keep dynamic items
-            self._invalidate_static_cache()
-            self._start_cache_timer()
-        except (RuntimeError, Exception) as e:
-            self._handle_error(f"Failed to refresh providers: {str(e)}")
-
     def cleanup(self) -> None:
         """Clean up resources."""
         if self.cache_timer.isActive():
@@ -462,7 +449,7 @@ class PyQtMenuCoordinator(QObject):
                                 metadata={"action": "set_default_model", "model": key},
                             )
                             self.execution_completed.emit(result)
-                            self._invalidate_dynamic_cache()
+                            self._invalidate_cache()
                         except Exception as e:
                             result = ExecutionResult(
                                 success=False,
@@ -518,12 +505,10 @@ class PyQtMenuCoordinator(QObject):
             "execute_prompt",
             "execute_preset",
             "execute_active_prompt",
-        ] or item_type in [MenuItemType.PROMPT, MenuItemType.PRESET]:
-            self._invalidate_dynamic_cache()
-
-        # Speech recording actions affect enabled state of prompt/preset items
-        if action in ["speech_recording_started", "speech_recording_stopped"]:
-            self._invalidate_static_cache()
+            "speech_recording_started",
+            "speech_recording_stopped",
+        ] or item_type in [MenuItemType.PROMPT]:
+            self._invalidate_cache()
 
     def _invalidate_cache_for_result(self, result: ExecutionResult) -> None:
         """Invalidate cache based on execution result (for submenu items)."""
@@ -539,26 +524,17 @@ class PyQtMenuCoordinator(QObject):
             "execute_prompt",
             "execute_preset",
             "execute_active_prompt",
+            "speech_recording_started",
+            "speech_recording_stopped",
         ]:
-            self._invalidate_dynamic_cache()
+            self._invalidate_cache()
 
-        # Speech recording actions affect enabled state of prompt/preset items
-        if action in ["speech_recording_started", "speech_recording_stopped"]:
-            self._invalidate_static_cache()
-
-    def _invalidate_dynamic_cache(self) -> None:
+    def _invalidate_cache(self) -> None:
         """Invalidate only dynamic items cache."""
         self._cached_dynamic_items = None
         self._dynamic_items_dirty = True
-
-    def _invalidate_static_cache(self) -> None:
-        """Invalidate static provider items cache."""
         self._cached_static_items = None
         self._static_items_dirty = True
-
-    def invalidate_dynamic_cache_for_testing(self) -> None:
-        """Manually invalidate dynamic cache - useful for testing."""
-        self._invalidate_dynamic_cache()
 
     def get_cache_status(self) -> Dict[str, Any]:
         """Get detailed cache status for debugging."""
@@ -577,11 +553,6 @@ class PyQtMenuCoordinator(QObject):
             "dynamic_dirty": self._dynamic_items_dirty,
             "dynamic_provider_classes": self._dynamic_provider_classes,
         }
-
-    def force_rebuild_dynamic_items(self) -> List[MenuItem]:
-        """Force rebuild dynamic items and return them - for testing."""
-        self._invalidate_dynamic_cache()
-        return self._build_dynamic_items()
 
 
 class PyQtMenuEventHandler:

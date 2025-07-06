@@ -1,6 +1,7 @@
 """PyQt5-specific execution handlers that accept shared notification manager."""
 
-from typing import Optional, Callable
+from typing import Optional
+import time
 import logging
 from core.interfaces import ClipboardManager
 from core.models import (
@@ -11,11 +12,11 @@ from core.models import (
     HistoryEntryType,
 )
 from modules.utils.speech_to_text import SpeechToTextService
+from modules.gui.menu_coordinator import PyQtMenuCoordinator
 from modules.utils.notifications import (
     PyQtNotificationManager,
     truncate_text,
 )
-import time
 
 logger = logging.getLogger(__name__)
 
@@ -29,23 +30,19 @@ class PyQtSpeechExecutionHandler:
         notification_manager: Optional[PyQtNotificationManager] = None,
         history_service=None,
         speech_service=SpeechToTextService,
+        menu_coordinator=PyQtMenuCoordinator,
     ):
         self.clipboard_manager = clipboard_manager
         self.notification_manager = notification_manager or PyQtNotificationManager()
         self.history_service = history_service
         self.speech_service = speech_service
         self._transcription_start_time: Optional[float] = None
+        self.menu_coordinator = menu_coordinator
         self._setup_speech_callbacks()
 
     def _setup_speech_callbacks(self) -> None:
         """Setup callbacks for the speech service."""
         if self.speech_service:
-            self.speech_service.set_recording_started_callback(
-                self._on_recording_started
-            )
-            self.speech_service.set_recording_stopped_callback(
-                self._on_recording_stopped
-            )
             self.speech_service.add_transcription_callback(
                 self._on_transcription_complete, handler_name=self.__class__.__name__
             )
@@ -82,10 +79,16 @@ class PyQtSpeechExecutionHandler:
             # Toggle recording
             self.speech_service.toggle_recording(self.__class__.__name__)
 
+            action = (
+                "speech_recording_started"
+                if self.speech_service.is_recording()
+                else "speech_recording_stopped"
+            )
             return ExecutionResult(
                 success=True,
                 content="Speech recording toggled",
                 execution_time=time.time() - start_time,
+                metadata={"action": action},
             )
 
         except Exception as e:
@@ -111,20 +114,6 @@ class PyQtSpeechExecutionHandler:
 
             return execution_result
 
-    def _on_recording_started(self) -> None:
-        """Handle recording started event."""
-        self.notification_manager.show_info_notification(
-            "Recording Started",
-            "Click Speech to Text again to stop.",
-        )
-
-    def _on_recording_stopped(self) -> None:
-        """Handle recording stopped event."""
-        self._transcription_start_time = time.time()
-        self.notification_manager.show_info_notification(
-            "Processing Audio", "Transcribing your speech to text"
-        )
-
     def _on_transcription_complete(self, transcription: str, _duration: float) -> None:
         """Handle transcription completion."""
         try:
@@ -137,7 +126,15 @@ class PyQtSpeechExecutionHandler:
                         success=True,
                     )
 
+                # self.refresh_ui()
                 success = self.clipboard_manager.set_content(transcription)
+                self.menu_coordinator.execution_completed.emit(
+                    ExecutionResult(
+                        success=True,
+                        content=transcription,
+                        metadata={"action": "speech_recording_stopped"},
+                    )
+                )
                 if not success:
                     self.notification_manager.show_error_notification(
                         "Clipboard Error",
@@ -177,6 +174,7 @@ class PyQtSpeechExecutionHandler:
                     content=content,
                     execution_time=time.time() - start_time,
                 )
+
             else:
                 return ExecutionResult(
                     success=False,

@@ -174,6 +174,22 @@ class PromptStoreApp(QObject):
                         f"Failed to show transcription notification: {str(e)}",
                     )
 
+            def _on_recording_started() -> None:
+                """Handle recording started event."""
+                self.notification_manager.show_info_notification(
+                    "Recording Started",
+                    "Click Speech to Text again to stop.",
+                )
+
+            def _on_recording_stopped() -> None:
+                """Handle recording stopped event."""
+                self.notification_manager.show_info_notification(
+                    "Processing Audio", "Transcribing your speech to text"
+                )
+
+            self.speech_service.set_recording_started_callback(_on_recording_started)
+            self.speech_service.set_recording_stopped_callback(_on_recording_stopped)
+
             self.speech_service.add_transcription_callback(
                 _on_transcription_notification, run_always=True
             )
@@ -199,6 +215,7 @@ class PromptStoreApp(QObject):
                 self.notification_manager,
                 self.history_service,
                 self.speech_service,
+                self.menu_coordinator
             ),
         ]
 
@@ -368,6 +385,9 @@ class PromptStoreApp(QObject):
                         )
                     else:
                         print(f"Speech-to-text error: {result.error}")
+
+                if hasattr(self, "menu_coordinator") and self.menu_coordinator:
+                    self.menu_coordinator.execution_completed.emit(result)
 
         except Exception as e:
             error_msg = f"Failed to execute speech-to-text: {e}"
