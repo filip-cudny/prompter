@@ -14,7 +14,6 @@ import time
 logger = logging.getLogger(__name__)
 
 
-
 class PyQtSystemExecutionHandler:
     """PyQt5 handler for executing system menu items with shared notification manager."""
 
@@ -88,14 +87,12 @@ class PyQtSpeechExecutionHandler:
         self,
         clipboard_manager: ClipboardManager,
         notification_manager: Optional[PyQtNotificationManager] = None,
-        recording_indicator_callback: Optional[Callable[[bool], None]] = None,
         speech_history_service=None,
         ui_refresh_callback: Optional[Callable[[], None]] = None,
         speech_service=SpeechToTextService,
     ):
         self.clipboard_manager = clipboard_manager
         self.notification_manager = notification_manager or PyQtNotificationManager()
-        self.recording_indicator_callback = recording_indicator_callback
         self.speech_history_service = speech_history_service
         self.ui_refresh_callback = ui_refresh_callback
         self.speech_service = speech_service
@@ -182,8 +179,6 @@ class PyQtSpeechExecutionHandler:
             "Recording Started",
             "Click Speech to Text again to stop.",
         )
-        if self.recording_indicator_callback:
-            self.recording_indicator_callback(True)
 
     def _on_recording_stopped(self) -> None:
         """Handle recording stopped event."""
@@ -191,8 +186,6 @@ class PyQtSpeechExecutionHandler:
         self.notification_manager.show_info_notification(
             "Processing Audio", "Transcribing your speech to text"
         )
-        if self.recording_indicator_callback:
-            self.recording_indicator_callback(False)
 
     def _on_transcription_complete(self, transcription: str, _duration: float) -> None:
         """Handle transcription completion."""

@@ -21,8 +21,6 @@ from .models import (
 )
 
 
-
-
 class ExecutionService:
     """Service for executing menu items with different handlers."""
 
@@ -148,7 +146,6 @@ class DataManager:
             else [prompt_providers]
         )
         self._prompts_cache: Optional[List[PromptData]] = None
-        self._presets_cache: Optional[List[PresetData]] = None
         self._prompt_id_to_name: Dict[str, str] = {}
         self._last_refresh = 0.0
         self._cache_ttl = 60 * 60 * 10  # 10h
@@ -162,16 +159,6 @@ class DataManager:
             return self._refresh_prompts()
 
         return self._prompts_cache
-
-    def get_presets(self) -> List[PresetData]:
-        """Get presets with caching."""
-        if self._should_refresh():
-            return self._refresh_presets()
-
-        if self._presets_cache is None:
-            return self._refresh_presets()
-
-        return self._presets_cache
 
     def get_prompt_name(self, prompt_id: str) -> str:
         """Get prompt name by ID."""
@@ -241,8 +228,6 @@ class DataManager:
             self._prompt_id_to_name = {
                 prompt.id: prompt.name for prompt in self._prompts_cache
             }
-
-
 
 
 class SpeechHistoryService:

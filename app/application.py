@@ -2,12 +2,9 @@
 
 import sys
 import signal
-import platform
 from typing import Optional, List
 from PyQt5.QtWidgets import QApplication, QSystemTrayIcon
 from PyQt5.QtCore import QTimer, pyqtSignal, QObject
-from PyQt5.QtGui import QIcon, QPixmap, QPainter
-from PyQt5.QtCore import Qt
 
 from modules.prompts.prompt_service import PromptStoreService
 from core.exceptions import ConfigurationError
@@ -63,11 +60,10 @@ class PromptStoreApp(QObject):
         self.menu_coordinator: Optional[PyQtMenuCoordinator] = None
         self.event_handler: Optional[PyQtMenuEventHandler] = None
         self.notification_manager: Optional[PyQtNotificationManager] = None
-        self.system_tray: Optional[QSystemTrayIcon] = None
 
         # Speech service
         self.speech_service = None
-        self.speech_history_service= None
+        self.speech_history_service = None
 
         # Recording state
         self.normal_icon = None
@@ -96,9 +92,6 @@ class PromptStoreApp(QObject):
         try:
             if not self.config:
                 raise RuntimeError("Configuration not loaded")
-
-            # Initialize API client
-            # self.api = PromptStoreAPI(self.config.base_url, self.config.api_key)
 
             # Initialize clipboard manager
             self.clipboard_manager = SystemClipboardManager()
@@ -149,12 +142,13 @@ class PromptStoreApp(QObject):
                 self.speech_service = None
         except Exception as e:
             self.speech_service = None
+
     def _initialize_speech_history_service(self) -> None:
         """Initialize speech-to-text service as singleton."""
         try:
             from core.services import SpeechHistoryService
 
-            self.speech_history_service=SpeechHistoryService()
+            self.speech_history_service = SpeechHistoryService()
         except Exception as e:
             self.speech_history_service = None
 
@@ -193,11 +187,6 @@ class PromptStoreApp(QObject):
     def _initialize_prompt_providers(self) -> None:
         """Initialize prompt providers."""
 
-        # Initialize API prompt provider
-        # api_provider = APIPromptProvider(self.api)
-        # self.prompt_providers.append(api_provider)
-
-        # Initialize settings prompt provider
         try:
             settings_provider = PromptProvider()
             self.prompt_providers.append(settings_provider)
@@ -218,7 +207,6 @@ class PromptStoreApp(QObject):
             PyQtSpeechExecutionHandler(
                 self.clipboard_manager,
                 self.notification_manager,
-                self.set_recording_indicator,
                 self.speech_history_service,
                 self._refresh_ui_after_speech,
                 self.speech_service,
@@ -297,20 +285,6 @@ class PromptStoreApp(QObject):
             ),
         ]
 
-        # Add settings-based menu providers if available
-        settings_provider = self._get_settings_prompt_provider()
-        if settings_provider:
-            self.menu_providers.extend(
-                [
-                    # SettingsPromptMenuProvider(
-                    #     settings_provider, self._execute_menu_item
-                    # ),
-                    # SettingsPresetMenuProvider(
-                    #     settings_provider, self._execute_menu_item
-                    # ),
-                ]
-            )
-
         # Register providers with coordinator
         for provider in self.menu_providers:
             self.menu_coordinator.add_provider(provider)
@@ -321,32 +295,6 @@ class PromptStoreApp(QObject):
             if isinstance(provider, PromptProvider):
                 return provider
         return None
-
-    def _create_tray_icon(self, color) -> QIcon:
-        """Create a system tray icon with the specified color."""
-        pixmap = QPixmap(16, 16)
-        pixmap.fill(Qt.transparent)
-        painter = QPainter(pixmap)
-        painter.setBrush(color)
-        painter.drawEllipse(0, 0, 16, 16)
-        painter.end()
-        return QIcon(pixmap)
-
-    def set_recording_indicator(self, recording: bool) -> None:
-        """Update system tray icon to show recording status."""
-        if self.system_tray:
-            if recording and not self.is_recording:
-                self.system_tray.setIcon(self.recording_icon)
-                self.system_tray.setToolTip("Prompt Store - Recording...")
-                self.is_recording = True
-            elif not recording and self.is_recording:
-                self.system_tray.setIcon(self.normal_icon)
-                system = platform.system()
-                hotkey = "Cmd+F1" if system == "Darwin" else "Ctrl+F1"
-                self.system_tray.setToolTip(
-                    f"Prompt Store - {hotkey} for menu, Shift+F1 for speech"
-                )
-                self.is_recording = False
 
     def _setup_signal_handlers(self) -> None:
         """Setup signal handlers for graceful shutdown."""
@@ -491,13 +439,7 @@ class PromptStoreApp(QObject):
 
     def run(self) -> int:
         """Run the application."""
-        print("Starting Prompt Store...")
-        system = platform.system()
-        hotkey_f1 = "Cmd+F1" if system == "Darwin" else "Ctrl+F1"
-        hotkey_f2 = "Cmd+F2" if system == "Darwin" else "Ctrl+F2"
-        print(f"Execute Active Prompt: {hotkey_f1}")
-        print(f"Context Menu: {hotkey_f2}")
-        print("Speech-to-Text Toggle: Shift+F1")
+        print("Starting app")
         print("Press Ctrl+C to stop\n")
 
         # Check platform-specific permissions
@@ -510,15 +452,6 @@ class PromptStoreApp(QObject):
             # Start hotkey manager
             if self.hotkey_manager:
                 self.hotkey_manager.start()
-
-            # Show system tray message
-            if self.system_tray:
-                self.system_tray.showMessage(
-                    "Prompt Store Started",
-                    f"Press {hotkey_f1} to show menu",
-                    QSystemTrayIcon.Information,
-                    2000,
-                )
 
             # Run the Qt event loop
             return self.app.exec_()
@@ -553,8 +486,8 @@ class PromptStoreApp(QObject):
             self.menu_coordinator.cleanup()
 
         # Hide system tray
-        if self.system_tray:
-            self.system_tray.hide()
+        # if self.system_tray:
+        #     self.system_tray.hide()
 
         # Quit application
         if self.app:

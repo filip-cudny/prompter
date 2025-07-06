@@ -254,7 +254,6 @@ class SpeechToTextService:
     """Service for speech-to-text functionality."""
 
     def __init__(self, api_key: str, base_url: str, transcribe_model: str):
-        print("transcibe", transcribe_model)
         self.openai_client = OpenAIClient(api_key, base_url)
         self.recorder = AudioRecorder()
         self.transcribe_model = transcribe_model
