@@ -3,7 +3,13 @@
 from typing import Optional, Callable
 import logging
 from core.interfaces import ClipboardManager
-from core.models import MenuItem, MenuItemType, ExecutionResult, ErrorCode
+from core.models import (
+    MenuItem,
+    MenuItemType,
+    ExecutionResult,
+    ErrorCode,
+    HistoryEntryType,
+)
 from modules.utils.speech_to_text import SpeechToTextService
 from modules.utils.notifications import (
     PyQtNotificationManager,
@@ -87,13 +93,13 @@ class PyQtSpeechExecutionHandler:
         self,
         clipboard_manager: ClipboardManager,
         notification_manager: Optional[PyQtNotificationManager] = None,
-        speech_history_service=None,
+        history_service=None,
         ui_refresh_callback: Optional[Callable[[], None]] = None,
         speech_service=SpeechToTextService,
     ):
         self.clipboard_manager = clipboard_manager
         self.notification_manager = notification_manager or PyQtNotificationManager()
-        self.speech_history_service = speech_history_service
+        self.history_service = history_service
         self.ui_refresh_callback = ui_refresh_callback
         self.speech_service = speech_service
         self._transcription_start_time: Optional[float] = None
@@ -191,9 +197,13 @@ class PyQtSpeechExecutionHandler:
         """Handle transcription completion."""
         try:
             if transcription:
-                # Store transcription in speech history
-                if self.speech_history_service:
-                    self.speech_history_service.add_transcription(transcription)
+                if self.history_service:
+                    self.history_service.add_entry(
+                        input_content=transcription,
+                        entry_type=HistoryEntryType.SPEECH,
+                        output_content=transcription,
+                        success=True,
+                    )
 
                 success = self.clipboard_manager.set_content(transcription)
                 if not success:

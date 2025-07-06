@@ -1,7 +1,6 @@
 """Core business services for the prompt store application."""
 
 import time
-from collections import deque
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -230,31 +229,6 @@ class DataManager:
             }
 
 
-class SpeechHistoryService:
-    """Service for tracking speech transcriptions."""
-
-    def __init__(self, max_entries: int = 10):
-        self.max_entries = max_entries
-        self._transcriptions: deque = deque(maxlen=max_entries)
-
-    def add_transcription(self, transcription: str) -> None:
-        """Add a new transcription to history."""
-        if transcription and transcription.strip():
-            self._transcriptions.append(transcription.strip())
-
-    def get_last_transcription(self) -> Optional[str]:
-        """Get the most recent transcription."""
-        if self._transcriptions:
-            return self._transcriptions[-1]
-        return None
-
-    def get_all_transcriptions(self) -> List[str]:
-        """Get all transcriptions, most recent first."""
-        return list(reversed(self._transcriptions))
-
-    def clear_history(self) -> None:
-        """Clear all transcriptions."""
-        self._transcriptions.clear()
 
     def has_transcriptions(self) -> bool:
         """Check if there are any transcriptions."""

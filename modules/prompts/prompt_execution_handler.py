@@ -1,7 +1,6 @@
-
 """PyQt5-specific execution handlers that accept shared notification manager."""
 
-from typing import Optional,  List
+from typing import Optional, List
 import logging
 from core.interfaces import ClipboardManager
 from core.models import MenuItem, MenuItemType, ExecutionResult
@@ -15,6 +14,7 @@ from modules.utils.notifications import (
 import time
 
 logger = logging.getLogger(__name__)
+
 
 class PromptExecutionHandler:
     """Handler for executing settings-based prompt menu items."""

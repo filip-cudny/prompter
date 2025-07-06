@@ -16,6 +16,13 @@ class MenuItemType(Enum):
     SPEECH = "speech"
 
 
+class HistoryEntryType(Enum):
+    """Types of history entries."""
+
+    SPEECH = "speech"
+    TEXT = "text"
+
+
 class ErrorCode(Enum):
     """Error codes for execution results."""
 
@@ -93,6 +100,7 @@ class HistoryEntry:
     id: str
     timestamp: str
     input_content: str
+    entry_type: HistoryEntryType
     output_content: Optional[str] = None
     prompt_id: Optional[str] = None
     preset_id: Optional[str] = None

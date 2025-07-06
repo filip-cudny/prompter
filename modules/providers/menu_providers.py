@@ -1,7 +1,7 @@
 """Menu item providers for the prompt store application."""
 
 from typing import List, Callable, Optional
-from core.models import MenuItem, MenuItemType
+from core.models import MenuItem, MenuItemType, HistoryEntryType
 
 
 class SystemMenuProvider:
@@ -11,14 +11,14 @@ class SystemMenuProvider:
         self,
         refresh_callback: Callable[[], None],
         speech_callback: Optional[Callable[[], None]] = None,
-        speech_history_service=None,
+        history_service=None,
         execute_callback: Optional[Callable[[MenuItem], None]] = None,
         settings_service=None,
         prompt_store_service=None,
     ):
         self.refresh_callback = refresh_callback
         self.speech_callback = speech_callback
-        self.speech_history_service = speech_history_service
+        self.history_service = history_service
         self.execute_callback = execute_callback
         self.settings_service = settings_service
         self.prompt_store_service = prompt_store_service
@@ -50,8 +50,12 @@ class SystemMenuProvider:
 
         # Last Speech Output item - always show, matching input/output button pattern
         last_transcription = None
-        if self.speech_history_service:
-            last_transcription = self.speech_history_service.get_last_transcription()
+        if self.history_service:
+            last_entry = self.history_service.get_last_item_by_type(
+                HistoryEntryType.SPEECH
+            )
+            if last_entry:
+                last_transcription = last_entry.output_content
 
         speech_output_label = "⎘ Copy last speech output"
         if last_transcription:
@@ -85,7 +89,6 @@ class SystemMenuProvider:
             lambda item=speech_output_item: self.execute_callback(item)
         )
         items.append(speech_output_item)
-
 
         return items
 

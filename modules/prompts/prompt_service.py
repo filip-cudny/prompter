@@ -1,6 +1,6 @@
 from typing import List,Optional
 from core.services import DataManager, ExecutionService
-from utils.speech_to_text import SpeechToTextService
+from modules.utils.speech_to_text import SpeechToTextService
 from core.interfaces import PromptStoreServiceProtocol
 from modules.history.history_service import HistoryService
 from modules.utils.notifications import PyQtNotificationManager
@@ -8,6 +8,7 @@ from core.models import (
     ErrorCode,
     ExecutionResult,
     HistoryEntry,
+    HistoryEntryType,
     MenuItem,
     MenuItemType,
     PresetData,
@@ -133,6 +134,7 @@ class PromptStoreService(PromptStoreServiceProtocol):
             if result.success and item.data:
                 self.history_service.add_entry(
                     input_content=input_content,
+                    entry_type=HistoryEntryType.TEXT,
                     output_content=result.content,
                     prompt_id=item.data.get("prompt_id"),
                     preset_id=item.data.get("preset_id"),
@@ -141,6 +143,7 @@ class PromptStoreService(PromptStoreServiceProtocol):
             elif not result.success:
                 self.history_service.add_entry(
                     input_content=input_content,
+                    entry_type=HistoryEntryType.TEXT,
                     output_content=None,
                     prompt_id=item.data.get("prompt_id") if item.data else None,
                     preset_id=item.data.get("preset_id") if item.data else None,

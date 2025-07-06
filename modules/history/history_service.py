@@ -5,6 +5,7 @@ from typing import  List, Optional
 
 from core.models import (
     HistoryEntry,
+    HistoryEntryType,
 )
 class HistoryService:
     """Service for tracking execution history."""
@@ -16,6 +17,7 @@ class HistoryService:
     def add_entry(
         self,
         input_content: str,
+        entry_type: HistoryEntryType,
         output_content: Optional[str] = None,
         prompt_id: Optional[str] = None,
         preset_id: Optional[str] = None,
@@ -27,6 +29,7 @@ class HistoryService:
             id=str(int(time.time() * 1000)),  # millisecond timestamp as ID
             timestamp=time.strftime("%Y-%m-%d %H:%M:%S"),
             input_content=input_content,
+            entry_type=entry_type,
             output_content=output_content,
             prompt_id=prompt_id,
             preset_id=preset_id,
@@ -60,5 +63,12 @@ class HistoryService:
         """Get a specific history entry by ID."""
         for entry in self._history:
             if entry.id == entry_id:
+                return entry
+        return None
+
+    def get_last_item_by_type(self, entry_type: HistoryEntryType) -> Optional[HistoryEntry]:
+        """Get the most recent history entry of the specified type."""
+        for entry in reversed(self._history):
+            if entry.entry_type == entry_type:
                 return entry
         return None

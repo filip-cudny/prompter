@@ -104,7 +104,7 @@ class PromptStoreApp(QObject):
 
             # Initialize speech service
             self._initialize_speech_service()
-            self._initialize_speech_history_service()
+            self._initialize_history_service()
             # Initialize core service
             self.prompt_store_service = PromptStoreService(
                 self.prompt_providers,
@@ -143,14 +143,14 @@ class PromptStoreApp(QObject):
         except Exception as e:
             self.speech_service = None
 
-    def _initialize_speech_history_service(self) -> None:
-        """Initialize speech-to-text service as singleton."""
+    def _initialize_history_service(self) -> None:
+        """Initialize unified history service."""
         try:
-            from core.services import SpeechHistoryService
+            from modules.history.history_service import HistoryService
 
-            self.speech_history_service = SpeechHistoryService()
+            self.history_service = HistoryService()
         except Exception as e:
-            self.speech_history_service = None
+            self.history_service = None
 
     def _setup_common_speech_notifications(self) -> None:
         """Setup common speech notifications that run for all transcriptions."""
@@ -207,7 +207,7 @@ class PromptStoreApp(QObject):
             PyQtSpeechExecutionHandler(
                 self.clipboard_manager,
                 self.notification_manager,
-                self.speech_history_service,
+                self.history_service,
                 self._refresh_ui_after_speech,
                 self.speech_service,
             ),
@@ -239,10 +239,14 @@ class PromptStoreApp(QObject):
         self.hotkey_manager = PyQtHotkeyManager(
             keymap_manager=self.config.keymap_manager
         )
-        self.hotkey_manager.connect_context_menu_callback(self._on_f2_hotkey_pressed)
-        self.hotkey_manager.connect_re_execute_callback(self._on_f1_hotkey_pressed)
+        self.hotkey_manager.connect_context_menu_callback(
+            self._on_show_menu_hotkey_pressed
+        )
+        self.hotkey_manager.connect_re_execute_callback(
+            self._on_active_prompt_hotkey_pressed
+        )
         self.hotkey_manager.connect_speech_toggle_callback(
-            self._on_shift_f1_hotkey_pressed
+            self._on_speech_to_text_hotkey_pressed
         )
 
         # Initialize menu coordinator
@@ -278,7 +282,7 @@ class PromptStoreApp(QObject):
             SystemMenuProvider(
                 self._refresh_data,
                 self._speech_to_text,
-                self.speech_history_service,
+                self.history_service,
                 self._execute_menu_item,
                 None,
                 self.prompt_store_service,
@@ -322,22 +326,12 @@ class PromptStoreApp(QObject):
         self.interrupt_timer.timeout.connect(lambda: None)  # Just process events
         self.interrupt_timer.start(100)  # Check every 100ms
 
-    def _tray_activated(self, reason):
-        """Handle system tray activation."""
-        if reason == QSystemTrayIcon.Trigger:
-            self._on_hotkey_pressed()
-
-    def _on_hotkey_pressed(self) -> None:
-        """Handle context menu hotkey press event."""
-        if self.menu_coordinator:
-            self.menu_coordinator.show_menu()
-
-    def _on_f1_hotkey_pressed(self) -> None:
+    def _on_active_prompt_hotkey_pressed(self) -> None:
         """Handle F1 hotkey press event for executing active prompt."""
         # Use QTimer.singleShot to ensure execution on main Qt thread
         QTimer.singleShot(0, self._execute_active_prompt)
 
-    def _on_f2_hotkey_pressed(self) -> None:
+    def _on_show_menu_hotkey_pressed(self) -> None:
         """Handle F2 hotkey press event for showing context menu."""
 
         # Use QTimer.singleShot to ensure execution on main Qt thread
@@ -347,14 +341,13 @@ class PromptStoreApp(QObject):
 
         QTimer.singleShot(0, show_menu)
 
-    def _on_shift_f1_hotkey_pressed(self) -> None:
+    def _on_speech_to_text_hotkey_pressed(self) -> None:
         """Handle Shift+F1 hotkey press event for speech-to-text toggle."""
         # Use QTimer.singleShot to ensure execution on main Qt thread
         QTimer.singleShot(0, self._speech_to_text)
 
     def _execute_menu_item(self, item) -> None:
         """Execute a menu item (placeholder for provider callbacks)."""
-        # This is handled by the menu coordinator's wrapped actions
         return
 
     def _refresh_data(self) -> None:
