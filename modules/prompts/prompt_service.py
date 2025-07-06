@@ -1,5 +1,6 @@
 from typing import List, Optional
-from core.services import DataManager, ExecutionService
+from core.exceptions import DataError
+from core.services import ExecutionService
 from modules.utils.speech_to_text import SpeechToTextService
 from core.interfaces import PromptStoreServiceProtocol
 from modules.history.history_service import HistoryService
@@ -38,21 +39,37 @@ class PromptStoreService(PromptStoreServiceProtocol):
         self.speech_service = speech_service
         self.execution_service = ExecutionService(self)
         self.execution_service.set_speech_service(self.speech_service)
-        self.data_manager = DataManager(self.prompt_providers)
         self.history_service = HistoryService()
         self.active_prompt_service = ActivePromptService()
         self.pending_alternative_execution = None
-
-    def refresh_data(self) -> None:
-        """Refresh all data from providers."""
-        for provider in self.prompt_providers:
-            if hasattr(provider, "refresh"):
-                provider.refresh()
-        self.data_manager.refresh()
+        self._prompts_cache = None
 
     def get_prompts(self) -> List[PromptData]:
-        """Get all available prompts."""
-        return self.data_manager.get_prompts()
+        """Get prompts with caching."""
+
+        if self._prompts_cache is None:
+            return self._refresh_prompts()
+
+        return self._prompts_cache
+
+    def _refresh_prompts(self) -> List[PromptData]:
+        """Refresh prompts cache."""
+        try:
+            all_prompts = []
+            for provider in self.prompt_providers:
+                if provider and hasattr(provider, "get_prompts"):
+                    try:
+                        provider_prompts = provider.get_prompts()
+                        all_prompts.extend(provider_prompts)
+                    except Exception as e:
+                        print(
+                            f"Warning: Failed to get prompts from provider {type(provider).__name__}: {e}"
+                        )
+
+            self._prompts_cache = all_prompts
+            return self._prompts_cache
+        except Exception as e:
+            raise DataError(f"Failed to refresh prompts: {str(e)}") from e
 
     def execute_item(self, item: MenuItem) -> ExecutionResult:
         """Execute a menu item and track in history."""

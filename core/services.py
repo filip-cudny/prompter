@@ -1,6 +1,5 @@
 """Core business services for the prompt store application."""
 
-import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -132,80 +131,6 @@ class ExecutionService:
         else:
             self.recording_action_id = None
             self.pending_execution_item = None
-
-
-class DataManager:
-    """Manages prompt and preset data with caching."""
-
-    def __init__(self, prompt_providers):
-        self.prompt_providers = (
-            prompt_providers
-            if isinstance(prompt_providers, list)
-            else [prompt_providers]
-        )
-        self._prompts_cache: Optional[List[PromptData]] = None
-        self._prompt_id_to_name: Dict[str, str] = {}
-        self._last_refresh = 0.0
-        self._cache_ttl = 60 * 60 * 10  # 10h
-
-    def get_prompts(self) -> List[PromptData]:
-        """Get prompts with caching."""
-        if self._should_refresh():
-            return self._refresh_prompts()
-
-        if self._prompts_cache is None:
-            return self._refresh_prompts()
-
-        return self._prompts_cache
-
-    def get_prompt_name(self, prompt_id: str) -> str:
-        """Get prompt name by ID."""
-        if not self._prompt_id_to_name or self._should_refresh():
-            self.refresh()
-
-        return self._prompt_id_to_name.get(prompt_id, "Unknown Prompt")
-
-    def refresh(self) -> None:
-        """Force refresh of all cached data."""
-        try:
-            for provider in self.prompt_providers:
-                if provider and hasattr(provider, "refresh"):
-                    provider.refresh()
-            self._refresh_prompts()
-            self._last_refresh = time.time()
-        except Exception as e:
-            raise DataError(f"Failed to refresh data: {str(e)}") from e
-
-    def _should_refresh(self) -> bool:
-        """Check if cache should be refreshed."""
-        return time.time() - self._last_refresh > self._cache_ttl
-
-    def _refresh_prompts(self) -> List[PromptData]:
-        """Refresh prompts cache."""
-        try:
-            all_prompts = []
-            for provider in self.prompt_providers:
-                if provider and hasattr(provider, "get_prompts"):
-                    try:
-                        provider_prompts = provider.get_prompts()
-                        all_prompts.extend(provider_prompts)
-                    except Exception as e:
-                        print(
-                            f"Warning: Failed to get prompts from provider {type(provider).__name__}: {e}"
-                        )
-
-            self._prompts_cache = all_prompts
-            self._update_prompt_id_mapping()
-            return self._prompts_cache
-        except Exception as e:
-            raise DataError(f"Failed to refresh prompts: {str(e)}") from e
-
-    def _update_prompt_id_mapping(self) -> None:
-        """Update the prompt ID to name mapping."""
-        if self._prompts_cache:
-            self._prompt_id_to_name = {
-                prompt.id: prompt.name for prompt in self._prompts_cache
-            }
 
 
 class SettingsService:

@@ -257,13 +257,14 @@ class PromptStoreApp(QObject):
         if not self.prompt_store_service or not self.menu_coordinator:
             raise RuntimeError("Required services not initialized")
 
-        data_manager = self.prompt_store_service.data_manager
         history_service = self.prompt_store_service.history_service
 
         # Create menu providers
         self.menu_providers = [
             PromptMenuProvider(
-                data_manager, self._execute_menu_item, self.prompt_store_service
+                self.prompt_store_service,
+                self._execute_menu_item,
+                self.prompt_store_service,
             ),
             HistoryMenuProvider(
                 history_service, self._execute_menu_item, self.prompt_store_service

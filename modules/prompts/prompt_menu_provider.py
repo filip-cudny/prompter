@@ -1,8 +1,8 @@
 """Menu item providers for the prompt store application."""
 
-from typing import List, Callable, Optional
+from typing import List, Callable
 from core.models import MenuItem, MenuItemType
-from core.services import  DataManager
+from modules.prompts.prompt_service import PromptStoreService
 
 
 class PromptMenuProvider:
@@ -10,11 +10,11 @@ class PromptMenuProvider:
 
     def __init__(
         self,
-        data_manager: DataManager,
+        prompt_store: PromptStoreService,
         execute_callback: Callable[[MenuItem], None],
         prompt_store_service=None,
     ):
-        self.data_manager = data_manager
+        self.prompt_store = prompt_store
         self.execute_callback = execute_callback
         self.prompt_store_service = prompt_store_service
 
@@ -23,7 +23,7 @@ class PromptMenuProvider:
         items = []
 
         try:
-            prompts = self.data_manager.get_prompts()
+            prompts = self.prompt_store.get_prompts()
 
             for prompt in prompts:
                 item_id = f"prompt_{prompt.id}"
@@ -58,4 +58,3 @@ class PromptMenuProvider:
     def refresh(self) -> None:
         """Refresh the provider's data."""
         self.data_manager.refresh()
-
