@@ -7,8 +7,6 @@ from .models import (
     PromptData,
     PresetData,
     ExecutionResult,
-    HistoryEntry,
-    HistoryEntryType,
 )
 
 
@@ -109,23 +107,10 @@ class PromptStoreServiceProtocol(Protocol):
     def add_history_entry(
         self,
         item: MenuItem,
-        entry_type: HistoryEntryType,
         input_content: str,
         result: ExecutionResult,
     ) -> None:
         """Add entry to history service for prompt and preset executions."""
-        ...
-
-    def get_history(self) -> List[HistoryEntry]:
-        """Get execution history."""
-        ...
-
-    def get_last_input(self) -> Optional[str]:
-        """Get the last input from history."""
-        ...
-
-    def get_last_output(self) -> Optional[str]:
-        """Get the last output from history."""
         ...
 
     def get_active_prompt(self) -> Optional[MenuItem]:

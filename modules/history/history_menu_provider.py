@@ -21,10 +21,8 @@ class HistoryMenuProvider:
         items = []
 
         last_history_text_prompt_item = self.history_service.get_last_item_by_type(
-            entry_type=HistoryEntryType
+            entry_type=HistoryEntryType.TEXT
         )
-        print("last_history_text_prompt_item")
-        print(last_history_text_prompt_item)
         last_input = None
         last_output = None
         if last_history_text_prompt_item is not None:

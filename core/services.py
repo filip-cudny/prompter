@@ -173,7 +173,6 @@ class DataManager:
                 if provider and hasattr(provider, "refresh"):
                     provider.refresh()
             self._refresh_prompts()
-            self._refresh_presets()
             self._last_refresh = time.time()
         except Exception as e:
             raise DataError(f"Failed to refresh data: {str(e)}") from e
@@ -202,37 +201,12 @@ class DataManager:
         except Exception as e:
             raise DataError(f"Failed to refresh prompts: {str(e)}") from e
 
-    def _refresh_presets(self) -> List[PresetData]:
-        """Refresh presets cache."""
-        try:
-            all_presets = []
-            for provider in self.prompt_providers:
-                if provider and hasattr(provider, "get_presets"):
-                    try:
-                        provider_presets = provider.get_presets()
-                        all_presets.extend(provider_presets)
-                    except Exception as e:
-                        print(
-                            f"Warning: Failed to get presets from provider {type(provider).__name__}: {e}"
-                        )
-
-            self._presets_cache = all_presets
-            return self._presets_cache
-        except Exception as e:
-            raise DataError(f"Failed to refresh presets: {str(e)}") from e
-
     def _update_prompt_id_mapping(self) -> None:
         """Update the prompt ID to name mapping."""
         if self._prompts_cache:
             self._prompt_id_to_name = {
                 prompt.id: prompt.name for prompt in self._prompts_cache
             }
-
-
-
-    def has_transcriptions(self) -> bool:
-        """Check if there are any transcriptions."""
-        return len(self._transcriptions) > 0
 
 
 class SettingsService:

@@ -203,7 +203,7 @@ class PromptStoreApp(QObject):
                 self.clipboard_manager,
                 self.notification_manager,
                 self.history_service,
-                self._refresh_ui_after_speech,
+                self._refresh_ui_copy_buttons,
                 self.speech_service,
             ),
         ]
@@ -355,7 +355,7 @@ class PromptStoreApp(QObject):
         except Exception as e:
             print(f"Failed to refresh data: {e}")
 
-    def _refresh_ui_after_speech(self) -> None:
+    def _refresh_ui_copy_buttons(self) -> None:
         """Refresh UI after speech-to-text completion to show 'Copy last speech' item."""
         try:
             if self.menu_coordinator:

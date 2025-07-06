@@ -1,6 +1,6 @@
 """PyQt5-specific execution handlers that accept shared notification manager."""
 
-from typing import Optional, List
+from typing import Optional, List, Callable
 import logging
 from core.interfaces import ClipboardManager
 from core.models import MenuItem, MenuItemType, ExecutionResult
