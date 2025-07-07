@@ -309,8 +309,10 @@ class NotificationDaemon:
 
     def _get_pid_file(self):
         """Get the PID file path."""
-        temp_dir = tempfile.gettempdir()
-        return os.path.join(temp_dir, "prompt_store_daemon.pid")
+        # Get the app directory (two levels up from this file)
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        app_dir = os.path.dirname(os.path.dirname(current_dir))
+        return os.path.join(app_dir, ".prompt_store_daemon.pid")
 
     def start(self):
         """Start the notification daemon."""

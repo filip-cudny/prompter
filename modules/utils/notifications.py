@@ -567,19 +567,13 @@ class PyQtNotificationManager:
             temp_dir = tempfile.gettempdir()
             pipe_path = os.path.join(temp_dir, "prompt_store_notifications")
             
-            # Check if daemon is running
-            if not os.path.exists(pipe_path):
-                # Start daemon if not running
-                if not self._start_notification_daemon():
-                    raise Exception("Failed to start daemon")
-            
-            # Send notification to daemon
+            # Send notification to daemon (daemon should be running via app)
             if os.path.exists(pipe_path):
                 with open(pipe_path, 'w') as pipe:
                     pipe.write(json.dumps(notification_data) + '\n')
                     pipe.flush()
             else:
-                # Fallback if daemon couldn't start
+                # Fallback if daemon not available
                 raise Exception("Daemon not available")
 
         except Exception as e:
@@ -588,78 +582,9 @@ class PyQtNotificationManager:
             display_text = f"{title}: {message}" if message else title
             print(f"🔔 {display_text}")
 
-    def _start_notification_daemon(self):
-        """Start the notification daemon if not running."""
-        try:
-            current_dir = os.path.dirname(os.path.abspath(__file__))
-            daemon_script = os.path.join(current_dir, "notification_daemon.py")
-            
-            if os.path.exists(daemon_script):
-                subprocess.Popen(
-                    [sys.executable, daemon_script],
-                    stdin=subprocess.DEVNULL,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    start_new_session=True,
-                )
-                
-                # Wait for daemon to start
-                temp_dir = tempfile.gettempdir()
-                pipe_path = os.path.join(temp_dir, "prompt_store_notifications")
-                
-                # Wait up to 3 seconds for daemon to start
-                for _ in range(30):
-                    if os.path.exists(pipe_path):
-                        return True
-                    time.sleep(0.1)
-                
-                print("Daemon startup timeout - pipe not created")
-                return False
-            else:
-                print(f"Daemon script not found: {daemon_script}")
-                return False
-        except Exception as e:
-            print(f"Failed to start notification daemon: {e}")
-            return False
 
-    def _show_notification_subprocess(
-        self,
-        title: str,
-        message: str | None,
-        duration: int,
-        bg_color: str = "#323232",
-        icon: str = "",
-    ) -> None:
-        """Show notification using subprocess to avoid focus stealing."""
-        try:
-            # Create notification data
-            notification_data = {
-                "title": title,
-                "message": message,
-                "duration": duration,
-                "bg_color": bg_color,
-                "icon": icon,
-                "screen_geometry": self._get_screen_geometry_dict(),
-            }
 
-            # Get the path to the notification subprocess script
-            current_dir = os.path.dirname(os.path.abspath(__file__))
-            subprocess_script = os.path.join(current_dir, "notification_subprocess.py")
 
-            # Launch subprocess
-            subprocess.Popen(
-                [sys.executable, subprocess_script, json.dumps(notification_data)],
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                start_new_session=True,  # Detach from parent process
-            )
-
-        except Exception as e:
-            print(f"Failed to show subprocess notification: {e}")
-            # Fallback to regular notification
-            display_text = f"{title}: {message}" if message else title
-            print(f"🔔 {display_text}")
 
     def _get_screen_geometry_dict(self) -> dict:
         """Get screen geometry as dictionary for subprocess."""
