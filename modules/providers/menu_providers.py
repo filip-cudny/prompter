@@ -53,14 +53,14 @@ class SystemMenuProvider:
             if last_entry:
                 last_transcription = last_entry.output_content
 
-        speech_output_label = "⎘ Copy last speech output"
+        speech_output_label = "⎘ Copy output"
         if last_transcription:
             preview = (
                 last_transcription[:30] + "..."
                 if len(last_transcription) > 30
                 else last_transcription
             )
-            speech_output_label = f"⎘ Copy last speech output: {preview}"
+            speech_output_label = f"⎘ Copy output: {preview}"
 
         speech_output_enabled = last_transcription is not None
         if self.prompt_store_service:

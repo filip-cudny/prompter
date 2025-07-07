@@ -29,10 +29,10 @@ class HistoryMenuProvider:
             last_input = last_history_text_prompt_item.input_content
             last_output = last_history_text_prompt_item.output_content
 
-        input_label = "⎘ Copy last input"
+        input_label = "⎘ Copy input"
         if last_input:
             preview = last_input[:30] + "..." if len(last_input) > 30 else last_input
-            input_label = f"⎘ Copy last input: {preview}"
+            input_label = f"⎘ Copy input: {preview}"
 
         input_enabled = last_input is not None
         if self.prompt_store_service:
@@ -56,10 +56,10 @@ class HistoryMenuProvider:
         items.append(input_item)
 
         # Last Output item
-        output_label = "⎘ Copy last output"
+        output_label = "⎘ Copy output"
         if last_output:
             preview = last_output[:30] + "..." if len(last_output) > 30 else last_output
-            output_label = f"⎘ Copy last output: {preview}"
+            output_label = f"⎘ Copy output: {preview}"
 
         output_enabled = last_output is not None
         if self.prompt_store_service:
