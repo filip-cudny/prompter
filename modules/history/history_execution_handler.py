@@ -4,6 +4,9 @@ from typing import Optional
 import logging
 from core.interfaces import ClipboardManager
 from core.models import MenuItem, MenuItemType, ExecutionResult, ErrorCode
+from modules.utils.notifications import (
+    PyQtNotificationManager,
+)
 import time
 
 logger = logging.getLogger(__name__)
@@ -12,8 +15,13 @@ logger = logging.getLogger(__name__)
 class HistoryExecutionHandler:
     """PyQt5 handler for executing history menu items."""
 
-    def __init__(self, clipboard_manager: ClipboardManager):
+    def __init__(
+        self,
+        clipboard_manager: ClipboardManager,
+        notification_manager: PyQtNotificationManager,
+    ):
         self.clipboard_manager = clipboard_manager
+        self.notification_manager = notification_manager
 
     def can_handle(self, item: MenuItem) -> bool:
         """Check if this handler can execute the given menu item."""
@@ -50,6 +58,8 @@ class HistoryExecutionHandler:
 
             execution_time = time.time() - start_time
             logger.info(f"History item copied to clipboard: {content_type}")
+
+            self.notification_manager.show_success_notification("Copied")
 
             return ExecutionResult(
                 success=True,

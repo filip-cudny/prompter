@@ -209,13 +209,16 @@ class PromptStoreApp(QObject):
             raise RuntimeError("Required services not initialized")
 
         handlers = [
-            HistoryExecutionHandler(self.clipboard_manager),
+            HistoryExecutionHandler(
+                self.clipboard_manager,
+                self.notification_manager,
+            ),
             PyQtSpeechExecutionHandler(
                 self.clipboard_manager,
                 self.notification_manager,
                 self.history_service,
                 self.speech_service,
-                self.menu_coordinator
+                self.menu_coordinator,
             ),
         ]
 

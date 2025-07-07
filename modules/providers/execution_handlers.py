@@ -166,7 +166,7 @@ class PyQtSpeechExecutionHandler:
 
             if success:
                 self.notification_manager.show_success_notification(
-                    "Speech Output Copied"
+                    "Copied"
                 )
 
                 return ExecutionResult(
