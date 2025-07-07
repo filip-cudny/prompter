@@ -641,25 +641,31 @@ class PromptStoreApp(QObject):
         try:
             # Get daemon paths
             current_dir = os.path.dirname(os.path.abspath(__file__))
-            daemon_script = os.path.join(current_dir, "..", "modules", "utils", "notification_daemon.py")
+            daemon_script = os.path.join(
+                current_dir, "..", "modules", "utils", "notification_daemon.py"
+            )
             daemon_script = os.path.normpath(daemon_script)
-            
+
             if not os.path.exists(daemon_script):
                 print(f"Daemon script not found: {daemon_script}")
                 return False
-            
+
             # Setup paths
             temp_dir = tempfile.gettempdir()
             pipe_path = os.path.join(temp_dir, "prompt_store_notifications")
             app_dir = os.path.dirname(os.path.abspath(__file__))
-            self.notification_daemon_pid_file = os.path.join(app_dir, "..", ".prompt_store_daemon.pid")
-            self.notification_daemon_pid_file = os.path.normpath(self.notification_daemon_pid_file)
-            
+            self.notification_daemon_pid_file = os.path.join(
+                app_dir, "..", ".prompt_store_daemon.pid"
+            )
+            self.notification_daemon_pid_file = os.path.normpath(
+                self.notification_daemon_pid_file
+            )
+
             # Check if daemon is already running
             if self._is_daemon_running():
                 print("Notification daemon already running")
                 return True
-            
+
             # Start daemon process
             self.notification_daemon_process = subprocess.Popen(
                 [sys.executable, daemon_script],
@@ -668,18 +674,19 @@ class PromptStoreApp(QObject):
                 stderr=subprocess.DEVNULL,
                 start_new_session=True,
             )
-            
+
             # Wait for daemon to start
             import time
+
             for _ in range(30):  # Wait up to 3 seconds
                 if os.path.exists(pipe_path):
                     print("Notification daemon started successfully")
                     return True
                 time.sleep(0.1)
-            
+
             print("Notification daemon startup timeout")
             return False
-            
+
         except Exception as e:
             print(f"Failed to start notification daemon: {e}")
             return False
@@ -692,29 +699,24 @@ class PromptStoreApp(QObject):
             app_dir = os.path.dirname(os.path.abspath(__file__))
             pid_file = os.path.join(app_dir, "..", ".prompt_store_daemon.pid")
             pid_file = os.path.normpath(pid_file)
-            
 
-            
             if os.path.exists(pid_file):
                 try:
-                    with open(pid_file, 'r') as f:
+                    with open(pid_file, "r") as f:
                         pid = int(f.read().strip())
-                    
 
-                    
                     # Send SIGTERM to daemon
                     os.kill(pid, signal.SIGTERM)
 
-                    
                     # Wait for daemon to shut down
                     import time
+
                     for i in range(20):  # Wait up to 2 seconds
                         try:
                             os.kill(pid, 0)  # Check if process still exists
 
                             time.sleep(0.1)
                         except OSError:
-
                             break  # Process is gone
                     else:
                         # Force kill if still running
@@ -722,10 +724,10 @@ class PromptStoreApp(QObject):
                             os.kill(pid, signal.SIGKILL)
                         except OSError:
                             pass
-                        
+
                 except (ValueError, OSError):
                     pass
-            
+
             # Clean up process reference
             if self.notification_daemon_process:
                 try:
@@ -735,22 +737,22 @@ class PromptStoreApp(QObject):
                     pass
                 finally:
                     self.notification_daemon_process = None
-            
+
             # Clean up files
             files_to_clean = [
                 os.path.join(temp_dir, "prompt_store_notifications"),
                 pid_file,
             ]
-            
+
             for file_path in files_to_clean:
                 if os.path.exists(file_path):
                     try:
                         os.unlink(file_path)
                     except OSError:
                         pass
-                        
+
             print("Notification daemon stopped")
-            
+
         except Exception as e:
             print(f"Error stopping notification daemon: {e}")
 
@@ -761,20 +763,22 @@ class PromptStoreApp(QObject):
         app_dir = os.path.dirname(os.path.abspath(__file__))
         pid_file = os.path.join(app_dir, "..", ".prompt_store_daemon.pid")
         pid_file = os.path.normpath(pid_file)
-        
+
         # Check if pipe exists
         if not os.path.exists(pipe_path):
             return False
-        
+
         # Check if PID file exists and process is running
         if os.path.exists(pid_file):
             try:
-                with open(pid_file, 'r') as f:
+                with open(pid_file, "r") as f:
                     pid = int(f.read().strip())
-                
+
                 # Check if process is running
                 try:
-                    os.kill(pid, 0)  # Signal 0 doesn't kill, just checks if process exists
+                    os.kill(
+                        pid, 0
+                    )  # Signal 0 doesn't kill, just checks if process exists
                     return True
                 except OSError:
                     # Process doesn't exist, clean up stale files
@@ -787,7 +791,7 @@ class PromptStoreApp(QObject):
                     return False
             except (ValueError, IOError):
                 return False
-        
+
         return False
 
 
