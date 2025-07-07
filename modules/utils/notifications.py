@@ -4,7 +4,6 @@ from PyQt5.QtWidgets import (
     QApplication,
     QLabel,
     QGraphicsOpacityEffect,
-    QWidget,
     QHBoxLayout,
     QVBoxLayout,
     QFrame,
@@ -17,8 +16,9 @@ from PyQt5.QtCore import (
     QObject,
     Qt,
 )
-from PyQt5.QtGui import QCursor
-from typing import Optional, List
+from PyQt5.QtGui import QCursor, QPainter, QPen, QColor, QPainterPath
+from PyQt5.QtCore import QRectF
+from typing import Optional, List, Union
 import threading
 import platform
 
@@ -27,18 +27,24 @@ class NotificationWidget(QFrame):
     """Custom notification widget with fade animations."""
 
     def __init__(
-        self, title: str, message: str | None = None, icon: str = "", bg_color: str = "#323232", parent=None
+        self,
+        title: str,
+        message: str | None = None,
+        icon: str = "",
+        bg_color: Union[str, QColor] = "#323232",
+        parent=None,
     ):
         super().__init__(parent)
 
-        self.setStyleSheet(f"""
-            QFrame {{
-                background-color: {bg_color};
-                border-radius: 8px;
-                border: 1px solid rgba(255, 255, 255, 0.3);
-            }}
+        self.bg_color = bg_color
+        self.setStyleSheet("""
+            QFrame {
+                background-color: transparent;
+                border: none;
+            }
         """)
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
 
         # Create main layout
         main_layout = QHBoxLayout(self)
@@ -165,6 +171,27 @@ class NotificationWidget(QFrame):
         self.fade_animation.finished.connect(self.close)
         self.fade_animation.start()
 
+    def paintEvent(self, event):
+        """Custom paint event for rounded corners with proper transparency."""
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        # Create rounded rectangle
+        rect = QRectF(self.rect())
+        path = QPainterPath()
+        path.addRoundedRect(rect, 8, 8)
+
+        # Fill with background color
+        painter.fillPath(path, QColor(self.bg_color))
+
+        # Draw border
+        pen = QPen(QColor(255, 255, 255, 77))  # rgba(255, 255, 255, 0.3)
+        pen.setWidth(1)
+        painter.setPen(pen)
+        painter.drawPath(path)
+
+        painter.end()
+
 
 class NotificationDispatcher(QObject):
     """Thread-safe notification dispatcher using Qt signals."""
@@ -179,7 +206,12 @@ class NotificationDispatcher(QObject):
         )
 
     def _show_notification_slot(
-        self, title: str, message: str | None, bg_color: str, duration: int, icon: str = ""
+        self,
+        title: str,
+        message: str | None,
+        bg_color: str,
+        duration: int,
+        icon: str = "",
     ):
         """Slot to handle notification display on main thread."""
         self.notification_manager._show_notification_internal(
@@ -198,7 +230,7 @@ class PyQtNotificationManager:
 
     def show_success_notification(self, title: str, message: str | None = None) -> None:
         """Show a success notification."""
-        self._display_notification(title, message, "#6B7A4A", 2000, "✔")
+        self._display_notification(title, message, "#43803e", 2000, "✔")
 
     def show_error_notification(
         self,
@@ -213,7 +245,12 @@ class PyQtNotificationManager:
         self._display_notification(title, message, "#6A7D93", 2000, "ⓘ")
 
     def _display_notification(
-        self, title: str, message: str | None, bg_color: str, duration: int, icon: str = ""
+        self,
+        title: str,
+        message: str | None,
+        bg_color: str,
+        duration: int,
+        icon: str = "",
     ) -> None:
         """Display a notification immediately, handling threading properly."""
         if not self.app or not self.dispatcher:
@@ -305,7 +342,12 @@ class PyQtNotificationManager:
             return QRect(0, 0, 1920, 1080)
 
     def _show_notification_internal(
-        self, title: str, message: str | None, duration: int, bg_color: str = "#323232", icon: str = ""
+        self,
+        title: str,
+        message: str | None,
+        duration: int,
+        bg_color: str = "#323232",
+        icon: str = "",
     ) -> None:
         """Internal method to show notification (must be called on main thread)."""
         try:
