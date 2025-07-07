@@ -7,6 +7,7 @@ from PyQt5.QtWidgets import (
     QHBoxLayout,
     QVBoxLayout,
     QFrame,
+    QWidget,
 )
 from PyQt5.QtCore import (
     QTimer,
@@ -16,15 +17,22 @@ from PyQt5.QtCore import (
     QObject,
     Qt,
 )
-from PyQt5.QtGui import QCursor, QPainter, QPen, QColor, QPainterPath
+from PyQt5.QtGui import QCursor, QPainter, QPen, QColor, QPainterPath, QWindow
 from PyQt5.QtCore import QRectF
 from typing import Optional, List, Union
 import threading
 import platform
+import subprocess
+import sys
+import json
+import os
+
+# Platform-specific configuration
+MACOS_PLATFORM = platform.system() == "Darwin"
 
 
-class NotificationWidget(QFrame):
-    """Custom notification widget with fade animations."""
+class NotificationWidget(QWidget):
+    """Custom notification widget with fade animations using QWindow for better control."""
 
     def __init__(
         self,
@@ -36,15 +44,34 @@ class NotificationWidget(QFrame):
     ):
         super().__init__(parent)
 
+        # Create underlying QWindow for native control
+        self.native_window = QWindow()
+        self.native_window.setFlags(
+            Qt.Tool
+            | Qt.FramelessWindowHint
+            | Qt.WindowStaysOnTopHint
+            | Qt.WindowDoesNotAcceptFocus
+        )
+
+        # Configure the widget window
+        if MACOS_PLATFORM:
+            self.native_window.setModality(Qt.NonModal)
+
         self.bg_color = bg_color
         self.setStyleSheet("""
-            QFrame {
+            QWidget {
                 background-color: transparent;
                 border: none;
             }
         """)
-        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
+        self._setup_non_activating_window()
         self.setAttribute(Qt.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WA_ShowWithoutActivating, True)
+
+        # macOS-specific attributes to prevent activation
+        if MACOS_PLATFORM:
+            self.setAttribute(Qt.WA_MacNoClickThrough, True)
+            self.setAttribute(Qt.WA_MacAlwaysShowToolWindow, True)
 
         # Create main layout
         main_layout = QHBoxLayout(self)
@@ -123,6 +150,39 @@ class NotificationWidget(QFrame):
         self.hide_timer.setSingleShot(True)
         self.hide_timer.timeout.connect(self.fade_out)
 
+    def _setup_non_activating_window(self):
+        """Configure window flags for non-activating overlay behavior."""
+        base_flags = (
+            Qt.FramelessWindowHint
+            | Qt.WindowStaysOnTopHint
+            | Qt.Tool
+            | Qt.WindowDoesNotAcceptFocus
+        )
+
+        # Platform-specific window flags
+        if platform.system() == "Darwin":  # macOS
+            # On macOS, use additional flags to prevent activation
+            flags = base_flags
+        elif platform.system() == "Linux":
+            # On Linux, bypass window manager for true overlay behavior
+            flags = base_flags | Qt.X11BypassWindowManagerHint
+        else:  # Windows
+            flags = base_flags
+
+        self.setWindowFlags(flags)
+
+        # Additional attributes for non-activating behavior
+        self.setAttribute(Qt.WA_ShowWithoutActivating, True)
+        if MACOS_PLATFORM:
+            # macOS-specific: prevent window from becoming key window
+            if hasattr(Qt, "WA_MacAlwaysShowToolWindow"):
+                self.setAttribute(Qt.WA_MacAlwaysShowToolWindow, True)
+            if hasattr(Qt, "WA_MacNonActivatingToolWindow"):
+                self.setAttribute(Qt.WA_MacNonActivatingToolWindow, True)
+
+        # Enable debug mode for testing (can be disabled in production)
+        self._debug_enabled = False
+
     def show_notification(
         self,
         duration: int = 2000,
@@ -143,10 +203,8 @@ class NotificationWidget(QFrame):
             y = screen_geometry.y() + 50 + (notification_index * 80)
             self.move(x, y)
 
-            # Show and fade in
-            self.show()
-            self.raise_()  # Ensure notification is on top
-            self.activateWindow()  # Activate window on macOS
+            # Show and fade in without activating
+            self._show_without_activation()
             self.fade_in()
 
             # Set timer to fade out
@@ -191,6 +249,59 @@ class NotificationWidget(QFrame):
         painter.drawPath(path)
 
         painter.end()
+
+    def _show_without_activation(self):
+        """Show the notification without stealing focus."""
+        if MACOS_PLATFORM:
+            # On macOS, try to prevent activation entirely
+            self.setVisible(True)
+            self._configure_macos_window_level()
+            # Don't call show() or raise_() as they can cause activation
+        else:
+            self.show()
+            self.raise_()
+
+        # Debug information
+        self._debug_window_state()
+
+    def _configure_macos_window_level(self):
+        """Configure macOS window level for proper overlay behavior."""
+        # Use Qt-only approach for all platforms - this is more reliable
+        self._configure_qt_window_level()
+
+    def _configure_qt_window_level(self):
+        """Configure window level using Qt-only methods."""
+        try:
+            # Ensure window stays on top but doesn't steal focus
+            current_flags = self.windowFlags()
+            if not (current_flags & Qt.WindowStaysOnTopHint):
+                self.setWindowFlags(current_flags | Qt.WindowStaysOnTopHint)
+
+            # Additional attributes to prevent activation
+            self.setAttribute(Qt.WA_ShowWithoutActivating, True)
+
+            # Platform-specific attributes
+            if MACOS_PLATFORM:
+                if hasattr(Qt, "WA_MacNoClickThrough"):
+                    self.setAttribute(Qt.WA_MacNoClickThrough, False)
+        except Exception as e:
+            print(f"Warning: Could not configure Qt window level: {e}")
+
+    def _debug_window_state(self):
+        """Debug method to verify non-activating window behavior."""
+        if hasattr(self, "_debug_enabled") and self._debug_enabled:
+            flags = self.windowFlags()
+            print(f"🔧 Notification Debug Info:")
+            print(f"  Platform: {platform.system()}")
+            print(f"  Window flags: {flags}")
+            print(
+                f"  WA_ShowWithoutActivating: {self.testAttribute(Qt.WA_ShowWithoutActivating)}"
+            )
+            print(
+                f"  WindowDoesNotAcceptFocus: {bool(flags & Qt.WindowDoesNotAcceptFocus)}"
+            )
+            print(f"  WindowStaysOnTopHint: {bool(flags & Qt.WindowStaysOnTopHint)}")
+            print(f"  ✅ Non-activating configuration applied successfully")
 
 
 class NotificationDispatcher(QObject):
@@ -366,6 +477,13 @@ class PyQtNotificationManager:
                 )
                 return
 
+            # On macOS, use subprocess to avoid focus stealing
+            if MACOS_PLATFORM:
+                self._show_notification_subprocess(
+                    title, message, duration, bg_color, icon
+                )
+                return
+
             # Get the active screen geometry
             active_screen = self._get_active_screen_geometry()
 
@@ -390,6 +508,90 @@ class PyQtNotificationManager:
     def is_available(self) -> bool:
         """Check if notifications are available."""
         return self.app is not None
+
+    def enable_debug_mode(self, enabled: bool = True):
+        """Enable or disable debug mode for notification windows."""
+        for notification in self.active_notifications:
+            if hasattr(notification, "_debug_enabled"):
+                notification._debug_enabled = enabled
+
+    def test_non_activating_notifications(self):
+        """Test the non-activating notification system."""
+        if not self.is_available():
+            print("Notification system not available")
+            return
+
+        # Enable debug mode for testing
+        self.enable_debug_mode(True)
+
+        # Show test notifications
+        self.show_info_notification(
+            "Test Non-Activating", "This notification should not steal focus"
+        )
+
+        # Show additional notification to test stacking
+        QTimer.singleShot(
+            1000,
+            lambda: self.show_success_notification(
+                "Focus Test", "Your active window should remain focused"
+            ),
+        )
+
+        print(
+            "Test notifications sent. Check that your current window maintains focus."
+        )
+
+    def _show_notification_subprocess(
+        self,
+        title: str,
+        message: str | None,
+        duration: int,
+        bg_color: str = "#323232",
+        icon: str = "",
+    ) -> None:
+        """Show notification using subprocess to avoid focus stealing."""
+        try:
+            # Create notification data
+            notification_data = {
+                "title": title,
+                "message": message,
+                "duration": duration,
+                "bg_color": bg_color,
+                "icon": icon,
+                "screen_geometry": self._get_screen_geometry_dict(),
+            }
+
+            # Get the path to the notification subprocess script
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            subprocess_script = os.path.join(current_dir, "notification_subprocess.py")
+
+            # Launch subprocess
+            subprocess.Popen(
+                [sys.executable, subprocess_script, json.dumps(notification_data)],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,  # Detach from parent process
+            )
+
+        except Exception as e:
+            print(f"Failed to show subprocess notification: {e}")
+            # Fallback to regular notification
+            display_text = f"{title}: {message}" if message else title
+            print(f"🔔 {display_text}")
+
+    def _get_screen_geometry_dict(self) -> dict:
+        """Get screen geometry as dictionary for subprocess."""
+        try:
+            screen_geometry = self._get_active_screen_geometry()
+            return {
+                "x": screen_geometry.x(),
+                "y": screen_geometry.y(),
+                "width": screen_geometry.width(),
+                "height": screen_geometry.height(),
+            }
+        except Exception:
+            return {"x": 0, "y": 0, "width": 1920, "height": 1080}
 
     def get_display_info(self) -> dict:
         """Get information about available displays for debugging."""
@@ -552,3 +754,25 @@ def test_notification_positioning():
         "Multi-Display Test",
         f"This notification should appear on screen {display_info.get('active_screen', 0)}",
     )
+
+
+def test_non_activating_notifications():
+    """Test function to verify non-activating notification behavior."""
+    app = QApplication.instance()
+    if not app:
+        print("No QApplication instance available for testing")
+        return
+
+    manager = PyQtNotificationManager(app)
+
+    print("Testing non-activating notifications...")
+    print("Instructions: Focus on another application window, then run this test.")
+    print(
+        "The notifications should appear WITHOUT stealing focus from your current window."
+    )
+
+    # Test the non-activating notification system
+    manager.test_non_activating_notifications()
+
+    print("✅ Non-activating notification test completed successfully!")
+    print("🔍 Verify that your active window maintained focus during the test.")
