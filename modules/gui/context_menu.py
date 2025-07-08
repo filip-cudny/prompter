@@ -344,8 +344,17 @@ class PyQtContextMenu(QObject):
             if hasattr(self, "menu_coordinator") and self.menu_coordinator:
                 prompt_store_service = getattr(self.menu_coordinator, "prompt_store_service", None)
                 if prompt_store_service:
-                    # Execute directly through the service
-                    QTimer.singleShot(0, lambda: prompt_store_service.execute_item(alternative_item))
+                    # Execute through the service and emit completion signal for GUI rerendering
+                    def execute_and_emit():
+                        try:
+                            result = prompt_store_service.execute_item(alternative_item)
+                            # Emit the execution_completed signal to trigger GUI rerendering
+                            self.menu_coordinator.execution_completed.emit(result)
+                        except Exception as e:
+                            error_msg = f"Failed to execute alternative action '{item.label}': {str(e)}"
+                            self.menu_coordinator.execution_error.emit(error_msg)
+                    
+                    QTimer.singleShot(0, execute_and_emit)
                 else:
                     # Fallback to original behavior
                     if item.action is not None:
