@@ -42,6 +42,10 @@ class EnhancedNotificationWidget(QWidget):
         bg_color: Union[str, QColor] = "#323232",
         parent=None,
     ):
+        # Ensure we're on the main thread when creating widgets
+        if threading.current_thread() != threading.main_thread():
+            raise RuntimeError("NotificationWidget must be created on the main thread")
+        
         super().__init__(parent)
         
         self.bg_color = bg_color
@@ -264,12 +268,15 @@ class EnhancedNotificationWidget(QWidget):
 
     def cleanup(self):
         """Clean up resources."""
-        if self.hide_timer:
-            self.hide_timer.stop()
-            self.hide_timer = None
-        
-        if hasattr(self, 'fade_animation'):
-            self.fade_animation.stop()
+        try:
+            if self.hide_timer:
+                self.hide_timer.stop()
+                self.hide_timer = None
+            
+            if hasattr(self, 'fade_animation'):
+                self.fade_animation.stop()
+        except Exception as e:
+            print(f"Error during notification cleanup: {e}")
 
 
 class NotificationDispatcher(QObject):
@@ -277,14 +284,14 @@ class NotificationDispatcher(QObject):
     
     show_notification_signal = pyqtSignal(str, str, str, str, int)
 
-    def __init__(self):
+    def __init__(self, manager):
         super().__init__()
-        self.show_notification_signal.connect(self._show_notification_slot)
+        self.manager = manager
+        self.show_notification_signal.connect(self._show_notification_slot, Qt.QueuedConnection)
 
     def _show_notification_slot(self, title: str, message: str, icon: str, bg_color: str, duration: int):
         """Handle notification display in main thread."""
-        # This will be connected to the notification manager
-        pass
+        self.manager._display_notification_internal(title, message, icon, bg_color, duration)
 
 
 class EnhancedNotificationManager:
@@ -294,7 +301,7 @@ class EnhancedNotificationManager:
         self.app = app
         self.desktop = QDesktopWidget()
         self.active_notifications: list[EnhancedNotificationWidget] = []
-        self.dispatcher = NotificationDispatcher()
+        self.dispatcher = NotificationDispatcher(self)
         self.notification_lock = threading.Lock()
 
     def show_success_notification(self, title: str, message: str | None = None, duration: int = 2000):
@@ -327,7 +334,32 @@ class EnhancedNotificationManager:
             print(f"🔔 {display_text}")
             return
 
+        # Always use signal to ensure proper thread handling
+        self.dispatcher.show_notification_signal.emit(title, message or "", icon, bg_color, duration)
+
+    def _display_notification_internal(
+        self,
+        title: str,
+        message: str | None,
+        icon: str,
+        bg_color: str,
+        duration: int,
+    ):
+        """Internal method to display notification (must be called on main thread)."""
         try:
+            # Ensure we're on the main thread
+            if threading.current_thread() != threading.main_thread():
+                print("Warning: Notification called from background thread, using fallback")
+                display_text = f"{title}: {message}" if message else title
+                print(f"🔔 {display_text}")
+                return
+
+            # Check if app is still available
+            if not self.app or not hasattr(self.app, 'instance') or not self.app.instance():
+                display_text = f"{title}: {message}" if message else title
+                print(f"🔔 {display_text}")
+                return
+
             with self.notification_lock:
                 # Clean up finished notifications
                 self._cleanup_finished_notifications()
@@ -377,19 +409,43 @@ class EnhancedNotificationManager:
             with self.notification_lock:
                 if notification in self.active_notifications:
                     self.active_notifications.remove(notification)
-                notification.cleanup()
-                notification.deleteLater()
+                
+                # Ensure cleanup happens on main thread
+                if hasattr(notification, 'cleanup'):
+                    notification.cleanup()
+                
+                # Schedule deletion on main thread
+                if hasattr(notification, 'deleteLater'):
+                    notification.deleteLater()
+                    
         except Exception as e:
             print(f"Error cleaning up notification: {e}")
 
     def _get_active_screen_geometry(self):
         """Get geometry of the screen containing the cursor."""
         try:
+            if not self.desktop:
+                try:
+                    from PyQt5.QtCore import QRect
+                    return QRect(0, 0, 1920, 1080)
+                except ImportError:
+                    return None
+                
             cursor_pos = QCursor.pos()
             screen_number = self.desktop.screenNumber(cursor_pos)
+            
+            # Validate screen number
+            if screen_number < 0 or screen_number >= self.desktop.screenCount():
+                screen_number = 0
+                
             return self.desktop.screenGeometry(screen_number)
-        except Exception:
-            return self.desktop.screenGeometry(0)
+        except Exception as e:
+            print(f"Error getting screen geometry: {e}")
+            try:
+                from PyQt5.QtCore import QRect
+                return QRect(0, 0, 1920, 1080)
+            except ImportError:
+                return None
 
     def is_available(self) -> bool:
         """Check if notifications are available."""
