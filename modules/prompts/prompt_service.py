@@ -99,6 +99,15 @@ class PromptStoreService(PromptStoreServiceProtocol):
         """Check if action should be disabled due to recording state."""
         return self.execution_service.should_disable_action(action_id)
 
+    def set_menu_coordinator(self, menu_coordinator):
+        """Set the menu coordinator for GUI updates."""
+        self._menu_coordinator = menu_coordinator
+
+    def emit_execution_completed(self, result: ExecutionResult) -> None:
+        """Emit execution completed signal to update GUI."""
+        if self._menu_coordinator:
+            self._menu_coordinator.execution_completed.emit(result)
+
 
 
     def add_history_entry(
