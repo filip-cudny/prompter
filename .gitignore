@@ -7,4 +7,3 @@ prompt-store-error.log
 
 settings/
 .prompt-store.pid
-.prompt_store_daemon.pid
