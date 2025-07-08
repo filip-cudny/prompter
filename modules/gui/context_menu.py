@@ -6,11 +6,11 @@ from PyQt5.QtCore import Qt, QPoint, QTimer, QObject, QEvent
 from PyQt5.QtGui import QCursor
 from core.models import MenuItem, MenuItemType
 
-from PyQt5.QtWidgets import QWidgetAction, QLabel, QApplication
-from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QWindow
+from PyQt5.QtWidgets import QWidgetAction, QLabel
+from PyQt5.QtCore import Qt
 import sip
 import platform
+import subprocess
 
 
 class PyQtContextMenu(QObject):
@@ -25,7 +25,6 @@ class PyQtContextMenu(QObject):
         self.event_filter_installed = False
         self.hovered_widgets = set()  # Track all currently hovered widgets
         self.original_active_window = None  # Store the original active window info
-        self.focus_restore_timer = QTimer()
         self._menu_stylesheet = """
             QMenu {
                 background-color: #2b2b2b;
@@ -117,14 +116,14 @@ class PyQtContextMenu(QObject):
         offset_x, offset_y = self.menu_position_offset
         adjusted_pos = QPoint(x + offset_x, y + offset_y)
 
-        # Create and show menu
+        # Check current shift state before showing menu
+        self.shift_pressed = bool(QApplication.keyboardModifiers() & Qt.ShiftModifier)
+
         self.menu = self.create_menu(items)
         self.menu.exec_(adjusted_pos)
 
-        # Restore focus after menu closes with a slight delay
-        self.focus_restore_timer.timeout.connect(self._restore_focus)
-        self.focus_restore_timer.setSingleShot(True)
-        self.focus_restore_timer.start(50)
+        # Restore focus after menu closes
+        self._restore_focus()
 
     def get_cursor_position(self) -> Tuple[int, int]:
         """Get current cursor position."""
@@ -210,7 +209,7 @@ class PyQtContextMenu(QObject):
                 if event.modifiers() & Qt.ShiftModifier:
                     super().mousePressEvent(event)
                     return
-                    
+
                 if self.menu_item.enabled and self.menu_item.action is not None:
                     # Close the menu first to prevent timing issues
                     if self.context_menu and self.context_menu.menu:
@@ -218,7 +217,7 @@ class PyQtContextMenu(QObject):
                     # Execute action with slight delay to ensure menu closes properly
                     QTimer.singleShot(10, self.menu_item.action)
                     # Restore focus after action execution
-                    QTimer.singleShot(100, self.context_menu._restore_focus_qt_only)
+                    QTimer.singleShot(100, self.context_menu._restore_focus)
                 super().mousePressEvent(event)
 
             def enterEvent(self, event):
@@ -340,10 +339,12 @@ class PyQtContextMenu(QObject):
                 tooltip=getattr(item, "tooltip", None),
             )
             alternative_item.data["alternative_execution"] = True
-            
+
             # Get the prompt store service from the menu coordinator
             if hasattr(self, "menu_coordinator") and self.menu_coordinator:
-                prompt_store_service = getattr(self.menu_coordinator, "prompt_store_service", None)
+                prompt_store_service = getattr(
+                    self.menu_coordinator, "prompt_store_service", None
+                )
                 if prompt_store_service:
                     # Execute through the service and emit completion signal for GUI rerendering
                     def execute_and_emit():
@@ -354,7 +355,7 @@ class PyQtContextMenu(QObject):
                         except Exception as e:
                             error_msg = f"Failed to execute alternative action '{item.label}': {str(e)}"
                             self.menu_coordinator.execution_error.emit(error_msg)
-                    
+
                     QTimer.singleShot(0, execute_and_emit)
                 else:
                     # Fallback to original behavior
@@ -364,6 +365,14 @@ class PyQtContextMenu(QObject):
                 # Fallback to original behavior
                 if item.action is not None:
                     QTimer.singleShot(0, item.action)
+            if item.data is None:
+                item.data = {}
+            item.data["alternative_execution"] = True
+
+            if item.action is not None:
+                QTimer.singleShot(0, item.action)
+                # Restore focus after alternative action execution
+                QTimer.singleShot(100, self._restore_focus)
         except Exception as e:
             print(f"Error executing alternative menu action: {e}")
 
@@ -403,98 +412,136 @@ class PyQtContextMenu(QObject):
             self.hovered_widgets.discard(widget)
 
     def _store_active_window(self) -> None:
-        """Store information about the currently active window using Qt methods."""
+        """Store information about the currently active window."""
         try:
-            # Get the currently active window using Qt
-            app = QApplication.instance()
-            if app:
-                # Store the active window before showing menu
-                active_window = app.activeWindow()
-                if active_window:
+            if platform.system() == "Darwin":  # macOS
+                # Use AppleScript to get the frontmost application
+                script = """
+                tell application "System Events"
+                    set frontApp to name of first application process whose frontmost is true
+                    set frontAppPath to POSIX path of (file of first application process whose frontmost is true)
+                end tell
+                return frontApp & "|||" & frontAppPath
+                """
+                result = subprocess.run(
+                    ["osascript", "-e", script], capture_output=True, text=True
+                )
+                if result.returncode == 0:
+                    app_info = result.stdout.strip().split("|||")
                     self.original_active_window = {
-                        "qt_window": active_window,
-                        "window_id": active_window.winId() if hasattr(active_window, 'winId') else None,
-                        "title": active_window.windowTitle() if hasattr(active_window, 'windowTitle') else None,
+                        "name": app_info[0],
+                        "path": app_info[1] if len(app_info) > 1 else None,
                     }
-                else:
-                    # Try to get focus widget if no active window
-                    focus_widget = app.focusWidget()
-                    if focus_widget:
-                        parent_window = focus_widget.window()
+            elif platform.system() == "Linux":  # Linux
+                # Use xdotool to get the active window
+                try:
+                    # Get active window ID
+                    result = subprocess.run(
+                        ["xdotool", "getactivewindow"], capture_output=True, text=True
+                    )
+                    if result.returncode == 0:
+                        window_id = result.stdout.strip()
+
+                        # Get window info
+                        result = subprocess.run(
+                            ["xdotool", "getwindowname", window_id],
+                            capture_output=True,
+                            text=True,
+                        )
+                        window_name = (
+                            result.stdout.strip()
+                            if result.returncode == 0
+                            else "Unknown"
+                        )
+
+                        # Get process info
+                        result = subprocess.run(
+                            ["xdotool", "getwindowpid", window_id],
+                            capture_output=True,
+                            text=True,
+                        )
+                        pid = result.stdout.strip() if result.returncode == 0 else None
+
                         self.original_active_window = {
-                            "qt_window": parent_window,
-                            "focus_widget": focus_widget,
-                            "window_id": parent_window.winId() if hasattr(parent_window, 'winId') else None,
-                            "title": parent_window.windowTitle() if hasattr(parent_window, 'windowTitle') else None,
+                            "window_id": window_id,
+                            "name": window_name,
+                            "pid": pid,
                         }
-                    else:
-                        self.original_active_window = None
-            else:
-                self.original_active_window = None
-                
+                except FileNotFoundError:
+                    # xdotool not available, try xprop as fallback
+                    result = subprocess.run(
+                        ["xprop", "-root", "_NET_ACTIVE_WINDOW"],
+                        capture_output=True,
+                        text=True,
+                    )
+                    if result.returncode == 0:
+                        # Extract window ID from xprop output
+                        import re
+
+                        match = re.search(r"0x[0-9a-fA-F]+", result.stdout)
+                        if match:
+                            window_id = match.group()
+                            self.original_active_window = {
+                                "window_id": window_id,
+                                "name": "Unknown",
+                                "pid": None,
+                            }
         except Exception as e:
             print(f"Error storing active window: {e}")
             self.original_active_window = None
 
     def _restore_focus(self) -> None:
-        """Restore focus to the original window using Qt methods with fallback."""
+        """Restore focus to the original external application that was active before menu was shown."""
         try:
-            # First try Qt-based focus restoration
-            if self._restore_focus_qt_only():
+            if not self.original_active_window:
                 return
-                
-            # Fallback to platform-specific methods if Qt fails
-            self._restore_focus_platform_specific()
-                
+
+            if platform.system() == "Darwin":  # macOS
+                app_name = self.original_active_window.get("name")
+                if app_name:
+                    # Use AppleScript to activate the original application
+                    script = f'''
+                    tell application "{app_name}"
+                        activate
+                    end tell
+                    '''
+                    subprocess.run(
+                        ["osascript", "-e", script], capture_output=True, text=True
+                    )
+            elif platform.system() == "Linux":  # Linux
+                window_id = self.original_active_window.get("window_id")
+                if window_id:
+                    try:
+                        # Try xdotool first
+                        subprocess.run(
+                            ["xdotool", "windowactivate", window_id],
+                            capture_output=True,
+                            text=True,
+                        )
+                    except FileNotFoundError:
+                        # xdotool not available, try wmctrl as fallback
+                        try:
+                            subprocess.run(
+                                ["wmctrl", "-ia", window_id],
+                                capture_output=True,
+                                text=True,
+                            )
+                        except FileNotFoundError:
+                            # Neither tool available, try xprop method
+                            subprocess.run(
+                                [
+                                    "xprop",
+                                    "-id",
+                                    window_id,
+                                    "-f",
+                                    "_NET_ACTIVE_WINDOW",
+                                    "32a",
+                                    "-set",
+                                    "_NET_ACTIVE_WINDOW",
+                                    window_id,
+                                ],
+                                capture_output=True,
+                                text=True,
+                            )
         except Exception as e:
             print(f"Error restoring focus: {e}")
-    
-    def _restore_focus_qt_only(self) -> bool:
-        """Restore focus using Qt-only methods."""
-        try:
-            if not self.original_active_window:
-                return False
-                
-            # Try to restore focus to the original Qt window
-            qt_window = self.original_active_window.get("qt_window")
-            if qt_window and hasattr(qt_window, 'isVisible') and qt_window.isVisible():
-                # Activate the window
-                qt_window.activateWindow()
-                qt_window.raise_()
-                
-                # If there was a specific focus widget, restore focus to it
-                focus_widget = self.original_active_window.get("focus_widget")
-                if focus_widget and hasattr(focus_widget, 'setFocus'):
-                    focus_widget.setFocus()
-                    
-                return True
-                
-            return False
-            
-        except Exception as e:
-            print(f"Error in Qt-only focus restoration: {e}")
-            return False
-    
-    def _restore_focus_platform_specific(self) -> None:
-        """Restore focus using platform-specific methods as fallback."""
-        try:
-            if not self.original_active_window:
-                return
-                
-            # For non-Qt windows or when Qt methods fail, try platform-specific approach
-            # This is a minimal fallback that avoids subprocess calls where possible
-            
-            # Try to use the window ID if available
-            window_id = self.original_active_window.get("window_id")
-            if window_id and platform.system() == "Linux":
-                # On Linux, try to use X11 methods through Qt
-                try:
-                    from PyQt5.QtX11Extras import QX11Info
-                    if hasattr(QX11Info, 'setAppUserTime'):
-                        QX11Info.setAppUserTime(0)
-                except ImportError:
-                    # X11 extras not available, skip platform-specific restoration
-                    pass
-                    
-        except Exception as e:
-            print(f"Error in platform-specific focus restoration: {e}")
