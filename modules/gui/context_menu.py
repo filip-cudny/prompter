@@ -209,7 +209,7 @@ class PyQtContextMenu(QObject):
                 if event.modifiers() & Qt.ShiftModifier:
                     super().mousePressEvent(event)
                     return
-
+                    
                 if self.menu_item.enabled and self.menu_item.action is not None:
                     # Close the menu first to prevent timing issues
                     if self.context_menu and self.context_menu.menu:
@@ -339,24 +339,13 @@ class PyQtContextMenu(QObject):
                 tooltip=getattr(item, "tooltip", None),
             )
             alternative_item.data["alternative_execution"] = True
-
+            
             # Get the prompt store service from the menu coordinator
             if hasattr(self, "menu_coordinator") and self.menu_coordinator:
-                prompt_store_service = getattr(
-                    self.menu_coordinator, "prompt_store_service", None
-                )
+                prompt_store_service = getattr(self.menu_coordinator, "prompt_store_service", None)
                 if prompt_store_service:
-                    # Execute through the service and emit completion signal for GUI rerendering
-                    def execute_and_emit():
-                        try:
-                            result = prompt_store_service.execute_item(alternative_item)
-                            # Emit the execution_completed signal to trigger GUI rerendering
-                            self.menu_coordinator.execution_completed.emit(result)
-                        except Exception as e:
-                            error_msg = f"Failed to execute alternative action '{item.label}': {str(e)}"
-                            self.menu_coordinator.execution_error.emit(error_msg)
-
-                    QTimer.singleShot(0, execute_and_emit)
+                    # Execute directly through the service
+                    QTimer.singleShot(0, lambda: prompt_store_service.execute_item(alternative_item))
                 else:
                     # Fallback to original behavior
                     if item.action is not None:
@@ -365,14 +354,6 @@ class PyQtContextMenu(QObject):
                 # Fallback to original behavior
                 if item.action is not None:
                     QTimer.singleShot(0, item.action)
-            if item.data is None:
-                item.data = {}
-            item.data["alternative_execution"] = True
-
-            if item.action is not None:
-                QTimer.singleShot(0, item.action)
-                # Restore focus after alternative action execution
-                QTimer.singleShot(100, self._restore_focus)
         except Exception as e:
             print(f"Error executing alternative menu action: {e}")
 
