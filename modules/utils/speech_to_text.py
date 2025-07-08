@@ -123,7 +123,7 @@ class AudioRecorder:
             )
             self.recording_thread.start()
 
-        except Exception:
+        except Exception as e:
             self._cleanup()
             error_msg = f"Failed to start audio recording: {e}"
             if "ALSA" in str(e) or "jack" in str(e).lower():
@@ -134,7 +134,7 @@ class AudioRecorder:
                     "3. Test microphone: arecord -d 3 test.wav && aplay test.wav\n"
                 )
                 error_msg += "4. Try PulseAudio: pulseaudio --start"
-            raise
+            raise Exception(error_msg)
 
     def stop_recording(self) -> str:
         """Stop recording and return path to recorded audio file."""
@@ -403,7 +403,7 @@ class SpeechToTextService:
         handler_name: Optional[str] = None,
     ) -> None:
         """Execute appropriate transcription callbacks based on handler_name."""
-        for callback_info in self.transcription_callbacks.values():
+        for callback_id, callback_info in self.transcription_callbacks.items():
             should_execute = False
 
             if callback_info["run_always"]:

@@ -22,6 +22,7 @@ class PyQtMenuCoordinator(QObject):
         self.prompt_store_service = prompt_store_service
         self.providers = []
         self.context_menu = PyQtContextMenu()
+        self.context_menu.menu_coordinator = self
         self.app = QApplication.instance()
 
         # Callbacks

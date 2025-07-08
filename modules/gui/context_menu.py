@@ -194,6 +194,12 @@ class PyQtContextMenu(QObject):
                 self.setStyleSheet(self._normal_style)
 
             def mousePressEvent(self, event):
+                # Check if shift is pressed - if so, skip normal execution
+                # as it will be handled by the shift-click handler
+                if event.modifiers() & Qt.ShiftModifier:
+                    super().mousePressEvent(event)
+                    return
+                    
                 if self.menu_item.enabled and self.menu_item.action is not None:
                     # Close the menu first to prevent timing issues
                     if self.context_menu and self.context_menu.menu:
@@ -310,12 +316,32 @@ class PyQtContextMenu(QObject):
     def _execute_alternative_action(self, item: MenuItem) -> None:
         """Execute menu item with alternative flag."""
         try:
-            if item.data is None:
-                item.data = {}
-            item.data["alternative_execution"] = True
-
-            if item.action is not None:
-                QTimer.singleShot(0, item.action)
+            # Create a copy of the item with the alternative execution flag
+            alternative_item = MenuItem(
+                id=item.id,
+                label=item.label,
+                item_type=item.item_type,
+                action=item.action,
+                data=dict(item.data) if item.data else {},
+                enabled=item.enabled,
+                tooltip=getattr(item, "tooltip", None),
+            )
+            alternative_item.data["alternative_execution"] = True
+            
+            # Get the prompt store service from the menu coordinator
+            if hasattr(self, "menu_coordinator") and self.menu_coordinator:
+                prompt_store_service = getattr(self.menu_coordinator, "prompt_store_service", None)
+                if prompt_store_service:
+                    # Execute directly through the service
+                    QTimer.singleShot(0, lambda: prompt_store_service.execute_item(alternative_item))
+                else:
+                    # Fallback to original behavior
+                    if item.action is not None:
+                        QTimer.singleShot(0, item.action)
+            else:
+                # Fallback to original behavior
+                if item.action is not None:
+                    QTimer.singleShot(0, item.action)
         except Exception as e:
             print(f"Error executing alternative menu action: {e}")
 

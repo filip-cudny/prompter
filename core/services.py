@@ -42,7 +42,7 @@ class ExecutionService:
 
     def is_recording(self) -> bool:
         """Check if currently recording."""
-        return self.speech_service and self.speech_service.is_recording()
+        return bool(self.speech_service and self.speech_service.is_recording())
 
     def get_recording_action_id(self) -> Optional[str]:
         """Get the ID of the action that started recording."""
@@ -64,7 +64,7 @@ class ExecutionService:
             return ExecutionResult(success=False, error="Menu item is disabled")
 
         # If recording is active, any click should stop recording
-        if (self.speech_service) and (use_speech or self.speech_service.is_recording()):
+        if self.speech_service and (use_speech or self.speech_service.is_recording()):
             return self._execute_with_speech(item)
 
         for handler in self.handlers:
@@ -81,6 +81,12 @@ class ExecutionService:
     def _execute_with_speech(self, item: MenuItem) -> ExecutionResult:
         """Execute item with speech-to-text input."""
         try:
+            if not self.speech_service:
+                return ExecutionResult(
+                    success=False, 
+                    error="Speech service not available"
+                )
+            
             if self.speech_service.is_recording():
                 self.speech_service.stop_recording()
                 self.recording_action_id = None

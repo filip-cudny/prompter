@@ -41,7 +41,7 @@ class OpenAIClient:
             return transcription.text.strip()
 
         except Exception as e:
-            raise APIError(f"Failed to transcribe audio: {e}") from e
+            raise Exception(f"Failed to transcribe audio: {e}") from e
 
     def transcribe_audio_file(
         self, file_path: str, model: str = "gpt-4o-transcribe"
