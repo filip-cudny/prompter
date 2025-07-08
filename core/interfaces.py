@@ -95,6 +95,10 @@ class PromptStoreServiceProtocol(Protocol):
         """Check if action should be disabled due to recording state."""
         ...
 
+    def emit_execution_completed(self, result: ExecutionResult) -> None:
+        """Emit execution completed signal to update GUI."""
+        ...
+
     def add_history_entry(
         self,
         item: MenuItem,

@@ -129,11 +129,20 @@ class ExecutionService:
                                 transcription,
                                 result,
                             )
+                            # Emit execution completed signal to update GUI
+                            self.prompt_store_service.emit_execution_completed(result)
                             break
                         except Exception as e:
                             print(f"Handler execution failed: {e}")
             else:
                 print("Empty transcription received, execution cancelled")
+                # Still emit signal to update GUI even if transcription was empty
+                empty_result = ExecutionResult(
+                    success=False,
+                    error="Empty transcription received",
+                    metadata={"action": "transcription_cancelled"}
+                )
+                self.prompt_store_service.emit_execution_completed(empty_result)
         else:
             self.recording_action_id = None
             self.pending_execution_item = None

@@ -24,6 +24,10 @@ class PyQtMenuCoordinator(QObject):
         self.context_menu = PyQtContextMenu()
         self.context_menu.menu_coordinator = self
         self.app = QApplication.instance()
+        
+        # Set menu coordinator reference in prompt store service for GUI updates
+        if hasattr(self.prompt_store_service, 'set_menu_coordinator'):
+            self.prompt_store_service.set_menu_coordinator(self)
 
         # Callbacks
         self.execution_callback: Optional[Callable[[ExecutionResult], None]] = None
