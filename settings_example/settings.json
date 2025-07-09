@@ -60,12 +60,12 @@
       ]
     },
     {
-      "id": "5215642c-4e82-43fb-ae01-3242e09b639f",
-      "name": "Text correction - grammar",
+      "id": "a087ffa0-b254-4209-bd15-a58a4b43d131",
+      "name": "Translate - English",
       "messages": [
         {
           "role": "system",
-          "file": "prompts/dummy/system.md"
+          "file": "prompts/translate_english.md"
         },
         {
           "role": "user",
@@ -74,12 +74,12 @@
       ]
     },
     {
-      "id": "f8bfc8eb-b05f-4e92-a679-18dfa2c39ddd",
-      "name": "Text correction - proffesional",
+      "id": "72153ef6-f011-4f3f-8b3f-e87cc9796a3d",
+      "name": "Translate - Polish",
       "messages": [
         {
           "role": "system",
-          "file": "prompts/dummy/system.md"
+          "file": "prompts/translate_polish.md"
         },
         {
           "role": "user",
