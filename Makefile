@@ -157,13 +157,13 @@ clean-all: clean ## Clean everything including virtual environment
 autostart-macos: ## Setup macOS LaunchAgent for autostart
 	@echo "🍎 Setting up macOS autostart..."
 	@mkdir -p ~/Library/LaunchAgents
-	@cat > ~/Library/LaunchAgents/com.promptstore.service.plist << 'EOF' && \
+	@cat > ~/Library/LaunchAgents/com.prompter.service.plist << 'EOF' && \
 	echo '<?xml version="1.0" encoding="UTF-8"?>' && \
 	echo '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' && \
 	echo '<plist version="1.0">' && \
 	echo '<dict>' && \
 	echo '    <key>Label</key>' && \
-	echo '    <string>com.promptstore.service</string>' && \
+	echo '    <string>com.prompter.service</string>' && \
 	echo '    <key>ProgramArguments</key>' && \
 	echo '    <array>' && \
 	echo '        <string>$(PWD)/$(VENV_PYTHON)</string>' && \
@@ -180,10 +180,10 @@ autostart-macos: ## Setup macOS LaunchAgent for autostart
 	echo '    <key>StandardErrorPath</key>' && \
 	echo '    <string>$(PWD)/prompter-daemon-error.log</string>' && \
 	echo '</dict>' && \
-	echo '</plist>' > ~/Library/LaunchAgents/com.promptstore.service.plist
+	echo '</plist>' > ~/Library/LaunchAgents/com.prompter.service.plist
 	@echo "✅ LaunchAgent created"
-	@echo "To enable: launchctl load ~/Library/LaunchAgents/com.promptstore.service.plist"
-	@echo "To disable: launchctl unload ~/Library/LaunchAgents/com.promptstore.service.plist"
+	@echo "To enable: launchctl load ~/Library/LaunchAgents/com.prompter.service.plist"
+	@echo "To disable: launchctl unload ~/Library/LaunchAgents/com.prompter.service.plist"
 
 autostart-linux: ## Setup Linux systemd service for autostart
 	@echo "🐧 Setting up Linux systemd service..."
