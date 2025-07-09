@@ -38,9 +38,9 @@ class PromptStoreService(PromptStoreServiceProtocol):
         self.speech_service = speech_service
         self.execution_service = ExecutionService(self)
         self.execution_service.set_speech_service(self.speech_service)
+        self._menu_coordinator = None
         self.history_service = HistoryService()
         self.active_prompt_service = ActivePromptService()
-        self.pending_alternative_execution = None
         self._prompts_cache = None
 
     def get_prompts(self) -> List[PromptData]:
@@ -75,10 +75,10 @@ class PromptStoreService(PromptStoreServiceProtocol):
         try:
             if item.data and item.data.get("alternative_execution", False):
                 # Alternative execution triggers speech-to-text
-                result = self.execution_service.execute_item(
+                # Don't add history here - ExecutionService._on_transcription_complete will handle it
+                return self.execution_service.execute_item(
                     item, None, use_speech=True
                 )
-                return result
             else:
                 input_content = self.clipboard_manager.get_content()
                 result = self.execution_service.execute_item(item, input_content)
@@ -89,7 +89,7 @@ class PromptStoreService(PromptStoreServiceProtocol):
 
     def is_recording(self) -> bool:
         """Check if currently recording."""
-        return self.speech_service.is_recording()
+        return bool(self.speech_service and self.speech_service.is_recording())
 
     def get_recording_action_id(self) -> Optional[str]:
         """Get the ID of the action that started recording."""
@@ -99,42 +99,16 @@ class PromptStoreService(PromptStoreServiceProtocol):
         """Check if action should be disabled due to recording state."""
         return self.execution_service.should_disable_action(action_id)
 
-    def _handle_transcription_execution(self, item: MenuItem) -> ExecutionResult:
-        """Handle execution that should trigger transcription first."""
-        try:
-            self.pending_alternative_execution = item
+    def set_menu_coordinator(self, menu_coordinator):
+        """Set the menu coordinator for GUI updates."""
+        self._menu_coordinator = menu_coordinator
 
-            if self.speech_service:
-                self.speech_service.start_recording("PromptStoreService")
-                return ExecutionResult(
-                    success=True, content="Recording started for transcription..."
-                )
-            else:
-                return ExecutionResult(
-                    success=False, error="Speech service not available"
-                )
-        except Exception as e:
-            return ExecutionResult(
-                success=False, error=f"Failed to start transcription: {str(e)}"
-            )
+    def emit_execution_completed(self, result: ExecutionResult) -> None:
+        """Emit execution completed signal to update GUI."""
+        if self._menu_coordinator:
+            self._menu_coordinator.execution_completed.emit(result)
 
-    def _on_transcription_for_execution(
-        self, transcription: str, _duration: float
-    ) -> None:
-        """Handle transcription completion for pending execution."""
-        try:
-            if self.pending_alternative_execution and transcription:
-                # Execute the pending item with transcribed text
-                result = self.execution_service.execute_item(
-                    self.pending_alternative_execution, transcription
-                )
-                self.add_history_entry(
-                    self.pending_alternative_execution, transcription, result
-                )
-                self.pending_alternative_execution = None
-        except Exception:
-            # Handle error but don't raise to avoid breaking other callbacks
-            pass
+
 
     def add_history_entry(
         self, item: MenuItem, input_content: str, result: ExecutionResult

@@ -470,6 +470,10 @@ class PromptStoreApp(QObject):
         if self.menu_coordinator:
             self.menu_coordinator.cleanup()
 
+        # Clean up notification manager
+        if self.notification_manager:
+            self.notification_manager.cleanup()
+
         # Hide system tray
         # if self.system_tray:
         #     self.system_tray.hide()
@@ -622,6 +626,8 @@ class PromptStoreApp(QObject):
                     self.hotkey_manager.start()
                 except Exception:
                     pass
+
+
 
 
 def main():
