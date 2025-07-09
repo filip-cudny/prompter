@@ -7,9 +7,9 @@ PYTHON := python3
 VENV_DIR := .venv
 VENV_PYTHON := $(VENV_DIR)/bin/python
 VENV_PIP := $(VENV_DIR)/bin/pip
-PID_FILE := .prompt-store.pid
-LOG_FILE := prompt-store.log
-ERROR_LOG := prompt-store-error.log
+PID_FILE := .prompter.pid
+LOG_FILE := prompter.log
+ERROR_LOG := prompter-error.log
 
 help: ## Show this help message
 	@echo "Prompt Store - Background Service Management"
@@ -176,9 +176,9 @@ autostart-macos: ## Setup macOS LaunchAgent for autostart
 	echo '    <key>KeepAlive</key>' && \
 	echo '    <true/>' && \
 	echo '    <key>StandardOutPath</key>' && \
-	echo '    <string>$(PWD)/prompt-store-daemon.log</string>' && \
+	echo '    <string>$(PWD)/prompter-daemon.log</string>' && \
 	echo '    <key>StandardErrorPath</key>' && \
-	echo '    <string>$(PWD)/prompt-store-daemon-error.log</string>' && \
+	echo '    <string>$(PWD)/prompter-daemon-error.log</string>' && \
 	echo '</dict>' && \
 	echo '</plist>' > ~/Library/LaunchAgents/com.promptstore.service.plist
 	@echo "✅ LaunchAgent created"
@@ -188,7 +188,7 @@ autostart-macos: ## Setup macOS LaunchAgent for autostart
 autostart-linux: ## Setup Linux systemd service for autostart
 	@echo "🐧 Setting up Linux systemd service..."
 	@mkdir -p ~/.config/systemd/user
-	@cat > ~/.config/systemd/user/prompt-store.service << 'EOF' && \
+	@cat > ~/.config/systemd/user/prompter.service << 'EOF' && \
 	echo '[Unit]' && \
 	echo 'Description=Prompt Store Background Service' && \
 	echo 'After=graphical-session.target' && \
@@ -202,12 +202,12 @@ autostart-linux: ## Setup Linux systemd service for autostart
 	echo 'Environment=DISPLAY=:0' && \
 	echo '' && \
 	echo '[Install]' && \
-	echo 'WantedBy=default.target' > ~/.config/systemd/user/prompt-store.service
+	echo 'WantedBy=default.target' > ~/.config/systemd/user/prompter.service
 	@systemctl --user daemon-reload
 	@echo "✅ Systemd service created"
-	@echo "To enable: systemctl --user enable prompt-store.service"
-	@echo "To start: systemctl --user start prompt-store.service"
-	@echo "To check status: systemctl --user status prompt-store.service"
+	@echo "To enable: systemctl --user enable prompter.service"
+	@echo "To start: systemctl --user start prompter.service"
+	@echo "To check status: systemctl --user status prompter.service"
 
 info: ## Show system information
 	@echo "ℹ️  System Information"
