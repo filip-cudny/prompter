@@ -37,9 +37,13 @@ setup: ## Setup virtual environment and install dependencies
 	@$(VENV_PIP) install -r requirements.txt
 	@if [ ! -f ".env" ]; then \
 		echo "Creating .env file..."; \
-		echo "API_KEY=your_api_key_here" > .env; \
-		echo "BASE_URL=https://your-api-server.com" >> .env; \
+		echo "OPENAI_API_KEY=your_api_key_here" > .env; \
 		echo "⚠️  Please edit .env with your actual configuration"; \
+	fi
+	@if [ ! -d "settings" ]; then \
+		echo "Creating settings directory..."; \
+		cp -r settings_example settings; \
+		echo "✅ Settings directory created from settings_example"; \
 	fi
 	@echo "✅ Setup complete!"
 
@@ -149,32 +153,6 @@ clean-all: clean ## Clean everything including virtual environment
 	@echo "🧹 Deep cleaning..."
 	@rm -rf $(VENV_DIR)
 	@echo "✅ Deep cleanup complete"
-
-permissions-macos: ## Help with macOS permissions
-	@echo "🍎 macOS Permissions Setup"
-	@echo "========================="
-	@echo "1. Open System Preferences → Security & Privacy → Privacy → Accessibility"
-	@echo "2. Click the lock and enter your password"
-	@echo "3. Add one of the following:"
-	@echo "   • Terminal (or iTerm2)"
-	@echo "   • Python executable: $$(which python3)"
-	@echo "4. Restart the service: make restart"
-	@echo ""
-	@echo "💡 Alternative: Run once with sudo to test permissions"
-
-permissions-linux: ## Help with Linux permissions
-	@echo "🐧 Linux Permissions Setup"
-	@echo "=========================="
-	@echo "Install system dependencies:"
-	@echo ""
-	@echo "Ubuntu/Debian:"
-	@echo "  sudo apt-get install python3-tk libx11-dev libxtst-dev"
-	@echo ""
-	@echo "Fedora/RHEL:"
-	@echo "  sudo dnf install python3-tkinter libX11-devel libXtst-devel"
-	@echo ""
-	@echo "Arch Linux:"
-	@echo "  sudo pacman -S python tk libx11 libxtst"
 
 autostart-macos: ## Setup macOS LaunchAgent for autostart
 	@echo "🍎 Setting up macOS autostart..."
