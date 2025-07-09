@@ -157,30 +157,29 @@ clean-all: clean ## Clean everything including virtual environment
 autostart-macos: ## Setup macOS LaunchAgent for autostart
 	@echo "🍎 Setting up macOS autostart..."
 	@mkdir -p ~/Library/LaunchAgents
-	@cat > ~/Library/LaunchAgents/com.prompter.service.plist << 'EOF' && \
-	echo '<?xml version="1.0" encoding="UTF-8"?>' && \
-	echo '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' && \
-	echo '<plist version="1.0">' && \
-	echo '<dict>' && \
-	echo '    <key>Label</key>' && \
-	echo '    <string>com.prompter.service</string>' && \
-	echo '    <key>ProgramArguments</key>' && \
-	echo '    <array>' && \
-	echo '        <string>$(PWD)/$(VENV_PYTHON)</string>' && \
-	echo '        <string>$(PWD)/main.py</string>' && \
-	echo '    </array>' && \
-	echo '    <key>WorkingDirectory</key>' && \
-	echo '    <string>$(PWD)</string>' && \
-	echo '    <key>RunAtLoad</key>' && \
-	echo '    <true/>' && \
-	echo '    <key>KeepAlive</key>' && \
-	echo '    <true/>' && \
-	echo '    <key>StandardOutPath</key>' && \
-	echo '    <string>$(PWD)/prompter-daemon.log</string>' && \
-	echo '    <key>StandardErrorPath</key>' && \
-	echo '    <string>$(PWD)/prompter-daemon-error.log</string>' && \
-	echo '</dict>' && \
-	echo '</plist>' > ~/Library/LaunchAgents/com.prompter.service.plist
+	@echo '<?xml version="1.0" encoding="UTF-8"?>' > ~/Library/LaunchAgents/com.prompter.service.plist
+	@echo '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> ~/Library/LaunchAgents/com.prompter.service.plist
+	@echo '<plist version="1.0">' >> ~/Library/LaunchAgents/com.prompter.service.plist
+	@echo '<dict>' >> ~/Library/LaunchAgents/com.prompter.service.plist
+	@echo '    <key>Label</key>' >> ~/Library/LaunchAgents/com.prompter.service.plist
+	@echo '    <string>com.prompter.service</string>' >> ~/Library/LaunchAgents/com.prompter.service.plist
+	@echo '    <key>ProgramArguments</key>' >> ~/Library/LaunchAgents/com.prompter.service.plist
+	@echo '    <array>' >> ~/Library/LaunchAgents/com.prompter.service.plist
+	@echo '        <string>$(PWD)/$(VENV_PYTHON)</string>' >> ~/Library/LaunchAgents/com.prompter.service.plist
+	@echo '        <string>$(PWD)/main.py</string>' >> ~/Library/LaunchAgents/com.prompter.service.plist
+	@echo '    </array>' >> ~/Library/LaunchAgents/com.prompter.service.plist
+	@echo '    <key>WorkingDirectory</key>' >> ~/Library/LaunchAgents/com.prompter.service.plist
+	@echo '    <string>$(PWD)</string>' >> ~/Library/LaunchAgents/com.prompter.service.plist
+	@echo '    <key>RunAtLoad</key>' >> ~/Library/LaunchAgents/com.prompter.service.plist
+	@echo '    <true/>' >> ~/Library/LaunchAgents/com.prompter.service.plist
+	@echo '    <key>KeepAlive</key>' >> ~/Library/LaunchAgents/com.prompter.service.plist
+	@echo '    <true/>' >> ~/Library/LaunchAgents/com.prompter.service.plist
+	@echo '    <key>StandardOutPath</key>' >> ~/Library/LaunchAgents/com.prompter.service.plist
+	@echo '    <string>$(PWD)/prompter-daemon.log</string>' >> ~/Library/LaunchAgents/com.prompter.service.plist
+	@echo '    <key>StandardErrorPath</key>' >> ~/Library/LaunchAgents/com.prompter.service.plist
+	@echo '    <string>$(PWD)/prompter-daemon-error.log</string>' >> ~/Library/LaunchAgents/com.prompter.service.plist
+	@echo '</dict>' >> ~/Library/LaunchAgents/com.prompter.service.plist
+	@echo '</plist>' >> ~/Library/LaunchAgents/com.prompter.service.plist
 	@echo "✅ LaunchAgent created"
 	@echo "To enable: launchctl load ~/Library/LaunchAgents/com.prompter.service.plist"
 	@echo "To disable: launchctl unload ~/Library/LaunchAgents/com.prompter.service.plist"
@@ -188,21 +187,20 @@ autostart-macos: ## Setup macOS LaunchAgent for autostart
 autostart-linux: ## Setup Linux systemd service for autostart
 	@echo "🐧 Setting up Linux systemd service..."
 	@mkdir -p ~/.config/systemd/user
-	@cat > ~/.config/systemd/user/prompter.service << 'EOF' && \
-	echo '[Unit]' && \
-	echo 'Description=Prompt Store Background Service' && \
-	echo 'After=graphical-session.target' && \
-	echo '' && \
-	echo '[Service]' && \
-	echo 'Type=simple' && \
-	echo 'ExecStart=$(PWD)/$(VENV_PYTHON) $(PWD)/main.py' && \
-	echo 'WorkingDirectory=$(PWD)' && \
-	echo 'Restart=always' && \
-	echo 'RestartSec=5' && \
-	echo 'Environment=DISPLAY=:0' && \
-	echo '' && \
-	echo '[Install]' && \
-	echo 'WantedBy=default.target' > ~/.config/systemd/user/prompter.service
+	@echo '[Unit]' > ~/.config/systemd/user/prompter.service
+	@echo 'Description=Prompter Background Service' >> ~/.config/systemd/user/prompter.service
+	@echo 'After=graphical-session.target' >> ~/.config/systemd/user/prompter.service
+	@echo '' >> ~/.config/systemd/user/prompter.service
+	@echo '[Service]' >> ~/.config/systemd/user/prompter.service
+	@echo 'Type=simple' >> ~/.config/systemd/user/prompter.service
+	@echo 'ExecStart=$(PWD)/$(VENV_PYTHON) $(PWD)/main.py' >> ~/.config/systemd/user/prompter.service
+	@echo 'WorkingDirectory=$(PWD)' >> ~/.config/systemd/user/prompter.service
+	@echo 'Restart=always' >> ~/.config/systemd/user/prompter.service
+	@echo 'RestartSec=5' >> ~/.config/systemd/user/prompter.service
+	@echo 'Environment=DISPLAY=:0' >> ~/.config/systemd/user/prompter.service
+	@echo '' >> ~/.config/systemd/user/prompter.service
+	@echo '[Install]' >> ~/.config/systemd/user/prompter.service
+	@echo 'WantedBy=default.target' >> ~/.config/systemd/user/prompter.service
 	@systemctl --user daemon-reload
 	@echo "✅ Systemd service created"
 	@echo "To enable: systemctl --user enable prompter.service"

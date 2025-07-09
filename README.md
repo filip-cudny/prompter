@@ -250,23 +250,6 @@ make logs         # Show recent logs
 make logs-follow  # Follow logs in real-time
 ```
 
-### Autostart Setup
-
-#### macOS
-
-```bash
-make autostart-macos
-launchctl load ~/Library/LaunchAgents/com.prompter.service.plist
-```
-
-#### Linux
-
-```bash
-make autostart-linux
-systemctl --user enable prompter.service
-systemctl --user start prompter.service
-```
-
 ## Example Prompts
 
 ### Text Summarization
