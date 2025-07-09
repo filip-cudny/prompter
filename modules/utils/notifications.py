@@ -31,7 +31,7 @@ WINDOWS_PLATFORM = platform.system() == "Windows"
 
 class EnhancedNotificationWidget(QWidget):
     """Enhanced notification widget with proper non-focus-stealing implementation."""
-    
+
     notification_finished = pyqtSignal()
 
     def __init__(
@@ -45,19 +45,19 @@ class EnhancedNotificationWidget(QWidget):
         # Ensure we're on the main thread when creating widgets
         if threading.current_thread() != threading.main_thread():
             raise RuntimeError("NotificationWidget must be created on the main thread")
-        
+
         super().__init__(parent)
-        
+
         self.bg_color = bg_color
         self.hide_timer: Optional[QTimer] = None
         self._is_visible = False
-        
+
         # Configure non-activating window
         self._setup_non_activating_window()
-        
+
         # Setup UI
         self._setup_ui(title, message, icon)
-        
+
         # Setup animations
         self._setup_animations()
 
@@ -70,28 +70,28 @@ class EnhancedNotificationWidget(QWidget):
             | Qt.Tool
             | Qt.WindowDoesNotAcceptFocus
         )
-        
+
         # Platform-specific window flags
         if LINUX_PLATFORM:
             # On Linux, bypass window manager for true overlay behavior
             flags = base_flags | Qt.X11BypassWindowManagerHint
         else:
             flags = base_flags
-            
+
         self.setWindowFlags(flags)
-        
+
         # Essential attributes for non-activating behavior
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setAttribute(Qt.WA_ShowWithoutActivating, True)
         self.setAttribute(Qt.WA_DontShowOnScreen, False)
-        
+
         # macOS-specific attributes
         if MACOS_PLATFORM:
             self.setAttribute(Qt.WA_MacNoClickThrough, True)
             self.setAttribute(Qt.WA_MacAlwaysShowToolWindow, True)
-            if hasattr(Qt, 'WA_MacNonActivatingToolWindow'):
+            if hasattr(Qt, "WA_MacNonActivatingToolWindow"):
                 self.setAttribute(Qt.WA_MacNonActivatingToolWindow, True)
-        
+
         # Styling
         self.setStyleSheet("""
             QWidget {
@@ -172,7 +172,9 @@ class EnhancedNotificationWidget(QWidget):
 
         self.fade_animation = QPropertyAnimation(self.opacity_effect, b"opacity")
 
-    def show_notification(self, duration: int = 2000, screen_geometry=None, notification_index: int = 0):
+    def show_notification(
+        self, duration: int = 2000, screen_geometry=None, notification_index: int = 0
+    ):
         """Show notification without stealing focus."""
         if self.hide_timer:
             self.hide_timer.stop()
@@ -204,14 +206,14 @@ class EnhancedNotificationWidget(QWidget):
         else:
             # On other platforms, show normally
             self.setVisible(True)
-            
+
         self._is_visible = True
 
     def _configure_macos_window_level(self):
         """Configure macOS window level for proper overlay behavior."""
         try:
             # Ensure proper window level without external dependencies
-            if hasattr(self, 'winId'):
+            if hasattr(self, "winId"):
                 # Keep current Qt-based approach for stability
                 pass
         except Exception as e:
@@ -231,13 +233,13 @@ class EnhancedNotificationWidget(QWidget):
         self.fade_animation.setStartValue(0.9)
         self.fade_animation.setEndValue(0.0)
         self.fade_animation.setEasingCurve(QEasingCurve.InCubic)
-        
+
         # Disconnect existing connections to avoid multiple signals
         try:
             self.fade_animation.finished.disconnect()
         except TypeError:
             pass
-        
+
         self.fade_animation.finished.connect(self._on_fade_finished)
         self.fade_animation.start()
 
@@ -272,8 +274,8 @@ class EnhancedNotificationWidget(QWidget):
             if self.hide_timer:
                 self.hide_timer.stop()
                 self.hide_timer = None
-            
-            if hasattr(self, 'fade_animation'):
+
+            if hasattr(self, "fade_animation"):
                 self.fade_animation.stop()
         except Exception as e:
             print(f"Error during notification cleanup: {e}")
@@ -281,17 +283,23 @@ class EnhancedNotificationWidget(QWidget):
 
 class NotificationDispatcher(QObject):
     """Thread-safe notification dispatcher."""
-    
+
     show_notification_signal = pyqtSignal(str, str, str, str, int)
 
     def __init__(self, manager):
         super().__init__()
         self.manager = manager
-        self.show_notification_signal.connect(self._show_notification_slot, Qt.QueuedConnection)
+        self.show_notification_signal.connect(
+            self._show_notification_slot, Qt.QueuedConnection
+        )
 
-    def _show_notification_slot(self, title: str, message: str, icon: str, bg_color: str, duration: int):
+    def _show_notification_slot(
+        self, title: str, message: str, icon: str, bg_color: str, duration: int
+    ):
         """Handle notification display in main thread."""
-        self.manager._display_notification_internal(title, message, icon, bg_color, duration)
+        self.manager._display_notification_internal(
+            title, message, icon, bg_color, duration
+        )
 
 
 class EnhancedNotificationManager:
@@ -304,19 +312,27 @@ class EnhancedNotificationManager:
         self.dispatcher = NotificationDispatcher(self)
         self.notification_lock = threading.Lock()
 
-    def show_success_notification(self, title: str, message: str | None = None, duration: int = 2000):
+    def show_success_notification(
+        self, title: str, message: str | None = None, duration: int = 2000
+    ):
         """Show success notification."""
         self._display_notification(title, message, "✔", "#43803e", duration)
 
-    def show_error_notification(self, title: str, message: str | None = None, duration: int = 4000):
+    def show_error_notification(
+        self, title: str, message: str | None = None, duration: int = 4000
+    ):
         """Show error notification."""
         self._display_notification(title, message, "✗", "#9B6B67", duration)
 
-    def show_info_notification(self, title: str, message: str | None = None, duration: int = 2000):
+    def show_info_notification(
+        self, title: str, message: str | None = None, duration: int = 2000
+    ):
         """Show info notification."""
         self._display_notification(title, message, "ⓘ", "#6A7D93", duration)
 
-    def show_warning_notification(self, title: str, message: str | None = None, duration: int = 3000):
+    def show_warning_notification(
+        self, title: str, message: str | None = None, duration: int = 3000
+    ):
         """Show warning notification."""
         self._display_notification(title, message, "⚠️", "#f57c00", duration)
 
@@ -335,7 +351,9 @@ class EnhancedNotificationManager:
             return
 
         # Always use signal to ensure proper thread handling
-        self.dispatcher.show_notification_signal.emit(title, message or "", icon, bg_color, duration)
+        self.dispatcher.show_notification_signal.emit(
+            title, message or "", icon, bg_color, duration
+        )
 
     def _display_notification_internal(
         self,
@@ -349,13 +367,19 @@ class EnhancedNotificationManager:
         try:
             # Ensure we're on the main thread
             if threading.current_thread() != threading.main_thread():
-                print("Warning: Notification called from background thread, using fallback")
+                print(
+                    "Warning: Notification called from background thread, using fallback"
+                )
                 display_text = f"{title}: {message}" if message else title
                 print(f"🔔 {display_text}")
                 return
 
             # Check if app is still available
-            if not self.app or not hasattr(self.app, 'instance') or not self.app.instance():
+            if (
+                not self.app
+                or not hasattr(self.app, "instance")
+                or not self.app.instance()
+            ):
                 display_text = f"{title}: {message}" if message else title
                 print(f"🔔 {display_text}")
                 return
@@ -370,10 +394,7 @@ class EnhancedNotificationManager:
 
                 # Create notification widget
                 notification = EnhancedNotificationWidget(
-                    title=title,
-                    message=message,
-                    icon=icon,
-                    bg_color=bg_color
+                    title=title, message=message, icon=icon, bg_color=bg_color
                 )
 
                 # Connect cleanup signal
@@ -388,7 +409,7 @@ class EnhancedNotificationManager:
                 notification.show_notification(
                     duration=duration,
                     screen_geometry=screen_geometry,
-                    notification_index=notification_index
+                    notification_index=notification_index,
                 )
 
         except Exception as e:
@@ -399,8 +420,7 @@ class EnhancedNotificationManager:
     def _cleanup_finished_notifications(self):
         """Remove finished notifications from active list."""
         self.active_notifications = [
-            notif for notif in self.active_notifications
-            if notif._is_visible
+            notif for notif in self.active_notifications if notif._is_visible
         ]
 
     def _on_notification_finished(self, notification):
@@ -409,15 +429,15 @@ class EnhancedNotificationManager:
             with self.notification_lock:
                 if notification in self.active_notifications:
                     self.active_notifications.remove(notification)
-                
+
                 # Ensure cleanup happens on main thread
-                if hasattr(notification, 'cleanup'):
+                if hasattr(notification, "cleanup"):
                     notification.cleanup()
-                
+
                 # Schedule deletion on main thread
-                if hasattr(notification, 'deleteLater'):
+                if hasattr(notification, "deleteLater"):
                     notification.deleteLater()
-                    
+
         except Exception as e:
             print(f"Error cleaning up notification: {e}")
 
@@ -427,22 +447,24 @@ class EnhancedNotificationManager:
             if not self.desktop:
                 try:
                     from PyQt5.QtCore import QRect
+
                     return QRect(0, 0, 1920, 1080)
                 except ImportError:
                     return None
-                
+
             cursor_pos = QCursor.pos()
             screen_number = self.desktop.screenNumber(cursor_pos)
-            
+
             # Validate screen number
             if screen_number < 0 or screen_number >= self.desktop.screenCount():
                 screen_number = 0
-                
+
             return self.desktop.screenGeometry(screen_number)
         except Exception as e:
             print(f"Error getting screen geometry: {e}")
             try:
                 from PyQt5.QtCore import QRect
+
                 return QRect(0, 0, 1920, 1080)
             except ImportError:
                 return None
@@ -463,7 +485,7 @@ class EnhancedNotificationManager:
 # Legacy compatibility - keep the old class name
 class PyQtNotificationManager(EnhancedNotificationManager):
     """Legacy compatibility class."""
-    
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -471,8 +493,15 @@ class PyQtNotificationManager(EnhancedNotificationManager):
 # Legacy compatibility - keep the old widget name
 class NotificationWidget(EnhancedNotificationWidget):
     """Legacy compatibility class."""
-    
-    def __init__(self, title: str, message: str | None = None, icon: str = "", bg_color: Union[str, QColor] = "#323232", parent=None):
+
+    def __init__(
+        self,
+        title: str,
+        message: str | None = None,
+        icon: str = "",
+        bg_color: Union[str, QColor] = "#323232",
+        parent=None,
+    ):
         super().__init__(title, message, icon, bg_color, parent)
 
 
@@ -487,33 +516,3 @@ def format_execution_time(seconds: float) -> str:
 def truncate_text(text: str, max_length: int = 50) -> str:
     """Truncate text to specified length."""
     return text[:max_length] + "..." if len(text) > max_length else text
-
-
-def test_notifications():
-    """Test function for the notification system."""
-    import sys as system_module
-    
-    app = QApplication(system_module.argv if system_module.argv else [])
-    manager = EnhancedNotificationManager(app)
-    
-    # Test different notification types
-    manager.show_success_notification("Success", "Operation completed successfully")
-    
-    def show_more_notifications():
-        manager.show_info_notification("Information", "This is an info message")
-        manager.show_warning_notification("Warning", "This is a warning message")
-        manager.show_error_notification("Error", "This is an error message")
-    
-    # Show additional notifications after a delay
-    QTimer.singleShot(1000, show_more_notifications)
-    
-    # Exit after testing
-    QTimer.singleShot(6000, app.quit)
-    
-    print("Testing enhanced notifications...")
-    print("Focus should remain on your current window")
-    app.exec_()
-
-
-if __name__ == "__main__":
-    test_notifications()

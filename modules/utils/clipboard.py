@@ -154,23 +154,3 @@ class SystemClipboardManager(ClipboardManager):
             return True
         except Exception:
             return False
-
-
-class MockClipboardManager(ClipboardManager):
-    """Mock clipboard manager for testing."""
-
-    def __init__(self, initial_content: str = ""):
-        self._content = initial_content
-
-    def get_content(self) -> str:
-        """Get the mock clipboard content."""
-        return self._content
-
-    def set_content(self, content: str) -> bool:
-        """Set the mock clipboard content."""
-        self._content = content
-        return True
-
-    def is_empty(self) -> bool:
-        """Check if the mock clipboard is empty."""
-        return not self._content.strip()
