@@ -45,7 +45,7 @@
   "prompts": [
     {
       "id": "72153ef6-f011-4f3f-8b3f-e87cc9796a3d",
-      "name": "Prompt refine - local",
+      "name": "Helpful assistant",
       // optional model - to assign model value is key of "models"
       // "model": "gpt-4.1-model",
       "messages": [
@@ -74,7 +74,7 @@
       ]
     },
     {
-      "id": "72153ef6-f011-4f3f-8b3f-e87cc9796a3d",
+      "id": "5a408517-c759-4ecf-b298-71072ecd2cd",
       "name": "Translate - Polish",
       "messages": [
         {
