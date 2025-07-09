@@ -306,15 +306,15 @@ class EnhancedNotificationManager:
 
     def show_success_notification(self, title: str, message: str | None = None, duration: int = 2000):
         """Show success notification."""
-        self._display_notification(title, message, "✅", "#2d7d32", duration)
+        self._display_notification(title, message, "✔", "#43803e", duration)
 
     def show_error_notification(self, title: str, message: str | None = None, duration: int = 4000):
         """Show error notification."""
-        self._display_notification(title, message, "❌", "#c62828", duration)
+        self._display_notification(title, message, "✗", "#9B6B67", duration)
 
     def show_info_notification(self, title: str, message: str | None = None, duration: int = 2000):
         """Show info notification."""
-        self._display_notification(title, message, "ℹ️", "#1976d2", duration)
+        self._display_notification(title, message, "ⓘ", "#6A7D93", duration)
 
     def show_warning_notification(self, title: str, message: str | None = None, duration: int = 3000):
         """Show warning notification."""
