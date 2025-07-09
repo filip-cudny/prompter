@@ -24,9 +24,9 @@ class PyQtMenuCoordinator(QObject):
         self.context_menu = PyQtContextMenu()
         self.context_menu.menu_coordinator = self
         self.app = QApplication.instance()
-        
+
         # Set menu coordinator reference in prompt store service for GUI updates
-        if hasattr(self.prompt_store_service, 'set_menu_coordinator'):
+        if hasattr(self.prompt_store_service, "set_menu_coordinator"):
             self.prompt_store_service.set_menu_coordinator(self)
 
         # Callbacks
@@ -333,7 +333,7 @@ class PyQtMenuCoordinator(QObject):
         # Create active prompt selector item with submenu
         active_prompt_item = MenuItem(
             id="active_prompt_selector",
-            label=f"Active Prompt: {display_name}",
+            label=f"Active Prompt ({display_name})",
             item_type=MenuItemType.SYSTEM,
             action=lambda: None,  # No direct action, submenu will handle it
             enabled=True,
