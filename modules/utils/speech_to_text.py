@@ -254,7 +254,9 @@ class AudioRecorder:
 class SpeechToTextService:
     """Service for speech-to-text functionality."""
 
-    def __init__(self, api_key: str, base_url: str, transcribe_model: str):
+    def __init__(
+        self, api_key: str | None, base_url: str | None, transcribe_model: str | None
+    ):
         self.openai_client = OpenAIClient(api_key, base_url)
         self.recorder = AudioRecorder()
         self.transcribe_model = transcribe_model

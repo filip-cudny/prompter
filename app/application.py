@@ -1,4 +1,4 @@
-"""Main PyQt5 application class for the prompt store application."""
+"""Main PyQt5 application class for the Prompter application."""
 
 import sys
 import signal
@@ -29,8 +29,8 @@ from modules.utils.system import check_macos_permissions, show_macos_permissions
 from modules.utils.notifications import PyQtNotificationManager
 
 
-class PromptStoreApp(QObject):
-    """Main PyQt5 application class for the prompt store."""
+class PrompterApp(QObject):
+    """Main PyQt5 application class for the Prompter."""
 
     # Qt signals
     shutdown_requested = pyqtSignal()
@@ -242,7 +242,7 @@ class PromptStoreApp(QObject):
     def _initialize_gui(self) -> None:
         """Initialize GUI components."""
         if not self.config or not self.prompt_store_service:
-            raise RuntimeError("Configuration or prompt store service not initialized")
+            raise RuntimeError("Configuration or Prompter service not initialized")
 
         # Initialize hotkey manager
         self.hotkey_manager = PyQtHotkeyManager(
@@ -373,7 +373,7 @@ class PromptStoreApp(QObject):
                 enabled=True,
             )
 
-            # Execute the speech item through the prompt store service
+            # Execute the speech item through the Prompter service
             if self.prompt_store_service:
                 result = self.prompt_store_service.execute_item(speech_item)
 
@@ -405,7 +405,7 @@ class PromptStoreApp(QObject):
         """Execute the active prompt with current clipboard content."""
         try:
             if not self.prompt_store_service:
-                print("Prompt store service not initialized")
+                print("Prompter service not initialized")
                 return
 
             result = self.prompt_store_service.execute_active_prompt()
@@ -597,7 +597,7 @@ class PromptStoreApp(QObject):
             self.prompt_providers.clear()
             self._initialize_prompt_providers()
 
-            # Update prompt store service with new primary provider
+            # Update Prompter service with new primary provider
             if self.prompt_store_service and self.prompt_providers:
                 primary_provider = self.prompt_providers[0]
                 self.prompt_store_service.primary_provider = primary_provider
@@ -628,17 +628,15 @@ class PromptStoreApp(QObject):
                     pass
 
 
-
-
 def main():
     """Main entry point."""
     import argparse
 
-    parser = argparse.ArgumentParser(description="Prompt Store PyQt5 Application")
+    parser = argparse.ArgumentParser(description="Prompter PyQt5 Application")
     parser.add_argument("--config", "-c", help="Configuration file path")
     args = parser.parse_args()
 
-    app = PromptStoreApp(args.config)
+    app = PrompterApp(args.config)
     return app.run()
 
 

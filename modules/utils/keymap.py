@@ -3,7 +3,6 @@
 import platform
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
-from pathlib import Path
 
 from core.exceptions import ConfigurationError
 from .keymap_actions import get_global_action_registry

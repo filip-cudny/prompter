@@ -3,8 +3,7 @@
 import platform
 import subprocess
 import sys
-from typing import Tuple, Optional
-from core.exceptions import HotkeyError
+from typing import Tuple
 
 
 def get_platform() -> str:

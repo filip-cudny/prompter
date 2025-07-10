@@ -1,4 +1,4 @@
-"""Core business services for the prompt store application."""
+"""Core business services for the Prompter application."""
 
 from pathlib import Path
 from typing import Any, Dict, List, Optional

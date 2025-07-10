@@ -1,7 +1,3 @@
-"""Application module for prompt store application."""
+"""Application module for Prompter application."""
 
-from .application import PromptStoreApp
-
-__all__ = [
-    "PromptStoreApp",
-]
+from .application import PrompterApp

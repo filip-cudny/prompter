@@ -1,4 +1,4 @@
-"""PyQt5-based context menu system for the prompt store application."""
+"""PyQt5-based context menu system for the Prompter application."""
 
 from typing import List, Optional, Tuple
 from PyQt5.QtWidgets import QMenu, QAction, QApplication
@@ -340,7 +340,7 @@ class PyQtContextMenu(QObject):
             )
             alternative_item.data["alternative_execution"] = True
             
-            # Get the prompt store service from the menu coordinator
+            # Get the Prompter service from the menu coordinator
             if hasattr(self, "menu_coordinator") and self.menu_coordinator:
                 prompt_store_service = getattr(self.menu_coordinator, "prompt_store_service", None)
                 if prompt_store_service:

@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
-"""Entry point for the prompt store application."""
+"""Entry point for the Prompter application."""
 
 import sys
 
-from app.application import PromptStoreApp
+from app.application import PrompterApp
 
 
 def main():
     """Main entry point."""
     import argparse
 
-    parser = argparse.ArgumentParser(description="Prompt Store PyQt5 Application")
+    parser = argparse.ArgumentParser(description="Prompter PyQt5 Application")
     parser.add_argument("--config", "-c", help="Configuration file path")
     args = parser.parse_args()
 
     try:
-        app = PromptStoreApp(args.config)
+        app = PrompterApp(args.config)
         return app.run()
     except KeyboardInterrupt:
         print("\nService stopped by user")

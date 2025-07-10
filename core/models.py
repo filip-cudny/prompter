@@ -1,4 +1,4 @@
-"""Data models and types for the prompt store application."""
+"""Data models and types for the Prompter application."""
 
 from __future__ import annotations
 from dataclasses import dataclass, field

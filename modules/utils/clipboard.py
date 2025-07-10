@@ -2,12 +2,8 @@
 
 import subprocess
 import platform
-import sys
-import os
 from core.exceptions import ClipboardError
 from core.interfaces import ClipboardManager
-
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 class SystemClipboardManager(ClipboardManager):

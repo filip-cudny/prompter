@@ -16,7 +16,7 @@ from core.models import (
 
 
 class PromptStoreService(PromptStoreServiceProtocol):
-    """Main business logic coordinator for the prompt store."""
+    """Main business logic coordinator for the Prompter."""
 
     def __init__(
         self,

@@ -1,4 +1,4 @@
-"""Menu item providers for the prompt store application."""
+"""Menu item providers for the Prompter application."""
 
 from typing import List, Callable, Optional
 from core.models import MenuItem, MenuItemType, HistoryEntryType

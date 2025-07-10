@@ -1,4 +1,4 @@
-"""PyQt5-based menu coordinator for the prompt store application."""
+"""PyQt5-based menu coordinator for the Prompter application."""
 
 from typing import List, Optional, Callable, Tuple, Dict, Any
 from PyQt5.QtCore import QObject, pyqtSignal, QTimer
@@ -25,7 +25,7 @@ class PyQtMenuCoordinator(QObject):
         self.context_menu.menu_coordinator = self
         self.app = QApplication.instance()
 
-        # Set menu coordinator reference in prompt store service for GUI updates
+        # Set menu coordinator reference in Prompter service for GUI updates
         if hasattr(self.prompt_store_service, "set_menu_coordinator"):
             self.prompt_store_service.set_menu_coordinator(self)
 
@@ -204,7 +204,7 @@ class PyQtMenuCoordinator(QObject):
         return wrapped_items
 
     def _execute_menu_item(self, item: MenuItem) -> None:
-        """Execute a menu item through the prompt store service."""
+        """Execute a menu item through the Prompter service."""
         try:
             # Execute the item using the service
             result = self.prompt_store_service.execute_item(item)
