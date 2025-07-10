@@ -17,7 +17,7 @@ except ImportError:
     PYAUDIO_AVAILABLE = False
 import wave
 
-from core.open_ai_api import OpenAIClient
+from core.openai_service import OpenAiService
 
 
 @contextlib.contextmanager
@@ -255,11 +255,10 @@ class SpeechToTextService:
     """Service for speech-to-text functionality."""
 
     def __init__(
-        self, api_key: str | None, base_url: str | None, transcribe_model: str | None
+        self, openai_service: OpenAiService
     ):
-        self.openai_client = OpenAIClient(api_key, base_url)
+        self.openai_service = openai_service
         self.recorder = AudioRecorder()
-        self.transcribe_model = transcribe_model
         self.recording_started_callback: Optional[Callable[[], None]] = None
         self.recording_stopped_callback: Optional[Callable[[], None]] = None
         self.transcription_callbacks: Dict[str, Dict] = {}
@@ -373,8 +372,8 @@ class SpeechToTextService:
         """Transcribe audio file asynchronously."""
         try:
             start_time = time.time()
-            transcription = self.openai_client.transcribe_audio_file(
-                audio_file_path, self.transcribe_model
+            transcription = self.openai_service.transcribe_audio_file(
+                audio_file_path, "speech_to_text"
             )
             transcription_duration = time.time() - start_time
 

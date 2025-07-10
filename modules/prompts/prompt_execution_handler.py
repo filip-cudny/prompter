@@ -5,7 +5,7 @@ import logging
 from core.interfaces import ClipboardManager
 from core.models import MenuItem, MenuItemType, ExecutionResult
 from modules.utils.config import AppConfig
-from core.open_ai_api import OpenAIClient
+from core.openai_service import OpenAiService
 from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
 from modules.utils.notifications import (
     PyQtNotificationManager,
@@ -24,11 +24,13 @@ class PromptExecutionHandler:
         settings_prompt_provider,
         clipboard_manager: ClipboardManager,
         notification_manager: Optional[PyQtNotificationManager],
+        openai_service: OpenAiService,
         config: AppConfig,
     ):
         self.settings_prompt_provider = settings_prompt_provider
         self.clipboard_manager = clipboard_manager
         self.notification_manager = notification_manager or PyQtNotificationManager()
+        self.openai_service = openai_service
         self.config = config
 
     def can_handle(self, item: MenuItem) -> bool:
@@ -62,21 +64,24 @@ class PromptExecutionHandler:
             if not model_name:
                 model_name = self.config.default_model
 
-            # Validate model exists in config
-            if not self.config.models or model_name not in self.config.models:
+            # Ensure model_name is a string
+            if not model_name or not isinstance(model_name, str):
+                return ExecutionResult(
+                    success=False,
+                    error="No valid model specified",
+                    execution_time=time.time() - start_time,
+                )
+
+            # Validate model exists in openai service
+            if not self.openai_service.has_model(model_name):
                 return ExecutionResult(
                     success=False,
                     error=f"Model '{model_name}' not found in configuration",
                     execution_time=time.time() - start_time,
                 )
 
-            # Get model configuration
-            model_config = self.config.models[model_name]
-
-            # Create OpenAI client with model configuration
-            openai_client = OpenAIClient(
-                api_key=model_config["api_key"], base_url=model_config.get("base_url")
-            )
+            # Get model configuration for display name
+            model_config = self.openai_service.get_model_config(model_name)
 
             messages = self.settings_prompt_provider.get_prompt_messages(prompt_id)
             if not messages:
@@ -93,7 +98,7 @@ class PromptExecutionHandler:
                     clipboard_content = self.clipboard_manager.get_content()
                 except Exception as e:
                     clipboard_content = ""
-                    logger.warning(f"Failed to get clipboard content: {e}")
+                    logger.warning("Failed to get clipboard content: %s", e)
 
             processed_messages: List[ChatCompletionMessageParam] = []
             for message in messages:
@@ -112,10 +117,9 @@ class PromptExecutionHandler:
                 )
 
             # Call OpenAI API
-            response_text = openai_client.complete(
+            response_text = self.openai_service.complete(
+                model_key=model_name,
                 messages=processed_messages,
-                model=model_config["model"],
-                temperature=model_config.get("temperature"),
             )
 
             # Copy response to clipboard
@@ -137,12 +141,6 @@ class PromptExecutionHandler:
                 execution_time=time.time() - start_time,
             )
 
-        except Exception as e:
-            return ExecutionResult(
-                success=False,
-                error=f"OpenAI API error: {str(e)}",
-                execution_time=time.time() - start_time,
-            )
         except Exception as e:
             return ExecutionResult(
                 success=False,

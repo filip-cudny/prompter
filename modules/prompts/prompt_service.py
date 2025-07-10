@@ -5,6 +5,7 @@ from modules.utils.speech_to_text import SpeechToTextService
 from core.interfaces import PromptStoreServiceProtocol
 from modules.history.history_service import HistoryService
 from modules.utils.notifications import PyQtNotificationManager
+from core.openai_service import OpenAiService
 from core.models import (
     ErrorCode,
     ExecutionResult,
@@ -23,7 +24,8 @@ class PromptStoreService(PromptStoreServiceProtocol):
         prompt_providers,
         clipboard_manager,
         notification_manager=None,
-        speech_service=SpeechToTextService,
+        speech_service: Optional[SpeechToTextService] = None,
+        openai_service: Optional[OpenAiService] = None,
     ):
         self.prompt_providers = (
             prompt_providers
@@ -36,6 +38,7 @@ class PromptStoreService(PromptStoreServiceProtocol):
         self.clipboard_manager = clipboard_manager
         self.notification_manager = notification_manager or PyQtNotificationManager()
         self.speech_service = speech_service
+        self.openai_service = openai_service
         self.execution_service = ExecutionService(self)
         self.execution_service.set_speech_service(self.speech_service)
         self._menu_coordinator = None

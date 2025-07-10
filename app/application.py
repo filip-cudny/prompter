@@ -27,6 +27,7 @@ from modules.utils.clipboard import SystemClipboardManager
 from modules.utils.config import load_config, validate_config
 from modules.utils.system import check_macos_permissions, show_macos_permissions_help
 from modules.utils.notifications import PyQtNotificationManager
+from core.openai_service import OpenAiService
 
 
 class PrompterApp(QObject):
@@ -48,6 +49,7 @@ class PrompterApp(QObject):
 
         # Core services
         self.clipboard_manager: Optional[SystemClipboardManager] = None
+        self.openai_service: Optional[OpenAiService] = None
         self.prompt_store_service: Optional[PromptStoreService] = None
 
         # Providers
@@ -96,6 +98,9 @@ class PrompterApp(QObject):
             # Initialize notification manager
             self.notification_manager = PyQtNotificationManager(self.app)
 
+            # Initialize OpenAI service
+            self._initialize_openai_service()
+
             # Initialize speech service
             self._initialize_speech_service()
             self._initialize_history_service()
@@ -105,6 +110,7 @@ class PrompterApp(QObject):
                 self.clipboard_manager,
                 self.notification_manager,
                 self.speech_service,
+                self.openai_service,
             )
 
             # Initialize GUI components
@@ -120,16 +126,27 @@ class PrompterApp(QObject):
             print(f"Failed to initialize application: {e}")
             sys.exit(1)
 
+    def _initialize_openai_service(self) -> None:
+        """Initialize OpenAI service with all model configurations."""
+        try:
+            if not self.config or not self.config.models:
+                raise ConfigurationError("No models configured")
+            
+            self.openai_service = OpenAiService(
+                models_config=self.config.models,
+                speech_to_text_config=self.config.speech_to_text_model
+            )
+        except Exception as e:
+            raise ConfigurationError(f"Failed to initialize OpenAI service: {e}") from e
+
     def _initialize_speech_service(self) -> None:
         """Initialize speech-to-text service as singleton."""
         try:
             from modules.utils.speech_to_text import SpeechToTextService
 
-            if self.config.speech_to_text_model:
+            if self.config and self.config.speech_to_text_model and self.openai_service:
                 self.speech_service = SpeechToTextService(
-                    api_key=self.config.speech_to_text_model.get("api_key"),
-                    base_url=self.config.speech_to_text_model.get("base_url"),
-                    transcribe_model=self.config.speech_to_text_model.get("model"),
+                    openai_service=self.openai_service
                 )
                 self._setup_common_speech_notifications()
             else:
@@ -211,7 +228,7 @@ class PrompterApp(QObject):
         handlers = [
             HistoryExecutionHandler(
                 self.clipboard_manager,
-                self.notification_manager,
+                self.notification_manager,  # type: ignore
             ),
             PyQtSpeechExecutionHandler(
                 self.clipboard_manager,
@@ -231,7 +248,8 @@ class PrompterApp(QObject):
                         settings_provider,
                         self.clipboard_manager,
                         self.notification_manager,
-                        self.config,
+                        self.openai_service,  # type: ignore
+                        self.config,  # type: ignore
                     ),
                 ]
             )
