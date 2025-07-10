@@ -44,14 +44,26 @@
   ],
   "prompts": [
     {
-      "id": "72153ef6-f011-4f3f-8b3f-e87cc9796a3d",
-      "name": "Helpful assistant",
-      // optional model - to assign model value is key of "models"
-      // "model": "gpt-4.1-model",
+      "id": "f8bfc8eb-b05f-4e92-a679-18dfa2c39ddd",
+      "name": "Prompt refine",
       "messages": [
         {
           "role": "system",
-          "content": "You are a helpful assistant."
+          "file": "prompts/prompt_refine.md"
+        },
+        {
+          "role": "user",
+          "content": "<input_text>\n{{clipboard}}\n</input_text>"
+        }
+      ]
+    },
+    {
+      "id": "8c80cdc6-9a33-4d71-b050-1bba738cec68",
+      "name": "Prompt execute",
+      "messages": [
+        {
+          "role": "system",
+          "file": "prompts/prompt_execute.md"
         },
         {
           "role": "user",
