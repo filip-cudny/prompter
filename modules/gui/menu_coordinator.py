@@ -4,7 +4,7 @@ from typing import List, Optional, Callable, Tuple, Dict, Any
 from PyQt5.QtCore import QObject, pyqtSignal, QTimer
 from PyQt5.QtWidgets import QApplication
 
-from core.models import MenuItem, ExecutionResult, MenuItemType
+from core.models import MenuItem, ExecutionResult, MenuItemType, ErrorCode
 from core.exceptions import MenuError
 from modules.utils.config import ConfigService
 from .context_menu import PyQtContextMenu
@@ -637,9 +637,16 @@ class PyQtMenuEventHandler:
             if prompt_name:
                 error_message = f"{result.error}\n({prompt_name})"
 
-            self.notification_manager.show_error_notification(
-                "Execution Failed",
-                error_message,
-            )
+            # Show warning for NO_ACTIVE_PROMPT, error for others
+            if result.error_code == ErrorCode.NO_ACTIVE_PROMPT:
+                self.notification_manager.show_warning_notification(
+                    "No Active Prompt",
+                    error_message,
+                )
+            else:
+                self.notification_manager.show_error_notification(
+                    "Execution Failed",
+                    error_message,
+                )
         else:
             print(f"Execution failed: {result.error}")

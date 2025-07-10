@@ -334,7 +334,7 @@ class EnhancedNotificationManager:
         self, title: str, message: str | None = None, duration: int = 3000
     ):
         """Show warning notification."""
-        self._display_notification(title, message, "⚠️", "#f57c00", duration)
+        self._display_notification(title, message, "!", "#8B7355", duration)
 
     def _display_notification(
         self,
