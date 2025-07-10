@@ -19,6 +19,7 @@ A powerful context menu application that provides instant access to AI prompts f
 - Python 3.8 or higher
 - Operating System: macOS, Linux, or Windows
 - **macOS only**: `portaudio` (install via Homebrew: `brew install portaudio`)
+- **Linux only**: `portaudio19-dev` (install via apt: `sudo apt install portaudio19-dev`)
 
 ### Setup
 
@@ -29,10 +30,16 @@ git clone <repository-url>
 cd prompter
 ```
 
-2. **macOS only**: Install portaudio for speech-to-text functionality:
+2. **Platform-specific dependencies** for speech-to-text functionality:
 
+**macOS:**
 ```bash
 brew install portaudio
+```
+
+**Linux:**
+```bash
+sudo apt install portaudio19-dev
 ```
 
 3. Install and setup using Make:
@@ -315,6 +322,7 @@ make logs-follow  # Follow logs in real-time
 2. Check speech-to-text model configuration
 3. Ensure audio drivers are working
 4. **macOS**: If you get PyAudio installation errors, ensure portaudio is installed: `brew install portaudio`
+5. **Linux**: If you get PyAudio installation errors, ensure portaudio19-dev is installed: `sudo apt install portaudio19-dev`
 
 ## Development
 
