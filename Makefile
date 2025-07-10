@@ -28,6 +28,18 @@ install: setup ## Install dependencies and setup virtual environment
 
 setup: ## Setup virtual environment and install dependencies
 	@echo "Setting up Prompt Store..."
+	@if [ "$$(uname -s)" = "Darwin" ]; then \
+		echo "Checking macOS prerequisites..."; \
+		if ! command -v brew >/dev/null 2>&1; then \
+			echo "❌ Homebrew is required on macOS. Please install it first: https://brew.sh/"; \
+			exit 1; \
+		fi; \
+		if ! brew list portaudio >/dev/null 2>&1; then \
+			echo "⚠️  portaudio is required for speech-to-text functionality."; \
+			echo "Installing portaudio via Homebrew..."; \
+			brew install portaudio; \
+		fi; \
+	fi
 	@if [ ! -d "$(VENV_DIR)" ]; then \
 		echo "Creating virtual environment..."; \
 		$(PYTHON) -m venv $(VENV_DIR); \
