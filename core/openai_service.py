@@ -1,8 +1,9 @@
 """OpenAI service for managing multiple OpenAI client instances."""
 
+import os
 from typing import Dict, Optional, List, BinaryIO, Any
+from openai import OpenAI
 from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
-from core.open_ai_api import OpenAIClient
 from core.exceptions import ConfigurationError
 
 
@@ -21,7 +22,7 @@ class OpenAiService:
             models_config: Dictionary of model configurations from settings
             speech_to_text_config: Optional speech-to-text model configuration
         """
-        self._clients: Dict[str, OpenAIClient] = {}
+        self._clients: Dict[str, OpenAI] = {}
         self._models_config = models_config
         self._speech_to_text_config = speech_to_text_config
 
@@ -31,8 +32,14 @@ class OpenAiService:
         """Initialize OpenAI clients for all configured models."""
         for model_key, model_config in self._models_config.items():
             try:
-                client = OpenAIClient(
-                    api_key=model_config.get("api_key"),
+                api_key = model_config.get("api_key")
+                if not api_key:
+                    raise Exception(
+                        "OpenAI API key not found. Set OPENAI_API_KEY environment variable."
+                    )
+
+                client = OpenAI(
+                    api_key=api_key,
                     base_url=model_config.get("base_url"),
                 )
                 self._clients[model_key] = client
@@ -43,8 +50,14 @@ class OpenAiService:
 
         if self._speech_to_text_config:
             try:
-                client = OpenAIClient(
-                    api_key=self._speech_to_text_config.get("api_key"),
+                api_key = self._speech_to_text_config.get("api_key")
+                if not api_key:
+                    raise Exception(
+                        "OpenAI API key not found. Set OPENAI_API_KEY environment variable."
+                    )
+
+                client = OpenAI(
+                    api_key=api_key,
                     base_url=self._speech_to_text_config.get("base_url"),
                 )
                 self._clients["speech_to_text"] = client
@@ -85,13 +98,17 @@ class OpenAiService:
         client = self._clients[model_key]
         model_config = self._models_config[model_key]
 
-        return client.complete(
-            messages=messages,
-            model=model_config["model"],
-            temperature=model_config.get("temperature", 0.7),
-            max_tokens=max_tokens,
-            **kwargs,
-        )
+        try:
+            response = client.chat.completions.create(
+                model=model_config["model"],
+                messages=messages,
+                temperature=model_config.get("temperature", 0.7),
+                max_tokens=max_tokens,
+                **kwargs,
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            raise Exception(f"Failed to generate completion: {e}") from e
 
     def transcribe_audio(
         self,
@@ -124,7 +141,14 @@ class OpenAiService:
         else:
             raise ConfigurationError(f"Model configuration for '{model_key}' not found")
 
-        return client.transcribe_audio(audio_file, model_name)
+        try:
+            transcription = client.audio.transcriptions.create(
+                model=model_name,
+                file=audio_file,
+            )
+            return transcription.text.strip()
+        except Exception as e:
+            raise Exception(f"Failed to transcribe audio: {e}") from e
 
     def transcribe_audio_file(
         self,
@@ -148,16 +172,14 @@ class OpenAiService:
         if model_key not in self._clients:
             raise ConfigurationError(f"Model '{model_key}' not found in configuration")
 
-        client = self._clients[model_key]
+        if not os.path.exists(file_path):
+            raise Exception(f"Audio file not found: {file_path}")
 
-        if model_key == "speech_to_text" and self._speech_to_text_config:
-            model_name = self._speech_to_text_config["model"]
-        elif model_key in self._models_config:
-            model_name = self._models_config[model_key]["model"]
-        else:
-            raise ConfigurationError(f"Model configuration for '{model_key}' not found")
-
-        return client.transcribe_audio_file(file_path, model_name)
+        try:
+            with open(file_path, "rb") as audio_file:
+                return self.transcribe_audio(audio_file, model_key)
+        except IOError as e:
+            raise Exception(f"Failed to read audio file: {e}") from e
 
     def get_model_config(self, model_key: str) -> Dict[str, Any]:
         """
