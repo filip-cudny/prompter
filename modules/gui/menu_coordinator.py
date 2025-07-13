@@ -640,11 +640,16 @@ class PyQtMenuEventHandler:
             if prompt_name:
                 error_message = f"{result.error}\n({prompt_name})"
 
-            # Show warning for NO_ACTIVE_PROMPT, error for others
+            # Show warning for NO_ACTIVE_PROMPT and EXECUTION_IN_PROGRESS, error for others
             if result.error_code == ErrorCode.NO_ACTIVE_PROMPT:
                 self.notification_manager.show_warning_notification(
                     "No Active Prompt",
                     error_message,
+                )
+            elif result.error_code == ErrorCode.EXECUTION_IN_PROGRESS:
+                self.notification_manager.show_warning_notification(
+                    "Prompt execution in progress",
+                    "Please wait for the current prompt to complete",
                 )
             else:
                 self.notification_manager.show_error_notification(

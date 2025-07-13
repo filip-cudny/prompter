@@ -274,10 +274,6 @@ class AsyncPromptExecutionManager:
             True if execution started, False if already executing
         """
         if self.is_executing:
-            self.notification_manager.show_warning_notification(
-                "Prompt execution in progress",
-                "Please wait for the current prompt to complete",
-            )
             return False
 
         # Create and start worker thread

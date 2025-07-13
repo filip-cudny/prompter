@@ -3,7 +3,7 @@
 from typing import Optional
 import logging
 from core.interfaces import ClipboardManager
-from core.models import MenuItem, MenuItemType, ExecutionResult
+from core.models import MenuItem, MenuItemType, ExecutionResult, ErrorCode
 from modules.utils.config import AppConfig
 from core.openai_service import OpenAiService
 from modules.utils.notifications import PyQtNotificationManager
@@ -30,7 +30,7 @@ class PromptExecutionHandler:
         self.openai_service = openai_service
         self.config = config
         self.prompt_store_service = prompt_store_service
-        
+
         # Initialize async execution manager
         self.async_manager = AsyncPromptExecutionManager(
             settings_prompt_provider,
@@ -38,7 +38,7 @@ class PromptExecutionHandler:
             notification_manager,
             openai_service,
             config,
-            prompt_store_service
+            prompt_store_service,
         )
 
     def can_handle(self, item: MenuItem) -> bool:
@@ -63,25 +63,21 @@ class PromptExecutionHandler:
             else:
                 return ExecutionResult(
                     success=False,
-                    error="Execution already in progress"
+                    error="Execution already in progress",
+                    error_code=ErrorCode.EXECUTION_IN_PROGRESS,
                 )
-        
+
         # Basic validation
         if not item.data or not item.data.get("prompt_id"):
-            return ExecutionResult(
-                success=False,
-                error="Missing prompt ID"
-            )
-        
+            return ExecutionResult(success=False, error="Missing prompt ID")
+
         # Start async execution
         if self.async_manager.execute_prompt_async(item, context):
             # Return immediate success - actual result will be handled by signals
             return ExecutionResult(
-                success=True,
-                content="Execution started asynchronously"
+                success=True, content="Execution started asynchronously"
             )
         else:
             return ExecutionResult(
-                success=False,
-                error="Failed to start async execution"
+                success=False, error="Failed to start async execution"
             )
