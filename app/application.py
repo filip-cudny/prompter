@@ -250,6 +250,7 @@ class PrompterApp(QObject):
                         self.notification_manager,
                         self.openai_service,  # type: ignore
                         self.config,  # type: ignore
+                        self.prompt_store_service,
                     ),
                 ]
             )

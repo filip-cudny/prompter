@@ -1,5 +1,6 @@
 """Core business services for the Prompter application."""
 
+import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -16,6 +17,8 @@ from .models import (
     PromptData,
     SettingsConfig,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class ExecutionService:
@@ -87,6 +90,9 @@ class ExecutionService:
                     error="Speech service not available"
                 )
             
+            is_alternative = item.data and item.data.get("alternative_execution", False)
+            logger.debug("Speech execution: item=%s, alternative=%s", item.id, is_alternative)
+            
             if self.speech_service.is_recording():
                 self.speech_service.stop_recording()
                 self.recording_action_id = None
@@ -100,6 +106,7 @@ class ExecutionService:
                 self.recording_action_id = action_id
                 self.pending_execution_item = item
 
+                logger.debug("Starting recording for: %s, alternative=%s", action_id, is_alternative)
                 self.speech_service.start_recording(handler_name=action_id)
                 return ExecutionResult(
                     success=True,
@@ -119,22 +126,37 @@ class ExecutionService:
             self.pending_execution_item = None
             self.recording_action_id = None
 
+            # Check if this is alternative execution (shift+click)
+            is_alternative = item.data and item.data.get("alternative_execution", False)
+            logger.debug("Transcription complete: item=%s, alternative=%s, transcription_length=%d", item.id, is_alternative, len(transcription) if transcription else 0)
+
             if transcription.strip():
                 for handler in self.handlers:
                     if handler.can_handle(item):
                         try:
+                            logger.debug("Executing handler for item=%s, alternative=%s", item.id, is_alternative)
                             result = handler.execute(item, transcription)
-                            self.prompt_store_service.add_history_entry(
-                                item,
-                                transcription,
-                                result,
-                            )
-                            # Emit execution completed signal to update GUI
+                            
+                            # For alternative execution, don't add history here
+                            # The async execution manager will handle it when the prompt completes
+                            if not is_alternative:
+                                logger.debug("Adding history entry for non-alternative execution: %s", item.id)
+                                self.prompt_store_service.add_history_entry(
+                                    item,
+                                    transcription,
+                                    result,
+                                )
+                            else:
+                                logger.debug("Skipping history entry for alternative execution: %s", item.id)
+                            
+                            # Always emit execution completed signal to update GUI
                             self.prompt_store_service.emit_execution_completed(result)
                             break
                         except Exception as e:
+                            logger.error("Handler execution failed for %s: %s", item.id, e)
                             print(f"Handler execution failed: {e}")
             else:
+                logger.debug("Empty transcription received, execution cancelled")
                 print("Empty transcription received, execution cancelled")
                 # Still emit signal to update GUI even if transcription was empty
                 empty_result = ExecutionResult(
@@ -144,6 +166,7 @@ class ExecutionService:
                 )
                 self.prompt_store_service.emit_execution_completed(empty_result)
         else:
+            logger.debug("No pending execution item when transcription completed")
             self.recording_action_id = None
             self.pending_execution_item = None
 

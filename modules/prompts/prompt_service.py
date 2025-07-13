@@ -85,7 +85,10 @@ class PromptStoreService(PromptStoreServiceProtocol):
             else:
                 input_content = self.clipboard_manager.get_content()
                 result = self.execution_service.execute_item(item, input_content)
-                self.add_history_entry(item, input_content, result)
+                # Only add history for non-async executions
+                # Async executions will add history when they complete
+                if not (result.success and result.content == "Execution started asynchronously"):
+                    self.add_history_entry(item, input_content, result)
                 return result
         except Exception as e:
             return ExecutionResult(success=False, error=str(e))
