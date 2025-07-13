@@ -28,6 +28,9 @@ from modules.utils.config import load_config, validate_config
 from modules.utils.system import check_macos_permissions, show_macos_permissions_help
 from modules.utils.notifications import PyQtNotificationManager
 from core.openai_service import OpenAiService
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
 
 
 class PrompterApp(QObject):
@@ -131,10 +134,10 @@ class PrompterApp(QObject):
         try:
             if not self.config or not self.config.models:
                 raise ConfigurationError("No models configured")
-            
+
             self.openai_service = OpenAiService(
                 models_config=self.config.models,
-                speech_to_text_config=self.config.speech_to_text_model
+                speech_to_text_config=self.config.speech_to_text_model,
             )
         except Exception as e:
             raise ConfigurationError(f"Failed to initialize OpenAI service: {e}") from e

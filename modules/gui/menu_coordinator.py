@@ -1,5 +1,6 @@
 """PyQt5-based menu coordinator for the Prompter application."""
 
+import logging
 from typing import List, Optional, Callable, Tuple, Dict, Any
 from PyQt5.QtCore import QObject, pyqtSignal, QTimer
 from PyQt5.QtWidgets import QApplication
@@ -8,6 +9,8 @@ from core.models import MenuItem, ExecutionResult, MenuItemType, ErrorCode
 from core.exceptions import MenuError
 from modules.utils.config import ConfigService
 from .context_menu import PyQtContextMenu
+
+logger = logging.getLogger(__name__)
 
 
 class PyQtMenuCoordinator(QObject):

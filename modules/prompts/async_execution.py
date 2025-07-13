@@ -7,7 +7,7 @@ import logging
 from typing import Optional, List
 
 try:
-    from PyQt5.QtCore import QThread, pyqtSignal
+    from PyQt5.QtCore import QThread, pyqtSignal, Qt
 except ImportError:
     # Fallback for environments where PyQt5 is not available
     class QThread:
@@ -32,6 +32,9 @@ except ImportError:
     def pyqtSignal(*args):
         return None
 
+    class Qt:
+        QueuedConnection = None
+
 
 try:
     from openai.types.chat.chat_completion_message_param import (
@@ -54,14 +57,12 @@ class PromptExecutionWorker(QThread):
     Worker thread for executing prompts asynchronously to prevent UI blocking.
     """
 
-    # Signals
-    execution_started = pyqtSignal(str)  # prompt_name
-    execution_finished = pyqtSignal(
-        ExecutionResult, str, float
-    )  # result, prompt_name, execution_time
-    execution_error = pyqtSignal(
-        str, str, float
-    )  # error_message, prompt_name, execution_time
+    # Callbacks for cross-thread communication
+    def set_callbacks(self, started_callback, finished_callback, error_callback):
+        """Set callbacks for execution events."""
+        self.started_callback = started_callback
+        self.finished_callback = finished_callback
+        self.error_callback = error_callback
 
     def __init__(
         self,
@@ -78,6 +79,11 @@ class PromptExecutionWorker(QThread):
         self.notification_manager = notification_manager
         self.openai_service = openai_service
         self.config = config
+
+        # Callbacks for cross-thread communication
+        self.started_callback = None
+        self.finished_callback = None
+        self.error_callback = None
 
         # Execution parameters (set before starting thread)
         self.item: Optional[MenuItem] = None
@@ -98,23 +104,28 @@ class PromptExecutionWorker(QThread):
         prompt_name = self.item.label or "Unknown Prompt"
 
         try:
-            # Emit started signal
-            self.execution_started.emit(prompt_name)
+            # Call started callback
+            if self.started_callback:
+                self.started_callback(prompt_name)
 
             # Execute the prompt
             result = self._execute_prompt_sync()
             execution_time = time.time() - self.start_time
 
             if result.success:
-                self.execution_finished.emit(result, prompt_name, execution_time)
+                if self.finished_callback:
+                    self.finished_callback(result, prompt_name, execution_time)
             else:
-                self.execution_error.emit(
-                    result.error or "Unknown error", prompt_name, execution_time
-                )
+                if self.error_callback:
+                    self.error_callback(
+                        result.error or "Unknown error", prompt_name, execution_time
+                    )
 
         except Exception as e:
             execution_time = time.time() - self.start_time
-            self.execution_error.emit(str(e), prompt_name, execution_time)
+            logger.error("Worker thread exception: %s", e, exc_info=True)
+            if self.error_callback:
+                self.error_callback(str(e), prompt_name, execution_time)
 
     def _execute_prompt_sync(self) -> ExecutionResult:
         """Execute the prompt synchronously (runs in worker thread)."""
@@ -173,7 +184,7 @@ class PromptExecutionWorker(QThread):
                 )
 
             # Get clipboard content
-            if self.context:
+            if self.context is not None:
                 clipboard_content = self.context
             else:
                 try:
@@ -278,21 +289,26 @@ class AsyncPromptExecutionManager:
             self.config,
         )
 
-        # Connect signals
-        self.worker.execution_started.connect(self._on_execution_started)
-        self.worker.execution_finished.connect(self._on_execution_finished)
-        self.worker.execution_error.connect(self._on_execution_error)
+        # Set callbacks for cross-thread communication
+        self.worker.set_callbacks(
+            self._on_execution_started,
+            self._on_execution_finished,
+            self._on_execution_error,
+        )
 
         # Store current execution info for history tracking
         self.current_item = item
         self.current_context = context
-        self.is_alternative_execution = bool(item.data and item.data.get("alternative_execution", False))
-        
+        self.is_alternative_execution = bool(
+            item.data and item.data.get("alternative_execution", False)
+        )
+
         # Capture the original input content before execution starts
         if self.is_alternative_execution:
             # For alternative execution, the context contains the transcribed text which should be the input
-            self.original_input_content = context or ""
-        elif context:
+            # Use context even if it's empty string - transcription might be legitimately empty
+            self.original_input_content = context if context is not None else ""
+        elif context is not None:
             # For regular execution with explicit context
             self.original_input_content = context
         else:
@@ -301,8 +317,6 @@ class AsyncPromptExecutionManager:
                 self.original_input_content = self.clipboard_manager.get_content()
             except Exception:
                 self.original_input_content = ""
-
-        logger.debug("Starting async execution: item=%s, alternative=%s", item.id, self.is_alternative_execution)
 
         # Set parameters and start
         self.worker.set_execution_params(item, context)
@@ -313,8 +327,6 @@ class AsyncPromptExecutionManager:
 
     def _on_execution_started(self, prompt_name: str):
         """Handle execution started signal."""
-        logger.debug("Async execution started: %s, alternative=%s", prompt_name, self.is_alternative_execution)
-        # Ensure state is properly set
         self.is_executing = True
 
     def _on_execution_finished(
@@ -330,10 +342,6 @@ class AsyncPromptExecutionManager:
             if self.prompt_store_service and self.current_item:
                 # Use the original input content that was captured before execution
                 input_content = self.original_input_content or ""
-
-                logger.debug("Recording history: item=%s, alternative=%s, input_length=%d, output_length=%d", 
-                           self.current_item.id, self.is_alternative_execution, 
-                           len(input_content), len(result.content or ""))
 
                 # For alternative execution, ensure the transcribed text is recorded as prompt input
                 # This makes it available in "copy input" for prompts, not "copy output" for speech
@@ -371,6 +379,7 @@ class AsyncPromptExecutionManager:
                 self.prompt_store_service.emit_execution_completed(result)
 
         except Exception as e:
+            logger.error("Error in _on_execution_finished: %s", e, exc_info=True)
             # Fallback notification on clipboard error
             self.notification_manager.show_error_notification(
                 "Execution completed with warning",
@@ -379,13 +388,12 @@ class AsyncPromptExecutionManager:
             # Still emit signal on error to ensure UI updates
             if self.prompt_store_service:
                 error_result = ExecutionResult(
-                    success=False, 
-                    error=f"Post-execution error: {str(e)}", 
-                    metadata={"action": "execute_prompt"}
+                    success=False,
+                    error=f"Post-execution error: {str(e)}",
+                    metadata={"action": "execute_prompt"},
                 )
                 self.prompt_store_service.emit_execution_completed(error_result)
         finally:
-            logger.debug("Async execution finished cleanup: alternative=%s", self.is_alternative_execution)
             self._cleanup_worker()
 
     def _on_execution_error(
@@ -398,37 +406,37 @@ class AsyncPromptExecutionManager:
 
         # Emit execution error signal for GUI updates
         if self.prompt_store_service:
-            error_result = ExecutionResult(success=False, error=error_message, metadata={"action": "execute_prompt"})
+            error_result = ExecutionResult(
+                success=False,
+                error=error_message,
+                metadata={"action": "execute_prompt"},
+            )
             self.prompt_store_service.emit_execution_completed(error_result)
 
-        logger.debug("Async execution error cleanup: alternative=%s", self.is_alternative_execution)
         self._cleanup_worker()
 
     def _cleanup_worker(self):
         """Clean up the worker thread."""
-        logger.debug("Cleaning up async worker: was_alternative=%s", self.is_alternative_execution)
         # Always ensure state is reset, regardless of how we got here
         self.is_executing = False
         self.current_item = None
         self.current_context = None
         self.is_alternative_execution = False
         self.original_input_content = None
-        
+
         if self.worker:
             try:
-                # Disconnect signals to prevent any race conditions
-                self.worker.execution_started.disconnect()
-                self.worker.execution_finished.disconnect()
-                self.worker.execution_error.disconnect()
+                # Clear callbacks to prevent any race conditions
+                self.worker.set_callbacks(None, None, None)
             except Exception:
-                # Ignore disconnect errors
+                # Ignore callback clearing errors
                 pass
-            
+
             # Clean shutdown of worker thread
             if self.worker.isRunning():
                 self.worker.quit()
                 self.worker.wait()  # Wait for thread to finish
-                
+
             self.worker.deleteLater()
             self.worker = None
 
@@ -443,11 +451,11 @@ class AsyncPromptExecutionManager:
         """Force reset execution state - use when stuck."""
         if self.is_executing:
             self.stop_execution()
-            
+
     def is_worker_still_running(self) -> bool:
         """Check if worker thread is actually still running."""
         return self.worker is not None and self.worker.isRunning()
-    
+
     def get_execution_status(self) -> dict:
         """Get detailed execution status for debugging."""
         return {
@@ -455,5 +463,5 @@ class AsyncPromptExecutionManager:
             "has_worker": self.worker is not None,
             "worker_running": self.is_worker_still_running(),
             "current_item": self.current_item.id if self.current_item else None,
-            "is_alternative": self.is_alternative_execution
+            "is_alternative": self.is_alternative_execution,
         }

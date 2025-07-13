@@ -39,7 +39,7 @@ class HistoryExecutionHandler:
                     error_code=ErrorCode.VALIDATION_ERROR,
                 )
 
-            content_type = item.data.get("content_type")
+            content_type = item.data.get("type")
             content = item.data.get("content", "")
 
             if not content:

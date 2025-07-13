@@ -23,6 +23,7 @@ class HistoryMenuProvider:
         last_history_text_prompt_item = self.history_service.get_last_item_by_type(
             entry_type=HistoryEntryType.TEXT
         )
+
         last_input = None
         last_output = None
         if last_history_text_prompt_item is not None:

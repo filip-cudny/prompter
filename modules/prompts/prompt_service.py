@@ -1,3 +1,4 @@
+import logging
 from typing import List, Optional
 from core.exceptions import DataError
 from core.services import ExecutionService
@@ -14,6 +15,8 @@ from core.models import (
     MenuItemType,
     PromptData,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class PromptStoreService(PromptStoreServiceProtocol):
@@ -79,15 +82,22 @@ class PromptStoreService(PromptStoreServiceProtocol):
             if item.data and item.data.get("alternative_execution", False):
                 # Alternative execution triggers speech-to-text
                 # Don't add history here - ExecutionService._on_transcription_complete will handle it
-                return self.execution_service.execute_item(
-                    item, None, use_speech=True
-                )
+                return self.execution_service.execute_item(item, None, use_speech=True)
             else:
                 input_content = self.clipboard_manager.get_content()
                 result = self.execution_service.execute_item(item, input_content)
-                # Only add history for non-async executions
+                # Only add history for non-async executions and non-speech actions
                 # Async executions will add history when they complete
-                if not (result.success and result.content == "Execution started asynchronously"):
+                # Speech actions should not be added to history (only final prompt results should be)
+                should_skip_history = (
+                    result.success
+                    and result.content == "Execution started asynchronously"
+                ) or (
+                    result.metadata
+                    and result.metadata.get("action")
+                    in ["speech_recording_started", "speech_recording_stopped"]
+                )
+                if not should_skip_history:
                     self.add_history_entry(item, input_content, result)
                 return result
         except Exception as e:
@@ -113,8 +123,6 @@ class PromptStoreService(PromptStoreServiceProtocol):
         """Emit execution completed signal to update GUI."""
         if self._menu_coordinator:
             self._menu_coordinator.execution_completed.emit(result)
-
-
 
     def add_history_entry(
         self, item: MenuItem, input_content: str, result: ExecutionResult
