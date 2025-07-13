@@ -7,7 +7,7 @@ import logging
 from typing import Optional, List
 
 try:
-    from PyQt5.QtCore import QThread, pyqtSignal, Qt
+    from PyQt5.QtCore import QThread, pyqtSignal, Qt, QTimer
 except ImportError:
     # Fallback for environments where PyQt5 is not available
     class QThread:
@@ -28,6 +28,11 @@ except ImportError:
 
         def isRunning(self):
             return False
+
+    class QTimer:
+        @staticmethod
+        def singleShot(interval, callback):
+            pass
 
     def pyqtSignal(*args):
         return None
@@ -431,8 +436,27 @@ class AsyncPromptExecutionManager:
             # Clean shutdown of worker thread
             if self.worker.isRunning():
                 self.worker.quit()
-                self.worker.wait()  # Wait for thread to finish
+                # Use asynchronous cleanup instead of blocking wait()
+                QTimer.singleShot(100, self._finish_worker_cleanup)
 
+            else:
+                self.worker.deleteLater()
+                self.worker = None
+
+    def _finish_worker_cleanup(self):
+        """Complete worker cleanup after thread has had time to quit."""
+        if self.worker:
+            if self.worker.isRunning():
+                # If still running after delay, force cleanup
+                self.worker.terminate()
+                QTimer.singleShot(50, self._force_worker_cleanup)
+            else:
+                self.worker.deleteLater()
+                self.worker = None
+
+    def _force_worker_cleanup(self):
+        """Force cleanup of worker thread."""
+        if self.worker:
             self.worker.deleteLater()
             self.worker = None
 
@@ -440,8 +464,10 @@ class AsyncPromptExecutionManager:
         """Stop any running execution."""
         if self.worker and self.worker.isRunning():
             self.worker.quit()
-            self.worker.wait()
-        self._cleanup_worker()
+            # Use asynchronous cleanup instead of blocking wait()
+            QTimer.singleShot(100, self._cleanup_worker)
+        else:
+            self._cleanup_worker()
 
     def force_reset_state(self):
         """Force reset execution state - use when stuck."""
