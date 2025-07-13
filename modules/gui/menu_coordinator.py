@@ -54,7 +54,7 @@ class PyQtMenuCoordinator(QObject):
         self._static_items_dirty = True
 
         # Dynamic provider class names (providers whose items change frequently)
-        self._dynamic_provider_classes = {"HistoryMenuProvider", "SystemMenuProvider"}
+        self._dynamic_provider_classes = {"HistoryMenuProvider", "SpeechMenuProvider"}
 
         # Connect internal signals
         self.execution_completed.connect(self._handle_execution_result)

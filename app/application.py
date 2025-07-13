@@ -9,12 +9,12 @@ from PyQt5.QtCore import QTimer, pyqtSignal, QObject
 from modules.prompts.prompt_service import PromptStoreService
 from core.exceptions import ConfigurationError
 
-from modules.providers.menu_providers import (
-    SystemMenuProvider,
+from modules.speech.speech_menu_provider import (
+    SpeechMenuProvider,
 )
 from modules.prompts.prompt_menu_provider import PromptMenuProvider
 from modules.prompts.prompt_provider import PromptProvider
-from modules.providers.execution_handlers import (
+from modules.speech.speech_execution_handler import (
     PyQtSpeechExecutionHandler,
 )
 
@@ -308,7 +308,7 @@ class PrompterApp(QObject):
             HistoryMenuProvider(
                 history_service, self._execute_menu_item, self.prompt_store_service
             ),
-            SystemMenuProvider(
+            SpeechMenuProvider(
                 self._speech_to_text,
                 self.history_service,
                 self._execute_menu_item,
