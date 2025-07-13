@@ -28,9 +28,6 @@ from modules.utils.config import load_config, validate_config
 from modules.utils.system import check_macos_permissions, show_macos_permissions_help
 from modules.utils.notifications import PyQtNotificationManager
 from core.openai_service import OpenAiService
-import logging
-
-logging.basicConfig(level=logging.DEBUG)
 
 
 class PrompterApp(QObject):
