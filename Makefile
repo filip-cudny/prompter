@@ -28,25 +28,7 @@ install: setup ## Install dependencies and setup virtual environment
 
 setup: ## Setup virtual environment and install dependencies
 	@echo "Setting up Prompter..."
-	@if [ "$$(uname -s)" = "Darwin" ]; then \
-		echo "Checking macOS prerequisites..."; \
-		if ! command -v brew >/dev/null 2>&1; then \
-			echo "❌ Homebrew is required on macOS. Please install it first: https://brew.sh/"; \
-			exit 1; \
-		fi; \
-		if ! brew list portaudio >/dev/null 2>&1; then \
-			echo "⚠️  portaudio is required for speech-to-text functionality."; \
-			echo "Installing portaudio via Homebrew..."; \
-			brew install portaudio; \
-		fi; \
-	elif [ "$$(uname -s)" = "Linux" ]; then \
-		echo "Checking Linux prerequisites..."; \
-		if ! dpkg -l | grep -q portaudio19-dev; then \
-			echo "⚠️  portaudio19-dev is required for speech-to-text functionality."; \
-			echo "Please install it with: sudo apt install portaudio19-dev"; \
-			echo "Note: You may need to run this command manually with sudo privileges."; \
-		fi; \
-	fi
+	@echo "Setting up dependencies..."
 	@if [ ! -d "$(VENV_DIR)" ]; then \
 		echo "Creating virtual environment..."; \
 		$(PYTHON) -m venv $(VENV_DIR); \
