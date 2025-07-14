@@ -97,7 +97,7 @@ class PyQtSpeechExecutionHandler:
             # Provide more specific error messages
             error_msg = str(e)
             if "sounddevice" in error_msg:
-                error_msg = "sounddevice is not installed. Please install it with: pip install sounddevice scipy"
+                error_msg = "sounddevice is not installed. Please install it with: pip install sounddevice"
             elif "OpenAI" in error_msg:
                 error_msg = "OpenAI API key not configured. Please set OPENAI_API_KEY environment variable."
 

@@ -1,21 +1,19 @@
-"""Speech-to-text service with audio recording functionality."""
+"""Minimal speech-to-text service without numpy/scipy dependencies."""
 
+import array
 import os
 import tempfile
 import threading
 import time
 import uuid
+import wave
 from typing import Callable, Dict, Optional
 
 try:
     import sounddevice as sd
-    import numpy as np
-    from scipy.io.wavfile import write as write_wav
     SOUNDDEVICE_AVAILABLE = True
 except ImportError:
     SOUNDDEVICE_AVAILABLE = False
-    np = None
-    write_wav = None
 
 from core.openai_service import OpenAiService
 
@@ -38,20 +36,17 @@ class AudioRecorder:
 
         if not SOUNDDEVICE_AVAILABLE:
             raise Exception(
-                "sounddevice is not available. Please install it with: pip install sounddevice scipy"
+                "sounddevice is not available. Please install it with: pip install sounddevice"
             )
 
         try:
-            # Find a working input device if not already set
             if self.input_device_index is None:
                 self.input_device_index = self._find_working_input_device()
 
-            # Try different sample rates if the default doesn't work
             rates_to_try = [44100, 48000, 16000, 8000]
             
             for rate in rates_to_try:
                 try:
-                    # Test if this configuration works
                     sd.check_input_settings(
                         device=self.input_device_index,
                         channels=self.channels,
@@ -60,20 +55,19 @@ class AudioRecorder:
                     self.rate = rate
                     break
                 except Exception as e:
-                    if rate == rates_to_try[-1]:  # Last attempt
+                    if rate == rates_to_try[-1]:
                         raise Exception(f"Could not find working audio configuration: {e}") from e
                     continue
 
             self.recording = True
             self.frames = []
             
-            # Create continuous input stream
             self.stream = sd.InputStream(
                 device=self.input_device_index,
                 channels=self.channels,
                 samplerate=self.rate,
                 callback=self._audio_callback,
-                dtype=np.float32
+                dtype='int16'
             )
             self.stream.start()
 
@@ -95,7 +89,6 @@ class AudioRecorder:
 
         self.recording = False
 
-        # Stop the stream
         if self.stream:
             self.stream.stop()
             self.stream.close()
@@ -106,14 +99,19 @@ class AudioRecorder:
             temp_path = temp_file.name
             temp_file.close()
 
-            if self.frames:
-                # Convert list of numpy arrays to single array
-                audio_data = np.concatenate(self.frames, axis=0)
-                # Write using scipy
-                write_wav(temp_path, self.rate, audio_data)
-            else:
-                # Create empty file if no frames
-                write_wav(temp_path, self.rate, np.array([], dtype=np.float32))
+            with wave.open(temp_path, 'wb') as wf:
+                wf.setnchannels(self.channels)
+                wf.setsampwidth(2)
+                wf.setframerate(self.rate)
+                
+                if self.frames:
+                    audio_data = array.array('h')
+                    for frame in self.frames:
+                        if hasattr(frame, 'flatten'):
+                            audio_data.extend(frame.flatten())
+                        else:
+                            audio_data.extend(frame)
+                    wf.writeframes(audio_data.tobytes())
 
             self._cleanup()
             return temp_path
@@ -126,13 +124,12 @@ class AudioRecorder:
         """Check if currently recording."""
         return self.recording
 
-    def _audio_callback(self, indata, frame_count, time_info, status):
+    def _audio_callback(self, indata, _frame_count, _time_info, status):
         """Callback function for continuous audio input stream."""
         if status:
             print(f"Audio input status: {status}")
         
         if self.recording:
-            # Copy the incoming audio data
             self.frames.append(indata.copy())
 
     def _cleanup(self) -> None:
@@ -151,10 +148,9 @@ class AudioRecorder:
         """Find a working audio input device."""
         try:
             devices = sd.query_devices()
-
-            # First, try to use the default input device
+            
             try:
-                default_device = sd.default.device[0]  # Input device
+                default_device = sd.default.device[0]
                 if default_device is not None:
                     device_info = sd.query_devices(default_device)
                     if device_info['max_input_channels'] > 0:
@@ -162,10 +158,8 @@ class AudioRecorder:
             except Exception:
                 pass
 
-            # If no default, scan all devices for one that supports input
             for i, device_info in enumerate(devices):
                 if device_info['max_input_channels'] > 0:
-                    # Test if this device actually works
                     try:
                         sd.check_input_settings(
                             device=i,
@@ -183,11 +177,9 @@ class AudioRecorder:
 
 
 class SpeechToTextService:
-    """Service for speech-to-text functionality."""
+    """Minimal speech-to-text service without numpy/scipy dependencies."""
 
-    def __init__(
-        self, openai_service: OpenAiService
-    ):
+    def __init__(self, openai_service: OpenAiService):
         self.openai_service = openai_service
         self.recorder = AudioRecorder()
         self.recording_started_callback: Optional[Callable[[], None]] = None
