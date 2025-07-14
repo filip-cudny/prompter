@@ -21,4 +21,5 @@ python-xlib>=0.33; sys_platform == "linux"
 
 # Speech-to-text dependencies (minimal version)
 sounddevice>=0.4.6
+numpy>=2.3.1
 openai>=1.0.0
