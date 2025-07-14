@@ -1,4 +1,4 @@
-"""Data models and types for the prompt store application."""
+"""Data models and types for the Prompter application."""
 
 from __future__ import annotations
 from dataclasses import dataclass, field
@@ -27,6 +27,7 @@ class ErrorCode(Enum):
     """Error codes for execution results."""
 
     NO_ACTIVE_PROMPT = "no_active_prompt"
+    EXECUTION_IN_PROGRESS = "execution_in_progress"
     CLIPBOARD_ERROR = "clipboard_error"
     API_ERROR = "api_error"
     VALIDATION_ERROR = "validation_error"

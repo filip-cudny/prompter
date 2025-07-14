@@ -1,11 +1,11 @@
-"""Menu item providers for the prompt store application."""
+"""Menu item provider for speech functionality."""
 
 from typing import List, Callable, Optional
 from core.models import MenuItem, MenuItemType, HistoryEntryType
 
 
-class SystemMenuProvider:
-    """Provides system menu items (refresh, etc.)."""
+class SpeechMenuProvider:
+    """Provides speech-related menu items."""
 
     def __init__(
         self,
@@ -20,7 +20,7 @@ class SystemMenuProvider:
         self.prompt_store_service = prompt_store_service
 
     def get_menu_items(self) -> List[MenuItem]:
-        """Return system menu items."""
+        """Return speech-related menu items."""
         items = []
 
         # Speech to text item
@@ -81,9 +81,10 @@ class SystemMenuProvider:
             separator_after=True,
             tooltip=last_transcription,
         )
-        speech_output_item.action = (
-            lambda item=speech_output_item: self.execute_callback(item)
-        )
+        if self.execute_callback:
+            speech_output_item.action = (
+                lambda item=speech_output_item: self.execute_callback(item)
+            )
         items.append(speech_output_item)
 
         return items

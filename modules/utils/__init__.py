@@ -1,4 +1,4 @@
-"""Utilities module for prompt store application."""
+"""Utilities module for Prompter application."""
 
 from .clipboard import ClipboardManager, SystemClipboardManager
 from .speech_to_text import SpeechToTextService, AudioRecorder

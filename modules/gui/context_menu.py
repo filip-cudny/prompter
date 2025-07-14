@@ -1,4 +1,4 @@
-"""PyQt5-based context menu system for the prompt store application."""
+"""PyQt5-based context menu system for the Prompter application."""
 
 from typing import List, Optional, Tuple
 from PyQt5.QtWidgets import QMenu, QAction, QApplication
@@ -25,6 +25,7 @@ class PyQtContextMenu(QObject):
         self.event_filter_installed = False
         self.hovered_widgets = set()  # Track all currently hovered widgets
         self.original_active_window = None  # Store the original active window info
+        self.qt_active_window = None  # Store Qt active window reference
         self._menu_stylesheet = """
             QMenu {
                 background-color: #2b2b2b;
@@ -108,8 +109,8 @@ class PyQtContextMenu(QObject):
         if not items:
             return
 
-        # Store the currently active window before showing menu
-        self._store_active_window()
+        # Store Qt active window reference (fast, no subprocess calls)
+        self._store_qt_active_window()
 
         # Apply position offset
         x, y = position
@@ -123,7 +124,7 @@ class PyQtContextMenu(QObject):
         self.menu.exec_(adjusted_pos)
 
         # Restore focus after menu closes
-        self._restore_focus()
+        self._restore_qt_focus()
 
     def get_cursor_position(self) -> Tuple[int, int]:
         """Get current cursor position."""
@@ -149,6 +150,7 @@ class PyQtContextMenu(QObject):
         self.event_filter_installed = False
         self.hovered_widgets.clear()
         self.original_active_window = None
+        self.qt_active_window = None
 
     def _add_menu_items(self, menu: QMenu, items: List[MenuItem]) -> None:
         """Add menu items to a QMenu."""
@@ -216,8 +218,6 @@ class PyQtContextMenu(QObject):
                         self.context_menu.menu.close()
                     # Execute action with slight delay to ensure menu closes properly
                     QTimer.singleShot(10, self.menu_item.action)
-                    # Restore focus after action execution
-                    QTimer.singleShot(100, self.context_menu._restore_focus)
                 super().mousePressEvent(event)
 
             def enterEvent(self, event):
@@ -340,7 +340,7 @@ class PyQtContextMenu(QObject):
             )
             alternative_item.data["alternative_execution"] = True
             
-            # Get the prompt store service from the menu coordinator
+            # Get the Prompter service from the menu coordinator
             if hasattr(self, "menu_coordinator") and self.menu_coordinator:
                 prompt_store_service = getattr(self.menu_coordinator, "prompt_store_service", None)
                 if prompt_store_service:
@@ -400,6 +400,45 @@ class PyQtContextMenu(QObject):
 
         for widget in widgets_to_remove:
             self.hovered_widgets.discard(widget)
+
+    def _store_qt_active_window(self) -> None:
+        """Store Qt active window reference for fast focus restoration."""
+        try:
+            # Store Qt's active window - this is fast and doesn't require subprocess calls
+            self.qt_active_window = QApplication.activeWindow()
+            
+            # For external applications, we'll try to get focus info asynchronously
+            # This prevents blocking the menu opening
+            if self.qt_active_window is None:
+                QTimer.singleShot(0, self._store_external_window_async)
+        except Exception as e:
+            print(f"Error storing Qt active window: {e}")
+            self.qt_active_window = None
+
+    def _store_external_window_async(self) -> None:
+        """Asynchronously store external window info without blocking menu opening."""
+        try:
+            # This runs after the menu is already shown, so it doesn't block opening
+            self._store_active_window()
+        except Exception as e:
+            print(f"Error storing external window info: {e}")
+
+    def _restore_qt_focus(self) -> None:
+        """Restore focus using Qt-native methods first, with fallback to external methods."""
+        try:
+            # First try Qt-native focus restoration (fast)
+            if self.qt_active_window and not sip.isdeleted(self.qt_active_window):
+                self.qt_active_window.activateWindow()
+                self.qt_active_window.raise_()
+                return
+            
+            # If Qt window is not available, try external focus restoration with delay
+            # This delay ensures it doesn't slow down the menu opening
+            QTimer.singleShot(50, self._restore_focus)
+        except Exception as e:
+            print(f"Error restoring Qt focus: {e}")
+            # Fallback to external focus restoration
+            QTimer.singleShot(50, self._restore_focus)
 
     def _store_active_window(self) -> None:
         """Store information about the currently active window."""

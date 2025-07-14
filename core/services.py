@@ -1,5 +1,6 @@
-"""Core business services for the prompt store application."""
+"""Core business services for the Prompter application."""
 
+import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -16,6 +17,8 @@ from .models import (
     PromptData,
     SettingsConfig,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class ExecutionService:
@@ -83,10 +86,11 @@ class ExecutionService:
         try:
             if not self.speech_service:
                 return ExecutionResult(
-                    success=False, 
-                    error="Speech service not available"
+                    success=False, error="Speech service not available"
                 )
-            
+
+            is_alternative = item.data and item.data.get("alternative_execution", False)
+
             if self.speech_service.is_recording():
                 self.speech_service.stop_recording()
                 self.recording_action_id = None
@@ -119,18 +123,30 @@ class ExecutionService:
             self.pending_execution_item = None
             self.recording_action_id = None
 
+            # Check if this is alternative execution (shift+click)
+            is_alternative = item.data and item.data.get("alternative_execution", False)
+
             if transcription.strip():
                 for handler in self.handlers:
                     if handler.can_handle(item):
                         try:
                             result = handler.execute(item, transcription)
-                            self.prompt_store_service.add_history_entry(
-                                item,
-                                transcription,
-                                result,
-                            )
-                            # Emit execution completed signal to update GUI
-                            self.prompt_store_service.emit_execution_completed(result)
+
+                            # For alternative execution, don't add history here
+                            # The async execution manager will handle it when the prompt completes
+                            if not is_alternative:
+                                self.prompt_store_service.add_history_entry(
+                                    item,
+                                    transcription,
+                                    result,
+                                )
+
+                            # For alternative execution, don't emit signal here - async manager will handle it
+                            # For non-alternative execution, emit signal to update GUI
+                            if not is_alternative:
+                                self.prompt_store_service.emit_execution_completed(
+                                    result
+                                )
                             break
                         except Exception as e:
                             print(f"Handler execution failed: {e}")
@@ -140,7 +156,7 @@ class ExecutionService:
                 empty_result = ExecutionResult(
                     success=False,
                     error="Empty transcription received",
-                    metadata={"action": "transcription_cancelled"}
+                    metadata={"action": "transcription_cancelled"},
                 )
                 self.prompt_store_service.emit_execution_completed(empty_result)
         else:

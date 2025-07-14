@@ -1,4 +1,5 @@
 import time
+import logging
 from collections import deque
 from typing import List, Optional
 
@@ -6,6 +7,8 @@ from core.models import (
     HistoryEntry,
     HistoryEntryType,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class HistoryService:

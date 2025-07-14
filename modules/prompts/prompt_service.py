@@ -1,3 +1,4 @@
+import logging
 from typing import List, Optional
 from core.exceptions import DataError
 from core.services import ExecutionService
@@ -5,6 +6,7 @@ from modules.utils.speech_to_text import SpeechToTextService
 from core.interfaces import PromptStoreServiceProtocol
 from modules.history.history_service import HistoryService
 from modules.utils.notifications import PyQtNotificationManager
+from core.openai_service import OpenAiService
 from core.models import (
     ErrorCode,
     ExecutionResult,
@@ -14,16 +16,19 @@ from core.models import (
     PromptData,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class PromptStoreService(PromptStoreServiceProtocol):
-    """Main business logic coordinator for the prompt store."""
+    """Main business logic coordinator for the Prompter."""
 
     def __init__(
         self,
         prompt_providers,
         clipboard_manager,
         notification_manager=None,
-        speech_service=SpeechToTextService,
+        speech_service: Optional[SpeechToTextService] = None,
+        openai_service: Optional[OpenAiService] = None,
     ):
         self.prompt_providers = (
             prompt_providers
@@ -36,6 +41,7 @@ class PromptStoreService(PromptStoreServiceProtocol):
         self.clipboard_manager = clipboard_manager
         self.notification_manager = notification_manager or PyQtNotificationManager()
         self.speech_service = speech_service
+        self.openai_service = openai_service
         self.execution_service = ExecutionService(self)
         self.execution_service.set_speech_service(self.speech_service)
         self._menu_coordinator = None
@@ -76,13 +82,23 @@ class PromptStoreService(PromptStoreServiceProtocol):
             if item.data and item.data.get("alternative_execution", False):
                 # Alternative execution triggers speech-to-text
                 # Don't add history here - ExecutionService._on_transcription_complete will handle it
-                return self.execution_service.execute_item(
-                    item, None, use_speech=True
-                )
+                return self.execution_service.execute_item(item, None, use_speech=True)
             else:
                 input_content = self.clipboard_manager.get_content()
                 result = self.execution_service.execute_item(item, input_content)
-                self.add_history_entry(item, input_content, result)
+                # Only add history for non-async executions and non-speech actions
+                # Async executions will add history when they complete
+                # Speech actions should not be added to history (only final prompt results should be)
+                should_skip_history = (
+                    result.success
+                    and result.content == "Execution started asynchronously"
+                ) or (
+                    result.metadata
+                    and result.metadata.get("action")
+                    in ["speech_recording_started", "speech_recording_stopped"]
+                )
+                if not should_skip_history:
+                    self.add_history_entry(item, input_content, result)
                 return result
         except Exception as e:
             return ExecutionResult(success=False, error=str(e))
@@ -107,8 +123,6 @@ class PromptStoreService(PromptStoreServiceProtocol):
         """Emit execution completed signal to update GUI."""
         if self._menu_coordinator:
             self._menu_coordinator.execution_completed.emit(result)
-
-
 
     def add_history_entry(
         self, item: MenuItem, input_content: str, result: ExecutionResult

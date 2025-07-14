@@ -1,5 +1,5 @@
-# Prompt Store Makefile
-# Background process management for the prompt store application
+# Prompter Makefile
+# Background process management for the Prompter application
 
 .PHONY: help install setup start stop restart status logs clean dev test lint format check-deps
 
@@ -12,7 +12,7 @@ LOG_FILE := prompter.log
 ERROR_LOG := prompter-error.log
 
 help: ## Show this help message
-	@echo "Prompt Store - Background Service Management"
+	@echo "Prompter - Background Service Management"
 	@echo ""
 	@echo "Available commands:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
@@ -27,26 +27,8 @@ help: ## Show this help message
 install: setup ## Install dependencies and setup virtual environment
 
 setup: ## Setup virtual environment and install dependencies
-	@echo "Setting up Prompt Store..."
-	@if [ "$$(uname -s)" = "Darwin" ]; then \
-		echo "Checking macOS prerequisites..."; \
-		if ! command -v brew >/dev/null 2>&1; then \
-			echo "❌ Homebrew is required on macOS. Please install it first: https://brew.sh/"; \
-			exit 1; \
-		fi; \
-		if ! brew list portaudio >/dev/null 2>&1; then \
-			echo "⚠️  portaudio is required for speech-to-text functionality."; \
-			echo "Installing portaudio via Homebrew..."; \
-			brew install portaudio; \
-		fi; \
-	elif [ "$$(uname -s)" = "Linux" ]; then \
-		echo "Checking Linux prerequisites..."; \
-		if ! dpkg -l | grep -q portaudio19-dev; then \
-			echo "⚠️  portaudio19-dev is required for speech-to-text functionality."; \
-			echo "Please install it with: sudo apt install portaudio19-dev"; \
-			echo "Note: You may need to run this command manually with sudo privileges."; \
-		fi; \
-	fi
+	@echo "Setting up Prompter..."
+	@echo "Setting up dependencies..."
 	@if [ ! -d "$(VENV_DIR)" ]; then \
 		echo "Creating virtual environment..."; \
 		$(PYTHON) -m venv $(VENV_DIR); \
@@ -71,7 +53,7 @@ start: ## Start the service in background
 		echo "❌ Service is already running (PID: `cat $(PID_FILE)`)"; \
 		exit 1; \
 	fi
-	@echo "🚀 Starting Prompt Store in background..."
+	@echo "🚀 Starting Prompter in background..."
 	@nohup $(VENV_PYTHON) main.py > $(LOG_FILE) 2> $(ERROR_LOG) & echo $$! > $(PID_FILE)
 	@sleep 2
 	@if [ -f "$(PID_FILE)" ] && kill -0 `cat $(PID_FILE)` 2>/dev/null; then \
@@ -111,7 +93,7 @@ stop: ## Stop the background service
 restart: stop start ## Restart the background service
 
 status: ## Check service status
-	@echo "📊 Prompt Store Service Status"
+	@echo "📊 Prompter Service Status"
 	@echo "=============================="
 	@if [ -f "$(PID_FILE)" ]; then \
 		PID=`cat $(PID_FILE)`; \

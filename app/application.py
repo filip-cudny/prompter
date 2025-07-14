@@ -1,4 +1,4 @@
-"""Main PyQt5 application class for the prompt store application."""
+"""Main PyQt5 application class for the Prompter application."""
 
 import sys
 import signal
@@ -9,12 +9,12 @@ from PyQt5.QtCore import QTimer, pyqtSignal, QObject
 from modules.prompts.prompt_service import PromptStoreService
 from core.exceptions import ConfigurationError
 
-from modules.providers.menu_providers import (
-    SystemMenuProvider,
+from modules.speech.speech_menu_provider import (
+    SpeechMenuProvider,
 )
 from modules.prompts.prompt_menu_provider import PromptMenuProvider
 from modules.prompts.prompt_provider import PromptProvider
-from modules.providers.execution_handlers import (
+from modules.speech.speech_execution_handler import (
     PyQtSpeechExecutionHandler,
 )
 
@@ -27,10 +27,11 @@ from modules.utils.clipboard import SystemClipboardManager
 from modules.utils.config import load_config, validate_config
 from modules.utils.system import check_macos_permissions, show_macos_permissions_help
 from modules.utils.notifications import PyQtNotificationManager
+from core.openai_service import OpenAiService
 
 
-class PromptStoreApp(QObject):
-    """Main PyQt5 application class for the prompt store."""
+class PrompterApp(QObject):
+    """Main PyQt5 application class for the Prompter."""
 
     # Qt signals
     shutdown_requested = pyqtSignal()
@@ -48,6 +49,7 @@ class PromptStoreApp(QObject):
 
         # Core services
         self.clipboard_manager: Optional[SystemClipboardManager] = None
+        self.openai_service: Optional[OpenAiService] = None
         self.prompt_store_service: Optional[PromptStoreService] = None
 
         # Providers
@@ -96,6 +98,9 @@ class PromptStoreApp(QObject):
             # Initialize notification manager
             self.notification_manager = PyQtNotificationManager(self.app)
 
+            # Initialize OpenAI service
+            self._initialize_openai_service()
+
             # Initialize speech service
             self._initialize_speech_service()
             self._initialize_history_service()
@@ -105,6 +110,7 @@ class PromptStoreApp(QObject):
                 self.clipboard_manager,
                 self.notification_manager,
                 self.speech_service,
+                self.openai_service,
             )
 
             # Initialize GUI components
@@ -120,16 +126,27 @@ class PromptStoreApp(QObject):
             print(f"Failed to initialize application: {e}")
             sys.exit(1)
 
+    def _initialize_openai_service(self) -> None:
+        """Initialize OpenAI service with all model configurations."""
+        try:
+            if not self.config or not self.config.models:
+                raise ConfigurationError("No models configured")
+
+            self.openai_service = OpenAiService(
+                models_config=self.config.models,
+                speech_to_text_config=self.config.speech_to_text_model,
+            )
+        except Exception as e:
+            raise ConfigurationError(f"Failed to initialize OpenAI service: {e}") from e
+
     def _initialize_speech_service(self) -> None:
         """Initialize speech-to-text service as singleton."""
         try:
             from modules.utils.speech_to_text import SpeechToTextService
 
-            if self.config.speech_to_text_model:
+            if self.config and self.config.speech_to_text_model and self.openai_service:
                 self.speech_service = SpeechToTextService(
-                    api_key=self.config.speech_to_text_model.get("api_key"),
-                    base_url=self.config.speech_to_text_model.get("base_url"),
-                    transcribe_model=self.config.speech_to_text_model.get("model"),
+                    openai_service=self.openai_service
                 )
                 self._setup_common_speech_notifications()
             else:
@@ -211,7 +228,7 @@ class PromptStoreApp(QObject):
         handlers = [
             HistoryExecutionHandler(
                 self.clipboard_manager,
-                self.notification_manager,
+                self.notification_manager,  # type: ignore
             ),
             PyQtSpeechExecutionHandler(
                 self.clipboard_manager,
@@ -231,7 +248,9 @@ class PromptStoreApp(QObject):
                         settings_provider,
                         self.clipboard_manager,
                         self.notification_manager,
-                        self.config,
+                        self.openai_service,  # type: ignore
+                        self.config,  # type: ignore
+                        self.prompt_store_service,
                     ),
                 ]
             )
@@ -242,7 +261,7 @@ class PromptStoreApp(QObject):
     def _initialize_gui(self) -> None:
         """Initialize GUI components."""
         if not self.config or not self.prompt_store_service:
-            raise RuntimeError("Configuration or prompt store service not initialized")
+            raise RuntimeError("Configuration or Prompter service not initialized")
 
         # Initialize hotkey manager
         self.hotkey_manager = PyQtHotkeyManager(
@@ -289,7 +308,7 @@ class PromptStoreApp(QObject):
             HistoryMenuProvider(
                 history_service, self._execute_menu_item, self.prompt_store_service
             ),
-            SystemMenuProvider(
+            SpeechMenuProvider(
                 self._speech_to_text,
                 self.history_service,
                 self._execute_menu_item,
@@ -373,7 +392,7 @@ class PromptStoreApp(QObject):
                 enabled=True,
             )
 
-            # Execute the speech item through the prompt store service
+            # Execute the speech item through the Prompter service
             if self.prompt_store_service:
                 result = self.prompt_store_service.execute_item(speech_item)
 
@@ -405,7 +424,7 @@ class PromptStoreApp(QObject):
         """Execute the active prompt with current clipboard content."""
         try:
             if not self.prompt_store_service:
-                print("Prompt store service not initialized")
+                print("Prompter service not initialized")
                 return
 
             result = self.prompt_store_service.execute_active_prompt()
@@ -597,7 +616,7 @@ class PromptStoreApp(QObject):
             self.prompt_providers.clear()
             self._initialize_prompt_providers()
 
-            # Update prompt store service with new primary provider
+            # Update Prompter service with new primary provider
             if self.prompt_store_service and self.prompt_providers:
                 primary_provider = self.prompt_providers[0]
                 self.prompt_store_service.primary_provider = primary_provider
@@ -628,17 +647,15 @@ class PromptStoreApp(QObject):
                     pass
 
 
-
-
 def main():
     """Main entry point."""
     import argparse
 
-    parser = argparse.ArgumentParser(description="Prompt Store PyQt5 Application")
+    parser = argparse.ArgumentParser(description="Prompter PyQt5 Application")
     parser.add_argument("--config", "-c", help="Configuration file path")
     args = parser.parse_args()
 
-    app = PromptStoreApp(args.config)
+    app = PrompterApp(args.config)
     return app.run()
 
 

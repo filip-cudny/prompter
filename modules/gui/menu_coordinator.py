@@ -1,13 +1,16 @@
-"""PyQt5-based menu coordinator for the prompt store application."""
+"""PyQt5-based menu coordinator for the Prompter application."""
 
+import logging
 from typing import List, Optional, Callable, Tuple, Dict, Any
 from PyQt5.QtCore import QObject, pyqtSignal, QTimer
 from PyQt5.QtWidgets import QApplication
 
-from core.models import MenuItem, ExecutionResult, MenuItemType
+from core.models import MenuItem, ExecutionResult, MenuItemType, ErrorCode
 from core.exceptions import MenuError
 from modules.utils.config import ConfigService
 from .context_menu import PyQtContextMenu
+
+logger = logging.getLogger(__name__)
 
 
 class PyQtMenuCoordinator(QObject):
@@ -25,7 +28,7 @@ class PyQtMenuCoordinator(QObject):
         self.context_menu.menu_coordinator = self
         self.app = QApplication.instance()
 
-        # Set menu coordinator reference in prompt store service for GUI updates
+        # Set menu coordinator reference in Prompter service for GUI updates
         if hasattr(self.prompt_store_service, "set_menu_coordinator"):
             self.prompt_store_service.set_menu_coordinator(self)
 
@@ -51,7 +54,7 @@ class PyQtMenuCoordinator(QObject):
         self._static_items_dirty = True
 
         # Dynamic provider class names (providers whose items change frequently)
-        self._dynamic_provider_classes = {"HistoryMenuProvider", "SystemMenuProvider"}
+        self._dynamic_provider_classes = {"HistoryMenuProvider", "SpeechMenuProvider"}
 
         # Connect internal signals
         self.execution_completed.connect(self._handle_execution_result)
@@ -204,7 +207,7 @@ class PyQtMenuCoordinator(QObject):
         return wrapped_items
 
     def _execute_menu_item(self, item: MenuItem) -> None:
-        """Execute a menu item through the prompt store service."""
+        """Execute a menu item through the Prompter service."""
         try:
             # Execute the item using the service
             result = self.prompt_store_service.execute_item(item)
@@ -637,9 +640,21 @@ class PyQtMenuEventHandler:
             if prompt_name:
                 error_message = f"{result.error}\n({prompt_name})"
 
-            self.notification_manager.show_error_notification(
-                "Execution Failed",
-                error_message,
-            )
+            # Show warning for NO_ACTIVE_PROMPT and EXECUTION_IN_PROGRESS, error for others
+            if result.error_code == ErrorCode.NO_ACTIVE_PROMPT:
+                self.notification_manager.show_warning_notification(
+                    "No Active Prompt",
+                    error_message,
+                )
+            elif result.error_code == ErrorCode.EXECUTION_IN_PROGRESS:
+                self.notification_manager.show_warning_notification(
+                    "Prompt execution in progress",
+                    "Please wait for the current prompt to complete",
+                )
+            else:
+                self.notification_manager.show_error_notification(
+                    "Execution Failed",
+                    error_message,
+                )
         else:
             print(f"Execution failed: {result.error}")

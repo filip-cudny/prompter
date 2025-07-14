@@ -1,4 +1,4 @@
-"""Abstract interfaces and protocols for the prompt store application."""
+"""Abstract interfaces and protocols for the Prompter application."""
 
 from abc import ABC, abstractmethod
 from typing import List, Optional, Protocol
@@ -69,7 +69,7 @@ class ClipboardManager(ABC):
 
 
 class PromptStoreServiceProtocol(Protocol):
-    """Protocol for the main prompt store service."""
+    """Protocol for the main Prompter service."""
 
     def refresh_data(self) -> None:
         """Refresh all data from providers."""

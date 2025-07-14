@@ -296,39 +296,3 @@ def _load_api_key_for_model(model_config: Dict[str, Any], model_name: str) -> No
 def load_settings_file(settings_path: Path) -> Dict[str, Any]:
     """Load settings from JSON file with optional comment support."""
     return safe_load_json(settings_path)
-
-
-def _strip_json_comments(content: str) -> str:
-    """Strip // comments from JSON content."""
-    lines = content.split("\n")
-    cleaned_lines = []
-
-    for line in lines:
-        stripped = line.strip()
-        if stripped.startswith("//"):
-            continue
-
-        comment_pos = line.find("//")
-        if comment_pos != -1:
-            in_string = False
-            escaped = False
-            for i, char in enumerate(line):
-                if escaped:
-                    escaped = False
-                    continue
-                if char == "\\":
-                    escaped = True
-                elif char == '"':
-                    in_string = not in_string
-                elif (
-                    char == "/"
-                    and i + 1 < len(line)
-                    and line[i + 1] == "/"
-                    and not in_string
-                ):
-                    line = line[:i].rstrip()
-                    break
-
-        cleaned_lines.append(line)
-
-    return "\n".join(cleaned_lines)

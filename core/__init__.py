@@ -1,1 +1,1 @@
-"""Core module for prompt store application."""
+"""Core module for Prompter application."""

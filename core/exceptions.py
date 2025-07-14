@@ -1,8 +1,8 @@
-"""Custom exceptions for the prompt store application."""
+"""Custom exceptions for the Prompter application."""
 
 
 class PromptStoreError(Exception):
-    """Base exception for prompt store errors."""
+    """Base exception for Prompter errors."""
 
     pass
 
