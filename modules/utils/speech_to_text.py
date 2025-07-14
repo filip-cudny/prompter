@@ -1,8 +1,6 @@
 """Speech-to-text service with audio recording functionality."""
 
-import contextlib
 import os
-import sys
 import tempfile
 import threading
 import time
@@ -10,44 +8,27 @@ import uuid
 from typing import Callable, Dict, Optional
 
 try:
-    import pyaudio
-
-    PYAUDIO_AVAILABLE = True
+    import sounddevice as sd
+    import numpy as np
+    from scipy.io.wavfile import write as write_wav
+    SOUNDDEVICE_AVAILABLE = True
 except ImportError:
-    PYAUDIO_AVAILABLE = False
-import wave
+    SOUNDDEVICE_AVAILABLE = False
+    np = None
+    write_wav = None
 
 from core.openai_service import OpenAiService
-
-
-@contextlib.contextmanager
-def suppress_stderr():
-    """Suppress stderr to hide ALSA/JACK warnings."""
-    with open(os.devnull, "w") as devnull:
-        old_stderr = sys.stderr
-        sys.stderr = devnull
-        try:
-            yield
-        finally:
-            sys.stderr = old_stderr
 
 
 class AudioRecorder:
     """Audio recorder for capturing microphone input."""
 
     def __init__(self):
-        self.chunk = 1024
-        if PYAUDIO_AVAILABLE:
-            self.format = pyaudio.paInt16
-        else:
-            self.format = None
         self.channels = 1
         self.rate = 44100
         self.recording = False
         self.frames = []
-        self.audio = None
         self.stream = None
-        self.recording_thread = None
         self.input_device_index = None
 
     def start_recording(self) -> None:
@@ -55,73 +36,46 @@ class AudioRecorder:
         if self.recording:
             return
 
-        if not PYAUDIO_AVAILABLE:
+        if not SOUNDDEVICE_AVAILABLE:
             raise Exception(
-                "PyAudio is not available. Please install it with: pip install pyaudio"
+                "sounddevice is not available. Please install it with: pip install sounddevice scipy"
             )
 
         try:
-            with suppress_stderr():
-                self.audio = pyaudio.PyAudio()
-
-            # Find a working input device
+            # Find a working input device if not already set
             if self.input_device_index is None:
                 self.input_device_index = self._find_working_input_device()
 
-            # Try to open stream with various configurations
-            stream_opened = False
-            configs_to_try = [
-                # Configuration 1: Default with specific device
-                {
-                    "format": self.format,
-                    "channels": self.channels,
-                    "rate": self.rate,
-                    "input": True,
-                    "input_device_index": self.input_device_index,
-                    "frames_per_buffer": self.chunk,
-                },
-                # Configuration 2: Default device, lower sample rate
-                {
-                    "format": self.format,
-                    "channels": self.channels,
-                    "rate": 16000,
-                    "input": True,
-                    "frames_per_buffer": self.chunk,
-                },
-                # Configuration 3: Mono, even lower sample rate
-                {
-                    "format": self.format,
-                    "channels": 1,
-                    "rate": 8000,
-                    "input": True,
-                    "frames_per_buffer": self.chunk,
-                },
-            ]
-
-            for i, config in enumerate(configs_to_try):
+            # Try different sample rates if the default doesn't work
+            rates_to_try = [44100, 48000, 16000, 8000]
+            
+            for rate in rates_to_try:
                 try:
-                    with suppress_stderr():
-                        self.stream = self.audio.open(**config)
-                    # Update our settings to match what worked
-                    if i > 0:  # If we had to fall back
-                        self.rate = config["rate"]
-                        self.channels = config["channels"]
-                    stream_opened = True
+                    # Test if this configuration works
+                    sd.check_input_settings(
+                        device=self.input_device_index,
+                        channels=self.channels,
+                        samplerate=rate
+                    )
+                    self.rate = rate
                     break
                 except Exception as e:
-                    if i == len(configs_to_try) - 1:  # Last attempt
-                        raise e
+                    if rate == rates_to_try[-1]:  # Last attempt
+                        raise Exception(f"Could not find working audio configuration: {e}") from e
                     continue
-
-            if not stream_opened:
-                raise Exception("Could not open audio stream with any configuration")
 
             self.recording = True
             self.frames = []
-            self.recording_thread = threading.Thread(
-                target=self._record_audio, daemon=True
+            
+            # Create continuous input stream
+            self.stream = sd.InputStream(
+                device=self.input_device_index,
+                channels=self.channels,
+                samplerate=self.rate,
+                callback=self._audio_callback,
+                dtype=np.float32
             )
-            self.recording_thread.start()
+            self.stream.start()
 
         except Exception as e:
             self._cleanup()
@@ -129,12 +83,10 @@ class AudioRecorder:
             if "ALSA" in str(e) or "jack" in str(e).lower():
                 error_msg += "\n\nLinux audio troubleshooting:\n"
                 error_msg += "1. Install ALSA dev packages: sudo apt-get install libasound2-dev\n"
-                error_msg += "2. Check audio devices: arecord -l\n"
-                error_msg += (
-                    "3. Test microphone: arecord -d 3 test.wav && aplay test.wav\n"
-                )
+                error_msg += "2. Check audio devices: python -c 'import sounddevice; print(sounddevice.query_devices())'\n"
+                error_msg += "3. Test microphone: python -c 'import sounddevice; sounddevice.rec(44100, samplerate=44100, channels=1)'\n"
                 error_msg += "4. Try PulseAudio: pulseaudio --start"
-            raise Exception(error_msg)
+            raise Exception(error_msg) from e
 
     def stop_recording(self) -> str:
         """Stop recording and return path to recorded audio file."""
@@ -143,20 +95,25 @@ class AudioRecorder:
 
         self.recording = False
 
-        if self.recording_thread:
-            self.recording_thread.join(timeout=2.0)
+        # Stop the stream
+        if self.stream:
+            self.stream.stop()
+            self.stream.close()
+            self.stream = None
 
         try:
             temp_file = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
             temp_path = temp_file.name
             temp_file.close()
 
-            wf = wave.open(temp_path, "wb")
-            wf.setnchannels(self.channels)
-            wf.setsampwidth(self.audio.get_sample_size(self.format))
-            wf.setframerate(self.rate)
-            wf.writeframes(b"".join(self.frames))
-            wf.close()
+            if self.frames:
+                # Convert list of numpy arrays to single array
+                audio_data = np.concatenate(self.frames, axis=0)
+                # Write using scipy
+                write_wav(temp_path, self.rate, audio_data)
+            else:
+                # Create empty file if no frames
+                write_wav(temp_path, self.rate, np.array([], dtype=np.float32))
 
             self._cleanup()
             return temp_path
@@ -169,81 +126,55 @@ class AudioRecorder:
         """Check if currently recording."""
         return self.recording
 
-    def _record_audio(self) -> None:
-        """Internal method to record audio in separate thread."""
-        try:
-            while self.recording and self.stream:
-                try:
-                    data = self.stream.read(self.chunk, exception_on_overflow=False)
-                    self.frames.append(data)
-                except Exception as e:
-                    # Try to continue recording even if we get occasional read errors
-                    if "Input overflowed" in str(e):
-                        continue
-                    else:
-                        self.recording = False
-                        break
-        except Exception:
-            self.recording = False
+    def _audio_callback(self, indata, frame_count, time_info, status):
+        """Callback function for continuous audio input stream."""
+        if status:
+            print(f"Audio input status: {status}")
+        
+        if self.recording:
+            # Copy the incoming audio data
+            self.frames.append(indata.copy())
 
     def _cleanup(self) -> None:
         """Clean up audio resources."""
         self.recording = False
         if self.stream:
             try:
-                self.stream.stop_stream()
+                self.stream.stop()
                 self.stream.close()
             except Exception:
                 pass
             self.stream = None
-
-        if self.audio:
-            try:
-                self.audio.terminate()
-            except Exception:
-                pass
-            self.audio = None
-
         self.frames = []
 
     def _find_working_input_device(self) -> Optional[int]:
         """Find a working audio input device."""
-        if not self.audio:
-            return None
-
         try:
-            device_count = self.audio.get_device_count()
+            devices = sd.query_devices()
 
-            # First, try to find the default input device
+            # First, try to use the default input device
             try:
-                default_device = self.audio.get_default_input_device_info()
-                if default_device["maxInputChannels"] > 0:
-                    return default_device["index"]
-            except:
+                default_device = sd.default.device[0]  # Input device
+                if default_device is not None:
+                    device_info = sd.query_devices(default_device)
+                    if device_info['max_input_channels'] > 0:
+                        return default_device
+            except Exception:
                 pass
 
             # If no default, scan all devices for one that supports input
-            for i in range(device_count):
-                try:
-                    device_info = self.audio.get_device_info_by_index(i)
-                    if device_info["maxInputChannels"] > 0:
-                        # Test if this device actually works
-                        try:
-                            with suppress_stderr():
-                                test_stream = self.audio.open(
-                                    format=self.format,
-                                    channels=1,
-                                    rate=self.rate,
-                                    input=True,
-                                    input_device_index=i,
-                                    frames_per_buffer=1024,
-                                )
-                                test_stream.close()
-                            return i
-                        except:
-                            continue
-                except:
-                    continue
+            for i, device_info in enumerate(devices):
+                if device_info['max_input_channels'] > 0:
+                    # Test if this device actually works
+                    try:
+                        sd.check_input_settings(
+                            device=i,
+                            channels=1,
+                            samplerate=self.rate
+                        )
+                        return i
+                    except Exception:
+                        continue
 
             return None
 
@@ -379,7 +310,7 @@ class SpeechToTextService:
 
             try:
                 os.unlink(audio_file_path)
-            except:
+            except Exception:
                 pass
 
             if transcription:
@@ -390,7 +321,7 @@ class SpeechToTextService:
         except Exception as e:
             try:
                 os.unlink(audio_file_path)
-            except:
+            except Exception:
                 pass
 
             error_msg = f"Transcription failed: {e}"
@@ -404,7 +335,7 @@ class SpeechToTextService:
         handler_name: Optional[str] = None,
     ) -> None:
         """Execute appropriate transcription callbacks based on handler_name."""
-        for callback_id, callback_info in self.transcription_callbacks.items():
+        for callback_info in self.transcription_callbacks.values():
             should_execute = False
 
             if callback_info["run_always"]:

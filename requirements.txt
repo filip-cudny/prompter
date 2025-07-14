@@ -20,5 +20,7 @@ python-xlib>=0.33; sys_platform == "linux"
 # windows support is handled by built-in ctypes
 
 # Speech-to-text dependencies
-pyaudio>=0.2.11
+sounddevice>=0.4.6
+numpy>=1.21.0
+scipy>=1.9.0
 openai>=1.0.0

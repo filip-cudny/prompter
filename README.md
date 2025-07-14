@@ -321,8 +321,8 @@ make logs-follow  # Follow logs in real-time
 1. Verify microphone permissions
 2. Check speech-to-text model configuration
 3. Ensure audio drivers are working
-4. **macOS**: If you get PyAudio installation errors, ensure portaudio is installed: `brew install portaudio`
-5. **Linux**: If you get PyAudio installation errors, ensure portaudio19-dev is installed: `sudo apt install portaudio19-dev`
+4. **macOS**: If you get sounddevice installation errors, ensure portaudio is installed: `brew install portaudio`
+5. **Linux**: If you get sounddevice installation errors, ensure portaudio19-dev is installed: `sudo apt install portaudio19-dev`
 
 ## Development
 
