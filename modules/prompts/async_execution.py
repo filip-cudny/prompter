@@ -52,6 +52,7 @@ except ImportError:
 from core.models import ExecutionResult, MenuItem
 from core.openai_service import OpenAiService
 from core.interfaces import ClipboardManager
+from core.placeholder_service import PlaceholderService
 from modules.utils.notifications import PyQtNotificationManager, format_execution_time
 
 logger = logging.getLogger(__name__)
@@ -76,14 +77,13 @@ class PromptExecutionWorker(QThread):
         notification_manager: Optional[PyQtNotificationManager],
         openai_service: OpenAiService,
         config,
-        parent=None,
     ):
-        super().__init__(parent)
         self.settings_prompt_provider = settings_prompt_provider
         self.clipboard_manager = clipboard_manager
         self.notification_manager = notification_manager
         self.openai_service = openai_service
         self.config = config
+        self.placeholder_service = PlaceholderService(clipboard_manager)
 
         # Callbacks for cross-thread communication
         self.started_callback = None
@@ -188,24 +188,11 @@ class PromptExecutionWorker(QThread):
                     metadata={"action": "execute_prompt"},
                 )
 
-            # Get clipboard content
-            if self.context is not None:
-                clipboard_content = self.context
-            else:
-                try:
-                    clipboard_content = self.clipboard_manager.get_content()
-                except Exception:
-                    clipboard_content = ""
-
-            # Process messages
+            # Process messages with placeholder service
             processed_messages: List[ChatCompletionMessageParam] = []
-            for message in messages:
-                if message and isinstance(message.get("content"), str):
-                    content = message["content"].replace(
-                        "{{clipboard}}", clipboard_content
-                    )
-                    role = message.get("role", "user")
-                    processed_messages.append({"role": role, "content": content})
+            processed_messages = self.placeholder_service.process_messages(
+                messages, self.context
+            )
 
             if not processed_messages:
                 return ExecutionResult(
@@ -257,6 +244,7 @@ class AsyncPromptExecutionManager:
         self.openai_service = openai_service
         self.config = config
         self.prompt_store_service = prompt_store_service
+        self.placeholder_service = PlaceholderService(clipboard_manager)
 
         self.worker: Optional[PromptExecutionWorker] = None
         self.is_executing = False
