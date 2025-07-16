@@ -22,6 +22,7 @@
         "cmd+f1": "open_context_menu",
         "cmd+f2": "execute_active_prompt",
         "cmd+f3": "set_context_value",
+        "shift+f3": "append_context_value",
         "cmd+f4": "clear_context",
         "shift+f1": "speech_to_text_toggle"
       }
@@ -32,6 +33,7 @@
         "ctrl+f1": "open_context_menu",
         "ctrl+f2": "execute_active_prompt",
         "ctrl+f3": "set_context_value",
+        "shift+f3": "append_context_value",
         "ctrl+f4": "clear_context",
         "shift+f1": "speech_to_text_toggle"
       }
@@ -42,6 +44,7 @@
         "ctrl+f1": "open_context_menu",
         "ctrl+f2": "execute_active_prompt",
         "ctrl+f3": "set_context_value",
+        "shift+f3": "append_context_value",
         "ctrl+f4": "clear_context",
         "shift+f1": "speech_to_text_toggle"
       }
