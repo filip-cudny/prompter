@@ -309,6 +309,9 @@ class PrompterApp(QObject):
             self.event_handler.handle_execution_result
         )
         self.menu_coordinator.set_error_callback(self.event_handler.handle_error)
+        
+        # Connect context manager for cache invalidation
+        self.menu_coordinator.set_context_manager(self.context_manager)
 
     def _initialize_menu_providers(self) -> None:
         """Initialize menu providers."""
@@ -325,7 +328,7 @@ class PrompterApp(QObject):
                 self.prompt_store_service,
             ),
             HistoryMenuProvider(
-                history_service, self._execute_menu_item, self.prompt_store_service
+                history_service, self._execute_menu_item, self.prompt_store_service, self.context_manager
             ),
             SpeechMenuProvider(
                 self._speech_to_text,
