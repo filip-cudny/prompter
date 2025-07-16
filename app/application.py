@@ -112,6 +112,9 @@ class PrompterApp(QObject):
             # Initialize notification manager
             self.notification_manager = PyQtNotificationManager(self.app)
 
+            # Re-initialize global action registry with notification manager
+            initialize_global_action_registry(self.context_manager, self.clipboard_manager, self.notification_manager)
+
             # Initialize OpenAI service
             self._initialize_openai_service()
 

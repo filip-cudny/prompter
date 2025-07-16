@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from core.context_manager import ContextManager
     from core.interfaces import ClipboardManager
+    from modules.utils.notifications import PyQtNotificationManager
 
 logger = logging.getLogger(__name__)
 
@@ -112,9 +113,10 @@ class ExecuteActivePromptAction(KeymapAction):
 class SetContextValueAction(KeymapAction):
     """Action to set context value from clipboard."""
 
-    def __init__(self, context_manager: "ContextManager", clipboard_manager: "ClipboardManager"):
+    def __init__(self, context_manager: "ContextManager", clipboard_manager: "ClipboardManager", notification_manager: Optional["PyQtNotificationManager"] = None):
         self.context_manager = context_manager
         self.clipboard_manager = clipboard_manager
+        self.notification_manager = notification_manager
 
     @property
     def name(self) -> str:
@@ -130,6 +132,10 @@ class SetContextValueAction(KeymapAction):
             clipboard_content = self.clipboard_manager.get_content()
             self.context_manager.set_context(clipboard_content)
             logger.info("Context value set from clipboard")
+            
+            if self.notification_manager:
+                self.notification_manager.show_success_notification("Context Set")
+            
             return True
         except Exception as e:
             logger.error(f"Failed to set context value: {e}")
@@ -139,9 +145,10 @@ class SetContextValueAction(KeymapAction):
 class AppendContextValueAction(KeymapAction):
     """Action to append context value from clipboard."""
 
-    def __init__(self, context_manager: "ContextManager", clipboard_manager: "ClipboardManager"):
+    def __init__(self, context_manager: "ContextManager", clipboard_manager: "ClipboardManager", notification_manager: Optional["PyQtNotificationManager"] = None):
         self.context_manager = context_manager
         self.clipboard_manager = clipboard_manager
+        self.notification_manager = notification_manager
 
     @property
     def name(self) -> str:
@@ -157,6 +164,10 @@ class AppendContextValueAction(KeymapAction):
             clipboard_content = self.clipboard_manager.get_content()
             self.context_manager.append_context(clipboard_content)
             logger.info("Context value appended from clipboard")
+            
+            if self.notification_manager:
+                self.notification_manager.show_success_notification("Context Appended")
+            
             return True
         except Exception as e:
             logger.error(f"Failed to append context value: {e}")
@@ -166,8 +177,9 @@ class AppendContextValueAction(KeymapAction):
 class ClearContextAction(KeymapAction):
     """Action to clear context value."""
 
-    def __init__(self, context_manager: "ContextManager"):
+    def __init__(self, context_manager: "ContextManager", notification_manager: Optional["PyQtNotificationManager"] = None):
         self.context_manager = context_manager
+        self.notification_manager = notification_manager
 
     @property
     def name(self) -> str:
@@ -182,6 +194,10 @@ class ClearContextAction(KeymapAction):
         try:
             self.context_manager.clear_context()
             logger.info("Context value cleared")
+            
+            if self.notification_manager:
+                self.notification_manager.show_success_notification("Context Cleared")
+            
             return True
         except Exception as e:
             logger.error(f"Failed to clear context value: {e}")
@@ -191,11 +207,12 @@ class ClearContextAction(KeymapAction):
 class ActionRegistry:
     """Registry for managing available keymap actions."""
 
-    def __init__(self, context_manager: Optional["ContextManager"] = None, clipboard_manager: Optional["ClipboardManager"] = None):
+    def __init__(self, context_manager: Optional["ContextManager"] = None, clipboard_manager: Optional["ClipboardManager"] = None, notification_manager: Optional["PyQtNotificationManager"] = None):
         """Initialize the action registry with default actions."""
         self._actions: Dict[str, KeymapAction] = {}
         self.context_manager = context_manager
         self.clipboard_manager = clipboard_manager
+        self.notification_manager = notification_manager
         self._register_default_actions()
 
     def _register_default_actions(self):
@@ -209,9 +226,9 @@ class ActionRegistry:
         # Add context management actions if managers are available
         if self.context_manager and self.clipboard_manager:
             default_actions.extend([
-                SetContextValueAction(self.context_manager, self.clipboard_manager),
-                AppendContextValueAction(self.context_manager, self.clipboard_manager),
-                ClearContextAction(self.context_manager),
+                SetContextValueAction(self.context_manager, self.clipboard_manager, self.notification_manager),
+                AppendContextValueAction(self.context_manager, self.clipboard_manager, self.notification_manager),
+                ClearContextAction(self.context_manager, self.notification_manager),
             ])
 
         for action in default_actions:
@@ -287,10 +304,10 @@ def get_global_action_registry() -> ActionRegistry:
     return _global_action_registry
 
 
-def initialize_global_action_registry(context_manager: Optional["ContextManager"] = None, clipboard_manager: Optional["ClipboardManager"] = None) -> ActionRegistry:
+def initialize_global_action_registry(context_manager: Optional["ContextManager"] = None, clipboard_manager: Optional["ClipboardManager"] = None, notification_manager: Optional["PyQtNotificationManager"] = None) -> ActionRegistry:
     """Initialize the global action registry with managers."""
     global _global_action_registry
-    _global_action_registry = ActionRegistry(context_manager, clipboard_manager)
+    _global_action_registry = ActionRegistry(context_manager, clipboard_manager, notification_manager)
     return _global_action_registry
 
 
