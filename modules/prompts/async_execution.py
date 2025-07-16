@@ -53,6 +53,7 @@ from core.models import ExecutionResult, MenuItem
 from core.openai_service import OpenAiService
 from core.interfaces import ClipboardManager
 from core.placeholder_service import PlaceholderService
+from core.context_manager import ContextManager
 from modules.utils.notifications import PyQtNotificationManager, format_execution_time
 
 logger = logging.getLogger(__name__)
@@ -74,16 +75,19 @@ class PromptExecutionWorker(QThread):
         self,
         settings_prompt_provider,
         clipboard_manager: ClipboardManager,
-        notification_manager: Optional[PyQtNotificationManager],
+        notification_manager: PyQtNotificationManager,
         openai_service: OpenAiService,
         config,
+        context_manager: ContextManager,
     ):
+        super().__init__()
         self.settings_prompt_provider = settings_prompt_provider
         self.clipboard_manager = clipboard_manager
         self.notification_manager = notification_manager
         self.openai_service = openai_service
         self.config = config
-        self.placeholder_service = PlaceholderService(clipboard_manager)
+        self.context_manager = context_manager
+        self.placeholder_service = PlaceholderService(clipboard_manager, context_manager)
 
         # Callbacks for cross-thread communication
         self.started_callback = None
@@ -236,6 +240,7 @@ class AsyncPromptExecutionManager:
         notification_manager: Optional[PyQtNotificationManager],
         openai_service: OpenAiService,
         config,
+        context_manager: ContextManager,
         prompt_store_service=None,
     ):
         self.settings_prompt_provider = settings_prompt_provider
@@ -244,7 +249,8 @@ class AsyncPromptExecutionManager:
         self.openai_service = openai_service
         self.config = config
         self.prompt_store_service = prompt_store_service
-        self.placeholder_service = PlaceholderService(clipboard_manager)
+        self.context_manager = context_manager
+        self.placeholder_service = PlaceholderService(clipboard_manager, context_manager)
 
         self.worker: Optional[PromptExecutionWorker] = None
         self.is_executing = False
@@ -276,6 +282,7 @@ class AsyncPromptExecutionManager:
             self.notification_manager,
             self.openai_service,
             self.config,
+            self.context_manager,
         )
 
         # Set callbacks for cross-thread communication

@@ -28,6 +28,8 @@ from modules.utils.config import load_config, validate_config
 from modules.utils.system import check_macos_permissions, show_macos_permissions_help
 from modules.utils.notifications import PyQtNotificationManager
 from core.openai_service import OpenAiService
+from core.context_manager import ContextManager
+from modules.utils.keymap_actions import initialize_global_action_registry, get_global_action_registry
 
 
 class PrompterApp(QObject):
@@ -49,6 +51,7 @@ class PrompterApp(QObject):
 
         # Core services
         self.clipboard_manager: Optional[SystemClipboardManager] = None
+        self.context_manager: Optional[ContextManager] = None
         self.openai_service: Optional[OpenAiService] = None
         self.prompt_store_service: Optional[PromptStoreService] = None
 
@@ -66,6 +69,9 @@ class PrompterApp(QObject):
         self.speech_service = None
         self.speech_history_service = None
 
+        # Initialize basic services needed for config loading
+        self._initialize_basic_services()
+        
         # Load configuration
         self._load_config(config_file)
 
@@ -83,14 +89,22 @@ class PrompterApp(QObject):
             print(f"Configuration error: {e}")
             sys.exit(1)
 
+    def _initialize_basic_services(self) -> None:
+        """Initialize basic services needed for configuration loading."""
+        # Initialize clipboard manager
+        self.clipboard_manager = SystemClipboardManager()
+        
+        # Initialize context manager
+        self.context_manager = ContextManager()
+        
+        # Initialize global action registry with managers
+        initialize_global_action_registry(self.context_manager, self.clipboard_manager)
+
     def _initialize_components(self) -> None:
         """Initialize all application components."""
         try:
             if not self.config:
                 raise RuntimeError("Configuration not loaded")
-
-            # Initialize clipboard manager
-            self.clipboard_manager = SystemClipboardManager()
 
             # Initialize prompt providers
             self._initialize_prompt_providers()
@@ -111,6 +125,7 @@ class PrompterApp(QObject):
                 self.notification_manager,
                 self.speech_service,
                 self.openai_service,
+                self.context_manager,
             )
 
             # Initialize GUI components
@@ -250,6 +265,7 @@ class PrompterApp(QObject):
                         self.notification_manager,
                         self.openai_service,  # type: ignore
                         self.config,  # type: ignore
+                        self.context_manager,
                         self.prompt_store_service,
                     ),
                 ]

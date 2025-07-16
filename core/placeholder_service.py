@@ -5,6 +5,7 @@ from typing import Dict, List, Optional, Any
 from abc import ABC, abstractmethod
 
 from core.interfaces import ClipboardManager
+from core.context_manager import ContextManager
 
 logger = logging.getLogger(__name__)
 
@@ -45,25 +46,29 @@ class ClipboardPlaceholderProcessor(PlaceholderProcessor):
 class ContextPlaceholderProcessor(PlaceholderProcessor):
     """Processor for context placeholder."""
 
+    def __init__(self, context_manager: ContextManager):
+        self.context_manager = context_manager
+
     def get_placeholder_name(self) -> str:
         return "context"
 
     def process(self, context: Optional[str] = None) -> str:
-        """Return provided context or empty string."""
-        return context or ""
+        """Return stored context value or empty string."""
+        return self.context_manager.get_context_or_default("")
 
 
 class PlaceholderService:
     """Service for processing placeholders in messages."""
 
-    def __init__(self, clipboard_manager: ClipboardManager):
+    def __init__(self, clipboard_manager: ClipboardManager, context_manager: ContextManager):
         self.processors: Dict[str, PlaceholderProcessor] = {}
-        self._register_default_processors(clipboard_manager)
+        self.context_manager = context_manager
+        self._register_default_processors(clipboard_manager, context_manager)
 
-    def _register_default_processors(self, clipboard_manager: ClipboardManager) -> None:
+    def _register_default_processors(self, clipboard_manager: ClipboardManager, context_manager: ContextManager) -> None:
         """Register default placeholder processors."""
         self.register_processor(ClipboardPlaceholderProcessor(clipboard_manager))
-        self.register_processor(ContextPlaceholderProcessor())
+        self.register_processor(ContextPlaceholderProcessor(context_manager))
 
     def register_processor(self, processor: PlaceholderProcessor) -> None:
         """Register a placeholder processor."""

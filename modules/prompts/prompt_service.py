@@ -29,6 +29,7 @@ class PromptStoreService(PromptStoreServiceProtocol):
         notification_manager=None,
         speech_service: Optional[SpeechToTextService] = None,
         openai_service: Optional[OpenAiService] = None,
+        context_manager=None,
     ):
         self.prompt_providers = (
             prompt_providers
@@ -42,6 +43,7 @@ class PromptStoreService(PromptStoreServiceProtocol):
         self.notification_manager = notification_manager or PyQtNotificationManager()
         self.speech_service = speech_service
         self.openai_service = openai_service
+        self.context_manager = context_manager
         self.execution_service = ExecutionService(self)
         self.execution_service.set_speech_service(self.speech_service)
         self._menu_coordinator = None

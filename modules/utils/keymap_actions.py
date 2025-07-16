@@ -4,6 +4,11 @@ from typing import Dict, Any, Optional
 from abc import ABC, abstractmethod
 import logging
 import time
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from core.context_manager import ContextManager
+    from core.interfaces import ClipboardManager
 
 logger = logging.getLogger(__name__)
 
@@ -104,12 +109,93 @@ class ExecuteActivePromptAction(KeymapAction):
             return False
 
 
+class SetContextValueAction(KeymapAction):
+    """Action to set context value from clipboard."""
+
+    def __init__(self, context_manager: "ContextManager", clipboard_manager: "ClipboardManager"):
+        self.context_manager = context_manager
+        self.clipboard_manager = clipboard_manager
+
+    @property
+    def name(self) -> str:
+        return "set_context_value"
+
+    @property
+    def description(self) -> str:
+        return "Set context value from clipboard content"
+
+    def execute(self, context: Optional[Dict[str, Any]] = None) -> bool:
+        """Set context value from clipboard."""
+        try:
+            clipboard_content = self.clipboard_manager.get_content()
+            self.context_manager.set_context(clipboard_content)
+            logger.info("Context value set from clipboard")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to set context value: {e}")
+            return False
+
+
+class AppendContextValueAction(KeymapAction):
+    """Action to append context value from clipboard."""
+
+    def __init__(self, context_manager: "ContextManager", clipboard_manager: "ClipboardManager"):
+        self.context_manager = context_manager
+        self.clipboard_manager = clipboard_manager
+
+    @property
+    def name(self) -> str:
+        return "append_context_value"
+
+    @property
+    def description(self) -> str:
+        return "Append clipboard content to context value"
+
+    def execute(self, context: Optional[Dict[str, Any]] = None) -> bool:
+        """Append clipboard content to context value."""
+        try:
+            clipboard_content = self.clipboard_manager.get_content()
+            self.context_manager.append_context(clipboard_content)
+            logger.info("Context value appended from clipboard")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to append context value: {e}")
+            return False
+
+
+class ClearContextAction(KeymapAction):
+    """Action to clear context value."""
+
+    def __init__(self, context_manager: "ContextManager"):
+        self.context_manager = context_manager
+
+    @property
+    def name(self) -> str:
+        return "clear_context"
+
+    @property
+    def description(self) -> str:
+        return "Clear the stored context value"
+
+    def execute(self, context: Optional[Dict[str, Any]] = None) -> bool:
+        """Clear the context value."""
+        try:
+            self.context_manager.clear_context()
+            logger.info("Context value cleared")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to clear context value: {e}")
+            return False
+
+
 class ActionRegistry:
     """Registry for managing available keymap actions."""
 
-    def __init__(self):
+    def __init__(self, context_manager: Optional["ContextManager"] = None, clipboard_manager: Optional["ClipboardManager"] = None):
         """Initialize the action registry with default actions."""
         self._actions: Dict[str, KeymapAction] = {}
+        self.context_manager = context_manager
+        self.clipboard_manager = clipboard_manager
         self._register_default_actions()
 
     def _register_default_actions(self):
@@ -119,6 +205,14 @@ class ActionRegistry:
             SpeechToTextToggleAction(),
             ExecuteActivePromptAction(),
         ]
+
+        # Add context management actions if managers are available
+        if self.context_manager and self.clipboard_manager:
+            default_actions.extend([
+                SetContextValueAction(self.context_manager, self.clipboard_manager),
+                AppendContextValueAction(self.context_manager, self.clipboard_manager),
+                ClearContextAction(self.context_manager),
+            ])
 
         for action in default_actions:
             self.register_action(action)
@@ -182,11 +276,22 @@ class ActionRegistry:
         return action_name in self._actions
 
 
+_global_action_registry: Optional[ActionRegistry] = None
+
+
 def get_global_action_registry() -> ActionRegistry:
     """Get the global action registry instance."""
-    if not hasattr(get_global_action_registry, "_instance"):
-        get_global_action_registry._instance = ActionRegistry()
-    return get_global_action_registry._instance
+    global _global_action_registry
+    if _global_action_registry is None:
+        _global_action_registry = ActionRegistry()
+    return _global_action_registry
+
+
+def initialize_global_action_registry(context_manager: Optional["ContextManager"] = None, clipboard_manager: Optional["ClipboardManager"] = None) -> ActionRegistry:
+    """Initialize the global action registry with managers."""
+    global _global_action_registry
+    _global_action_registry = ActionRegistry(context_manager, clipboard_manager)
+    return _global_action_registry
 
 
 def execute_keymap_action(

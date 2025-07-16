@@ -20,8 +20,9 @@
       "context": "os == macos",
       "bindings": {
         "cmd+f1": "open_context_menu",
-        "cmd+f3": "open_context_menu",
         "cmd+f2": "execute_active_prompt",
+        "cmd+f3": "set_context_value",
+        "cmd+f4": "clear_context",
         "shift+f1": "speech_to_text_toggle"
       }
     },
@@ -30,6 +31,8 @@
       "bindings": {
         "ctrl+f1": "open_context_menu",
         "ctrl+f2": "execute_active_prompt",
+        "ctrl+f3": "set_context_value",
+        "ctrl+f4": "clear_context",
         "shift+f1": "speech_to_text_toggle"
       }
     },
@@ -38,6 +41,8 @@
       "bindings": {
         "ctrl+f1": "open_context_menu",
         "ctrl+f2": "execute_active_prompt",
+        "ctrl+f3": "set_context_value",
+        "ctrl+f4": "clear_context",
         "shift+f1": "speech_to_text_toggle"
       }
     }
@@ -96,6 +101,20 @@
         {
           "role": "user",
           "content": "<input_text>\n{{clipboard}}\n</input_text>"
+        }
+      ]
+    },
+    {
+      "id": "c1b8d3e5-f2a7-4d96-8b39-5e7f3a2c1d0e",
+      "name": "Process with Context",
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are a helpful assistant. Process the input text using the provided context as background information."
+        },
+        {
+          "role": "user",
+          "content": "Context: {{context}}\n\nInput: {{clipboard}}\n\nPlease process the input using the context provided above."
         }
       ]
     }

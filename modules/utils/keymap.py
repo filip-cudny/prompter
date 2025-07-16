@@ -65,6 +65,7 @@ class KeymapManager:
     def __init__(self, keymaps: List[Dict[str, Any]]):
         """Initialize keymap manager with keymap data."""
         self.action_registry = get_global_action_registry()
+        self._validation_deferred = True
         self.contexts = self._parse_keymaps(keymaps)
 
     def _parse_keymaps(self, keymaps: List[Dict[str, Any]]) -> List[KeymapContext]:
@@ -76,7 +77,8 @@ class KeymapManager:
             bindings = keymap_data.get("bindings", {})
 
             keymap_context = KeymapContext(context=context, bindings=bindings)
-            self._validate_keymap_context(keymap_context)
+            if not self._validation_deferred:
+                self._validate_keymap_context(keymap_context)
             contexts.append(keymap_context)
 
         return contexts
@@ -91,12 +93,25 @@ class KeymapManager:
                     f"Available actions: {', '.join(sorted(available_actions))}"
                 )
 
+    def _validate_keymaps(self) -> None:
+        """Validate all keymap contexts."""
+        for context in self.contexts:
+            self._validate_keymap_context(context)
+
+    def _ensure_validation_complete(self) -> None:
+        """Ensure validation is complete before using keymaps."""
+        if hasattr(self, '_validation_deferred') and self._validation_deferred:
+            self._validate_keymaps()
+            self._validation_deferred = False
+
     def get_active_keymaps(self) -> List[KeymapContext]:
         """Get keymaps that match the current operating system."""
+        self._ensure_validation_complete()
         return [context for context in self.contexts if context.matches_current_os()]
 
     def get_all_bindings(self) -> List[KeymapBinding]:
         """Get all active key bindings for the current OS."""
+        self._ensure_validation_complete()
         bindings = []
         for context in self.get_active_keymaps():
             bindings.extend(context.get_bindings())

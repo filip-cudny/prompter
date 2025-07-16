@@ -170,6 +170,9 @@ class PyQtHotkeyListener:
             "open_context_menu",
             "execute_active_prompt",
             "speech_to_text_toggle",
+            "set_context_value",
+            "append_context_value",
+            "clear_context",
         }
         for action in available_actions:
             self.action_states[action] = False
