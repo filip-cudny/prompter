@@ -238,39 +238,81 @@ class MacOSFocusableMenu(QWidget):
             self.close()
 
     def showEvent(self, event):
-        """Handle show event with macOS-specific focus grabbing."""
+        """Handle show event with macOS-specific focus grabbing for external apps."""
         super().showEvent(event)
 
-        # macOS focus strategy: multiple delayed attempts
-        focus_delays = [0, 10, 50, 100, 200]
+        # Aggressive focus strategy for external application activation
+        focus_delays = [0, 10, 25, 50, 75, 100, 150, 200, 300]
         for delay in focus_delays:
             QTimer.singleShot(delay, self._attempt_focus_grab)
+        
+        # Additional verification checks
+        QTimer.singleShot(350, self._verify_focus_success)
 
     def _attempt_focus_grab(self):
-        """Attempt to grab focus with macOS-specific methods."""
+        """Attempt to grab focus with enhanced macOS-specific methods."""
         if self.is_closing or not self.isVisible():
             return
 
         try:
-            # First, try to bring the app to foreground
+            # Aggressive application activation sequence
+            self._force_app_to_foreground()
             self._bring_app_to_front()
 
-            # Force window to front
+            # Enhanced window activation
+            self.setWindowState(Qt.WindowActive)
             self.raise_()
             self.activateWindow()
 
-            # Multiple focus methods
-            self.setFocus(Qt.ActiveWindowFocusReason)
+            # Multiple focus methods with different reasons
+            self.setFocus(Qt.OtherFocusReason)
             self.setFocus(Qt.PopupFocusReason)
+            self.setFocus(Qt.TabFocusReason)
 
             # macOS-specific application activation
             app = QApplication.instance()
             if app:
+                app.activateWindow()
                 app.setActiveWindow(self)
                 app.processEvents()
 
+            # Ensure we stay on top when triggered from external apps
+            self.setWindowFlags(self.windowFlags() | Qt.WindowStaysOnTopHint)
+            self.show()
+
         except Exception as e:
             print(f"Focus grab error: {e}")
+    
+    def _verify_focus_success(self):
+        """Verify focus was successful and retry if needed."""
+        try:
+            if self.is_closing or not self.isVisible():
+                return
+                
+            has_focus = self.hasFocus()
+            app = QApplication.instance()
+            is_active = app and app.activeWindow() == self
+            
+            if not has_focus or not is_active:
+                # Final aggressive attempt
+                self._force_app_to_foreground()
+                self.setFocus(Qt.TabFocusReason)
+                self.raise_()
+                
+                # Schedule one more check
+                QTimer.singleShot(100, self._final_focus_attempt)
+                
+        except Exception:
+            pass
+    
+    def _final_focus_attempt(self):
+        """Last resort focus attempt."""
+        try:
+            if not self.is_closing and self.isVisible() and not self.hasFocus():
+                self.setFocus(Qt.TabFocusReason)
+                self.activateWindow()
+        except Exception:
+            pass
 
     def _bring_app_to_front(self):
         """Bring the application to the front on macOS."""

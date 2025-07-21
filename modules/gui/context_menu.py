@@ -272,19 +272,29 @@ class FocusablePopupMenu(QWidget):
         QTimer.singleShot(100, self._grab_focus)
 
     def _grab_focus(self):
-        """Grab focus with multiple attempts for macOS compatibility."""
+        """Grab focus with multiple attempts for external application compatibility."""
         try:
-            # On macOS, force the application to become active first
+            # Force application activation for all platforms when triggered externally
             if platform.system() == "Darwin":
                 self._force_app_activation_macos()
+            elif platform.system() == "Windows":
+                self._force_app_activation_windows()
+            elif platform.system() == "Linux":
+                self._force_app_activation_linux()
 
+            # Aggressive focus grabbing sequence
             self.raise_()
             self.activateWindow()
-            self.setFocus(Qt.ActiveWindowFocusReason)
-
+            self.setFocus(Qt.OtherFocusReason)
+            
+            # Additional platform-specific focus attempts
+            if platform.system() == "Darwin":
+                self.setWindowState(Qt.WindowActive)
+            
             # Force the application to become active
             app = QApplication.instance()
             if app:
+                app.activateWindow()
                 app.setActiveWindow(self)
 
             # Check if focus was successful
@@ -293,14 +303,38 @@ class FocusablePopupMenu(QWidget):
             print(f"Focus grab error: {e}")
 
     def _check_focus_success(self):
-        """Check if focus grab was successful."""
+        """Check if focus grab was successful and retry if needed."""
         try:
             has_focus = self.hasFocus()
+            app = QApplication.instance()
+            is_active = app and app.activeWindow() == self
 
-            if not has_focus and platform.system() == "Darwin":
-                self.setWindowState(Qt.WindowActive)
-                QTimer.singleShot(50, lambda: self.setFocus(Qt.PopupFocusReason))
+            if not has_focus or not is_active:
+                # Retry focus grabbing with different strategies
+                if platform.system() == "Darwin":
+                    self.setWindowState(Qt.WindowActive)
+                    QTimer.singleShot(50, lambda: self.setFocus(Qt.PopupFocusReason))
+                elif platform.system() == "Windows":
+                    # Windows-specific focus recovery
+                    self.setWindowFlags(self.windowFlags() | Qt.WindowStaysOnTopHint)
+                    self.show()
+                    QTimer.singleShot(50, lambda: self.setFocus(Qt.TabFocusReason))
+                else:
+                    # Linux fallback
+                    QTimer.singleShot(50, lambda: self.setFocus(Qt.TabFocusReason))
+                    
+                # Schedule another verification
+                QTimer.singleShot(100, self._final_focus_check)
         except Exception as e:
+            pass
+
+    def _final_focus_check(self):
+        """Final attempt to ensure focus is properly set."""
+        try:
+            if not self.hasFocus():
+                self.setFocus(Qt.OtherFocusReason)
+                self.raise_()
+        except Exception:
             pass
 
     def _force_app_activation_macos(self):
@@ -334,6 +368,37 @@ class FocusablePopupMenu(QWidget):
         except Exception:
             pass
 
+    def _force_app_activation_windows(self):
+        """Force application activation on Windows when triggered from another app."""
+        try:
+            import ctypes
+            from ctypes import wintypes
+            
+            # Get current process window
+            hwnd = int(self.winId())
+            if hwnd:
+                # SetForegroundWindow and BringWindowToTop
+                user32 = ctypes.windll.user32
+                user32.SetForegroundWindow(hwnd)
+                user32.BringWindowToTop(hwnd)
+                user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+                
+        except Exception:
+            pass
+
+    def _force_app_activation_linux(self):
+        """Force application activation on Linux when triggered from another app."""
+        try:
+            # Use wmctrl if available
+            subprocess.run(
+                ["wmctrl", "-a", str(os.getpid())],
+                capture_output=True,
+                timeout=1,
+                check=False
+            )
+        except Exception:
+            pass
+
     def closeEvent(self, event):
         """Handle close event."""
         try:
@@ -344,17 +409,33 @@ class FocusablePopupMenu(QWidget):
         super().closeEvent(event)
 
     def show_at_position(self, position: QPoint):
-        """Show menu at specific position."""
+        """Show menu at specific position with enhanced focus management."""
         self.move(position)
         self.adjustSize()
+        
+        # Set window flags for better focus behavior
+        self.setWindowFlags(
+            Qt.Popup | 
+            Qt.FramelessWindowHint | 
+            Qt.NoDropShadowWindowHint |
+            Qt.WindowStaysOnTopHint
+        )
+        
         self.show()
 
-        # Additional focus attempts for macOS
+        # Immediate focus attempts
+        QTimer.singleShot(0, lambda: self.setFocus(Qt.OtherFocusReason))
+        QTimer.singleShot(0, lambda: self.activateWindow())
+        QTimer.singleShot(0, lambda: self.raise_())
+        
+        # Platform-specific additional attempts
         if platform.system() == "Darwin":
-            QTimer.singleShot(0, lambda: self.setFocus(Qt.ActiveWindowFocusReason))
-            QTimer.singleShot(0, lambda: self.activateWindow())
-            QTimer.singleShot(0, lambda: self.raise_())
-            QTimer.singleShot(100, lambda: self.setFocus(Qt.PopupFocusReason))
+            QTimer.singleShot(25, lambda: self.setFocus(Qt.PopupFocusReason))
+            QTimer.singleShot(75, lambda: self.setFocus(Qt.TabFocusReason))
+        elif platform.system() == "Windows":
+            QTimer.singleShot(25, lambda: self.setFocus(Qt.TabFocusReason))
+        else:  # Linux
+            QTimer.singleShot(25, lambda: self.setFocus(Qt.OtherFocusReason))
 
 
 class PyQtContextMenu(QObject):
