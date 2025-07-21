@@ -8,7 +8,16 @@ from PyQt5.QtWidgets import QApplication
 from core.models import MenuItem, ExecutionResult, MenuItemType, ErrorCode
 from core.exceptions import MenuError
 from modules.utils.config import ConfigService
-from .context_menu import PyQtContextMenu
+# Import platform-specific context menu
+import platform
+try:
+    if platform.system() == "Darwin":  # macOS
+        from .context_menu_macos import MacOSContextMenu as ContextMenuImpl
+    else:
+        from .context_menu import PyQtContextMenu as ContextMenuImpl
+except ImportError:
+    # Fallback to standard context menu
+    from .context_menu import PyQtContextMenu as ContextMenuImpl
 
 logger = logging.getLogger(__name__)
 
@@ -24,9 +33,12 @@ class PyQtMenuCoordinator(QObject):
         super().__init__(parent)
         self.prompt_store_service = prompt_store_service
         self.providers = []
-        self.context_menu = PyQtContextMenu()
+        self.context_menu = ContextMenuImpl()
         self.context_menu.menu_coordinator = self
         self.app = QApplication.instance()
+
+        # Set up execution callback for the context menu
+        self.context_menu.set_execution_callback(self._handle_menu_item_execution)
 
         # Set menu coordinator reference in Prompter service for GUI updates
         if hasattr(self.prompt_store_service, "set_menu_coordinator"):
@@ -62,6 +74,19 @@ class PyQtMenuCoordinator(QObject):
         # Connect internal signals
         self.execution_completed.connect(self._handle_execution_result)
         self.execution_error.connect(self._handle_error)
+        
+    def _handle_menu_item_execution(self, item: MenuItem, shift_pressed: bool = False):
+        """Handle menu item execution from the context menu."""
+        try:
+            if shift_pressed and hasattr(item, 'alternative_action') and item.alternative_action:
+                result = item.alternative_action()
+                if result:
+                    self._handle_execution_result(result)
+            else:
+                # _execute_menu_item handles the result internally via signals
+                self._execute_menu_item(item)
+        except Exception as e:
+            self._handle_error(f"Failed to execute menu item: {str(e)}")
 
     def set_context_manager(self, context_manager):
         """Set the context manager and register for change notifications."""
@@ -101,7 +126,7 @@ class PyQtMenuCoordinator(QObject):
 
     def show_menu(self) -> None:
         """Show the context menu at cursor position."""
-        if self.context_menu.menu and self.context_menu.menu.isVisible():
+        if self.context_menu.menu and hasattr(self.context_menu.menu, 'isVisible') and self.context_menu.menu.isVisible():
             self.context_menu.menu.close()
         try:
             items = self._get_all_menu_items()
@@ -236,7 +261,7 @@ class PyQtMenuCoordinator(QObject):
             self.execution_completed.emit(result)
 
         except (RuntimeError, Exception) as e:
-            error_msg = f"Failed to execute menu item '{item.label}': {str(e)}"
+            error_msg = f"Failed to execute menu item '{item.title}': {str(e)}"
             self.execution_error.emit(error_msg)
 
     def _handle_execution_result(self, result: ExecutionResult) -> None:
