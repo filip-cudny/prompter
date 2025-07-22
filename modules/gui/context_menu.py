@@ -14,9 +14,10 @@ import os
 class InvisibleFocusWindow(QWidget):
     """Invisible window that grabs focus to enable QMenu keyboard navigation."""
     
-    def __init__(self):
+    def __init__(self, context_menu=None):
         super().__init__()
         self.menu: Optional[QMenu] = None
+        self.context_menu = context_menu
         self.setup_window()
         
     def setup_window(self):
@@ -119,6 +120,8 @@ class InvisibleFocusWindow(QWidget):
             
     def _on_menu_hidden(self):
         """Handle menu being hidden."""
+        if self.context_menu and hasattr(self.context_menu, '_on_menu_about_to_hide'):
+            self.context_menu._on_menu_about_to_hide()
         self.hide()
         
     def keyPressEvent(self, event):
@@ -152,6 +155,8 @@ class PyQtContextMenu(QObject):
         self.original_active_window = None
         self.qt_active_window = None
         self.focus_window: Optional[InvisibleFocusWindow] = None
+        self.number_input_buffer = ""
+        self.number_timer = None
 
         self._menu_stylesheet = """
             QMenu {
@@ -220,6 +225,10 @@ class PyQtContextMenu(QObject):
         menu.installEventFilter(self)
 
         self._add_menu_items(menu, items)
+        
+        # Connect menu aboutToHide signal to cleanup number timer
+        menu.aboutToHide.connect(self._on_menu_about_to_hide)
+        
         return menu
 
     def create_submenu(self, parent_menu: QMenu, title: str, items: List[MenuItem]) -> QMenu:
@@ -257,7 +266,7 @@ class PyQtContextMenu(QObject):
             
             # Create focus window if needed
             if not self.focus_window:
-                self.focus_window = InvisibleFocusWindow()
+                self.focus_window = InvisibleFocusWindow(self)
                 
             # Use invisible focus window for robust keyboard navigation
             self.focus_window.grab_focus_and_show_menu(self.menu, adjusted_pos)
@@ -363,6 +372,13 @@ class PyQtContextMenu(QObject):
         self.original_active_window = None
         self.qt_active_window = None
         self.shift_pressed = False
+        
+        # Clean up number input timer
+        if self.number_timer:
+            self.number_timer.stop()
+            self.number_timer.deleteLater()
+            self.number_timer = None
+        self.number_input_buffer = ""
         self.event_filter_installed = False
         self.hovered_widgets.clear()
 
@@ -496,9 +512,36 @@ class PyQtContextMenu(QObject):
             if event.type() == QEvent.KeyPress:
                 if event.key() == Qt.Key_Shift:
                     self.shift_pressed = True
-                elif event.key() in (Qt.Key_Up, Qt.Key_Down, Qt.Key_Return, Qt.Key_Enter, Qt.Key_Space, Qt.Key_Escape):
+                elif event.key() == Qt.Key_Escape:
+                    # Cancel number input on Escape
+                    self._cancel_number_input()
+                    return False
+                elif event.key() in (Qt.Key_Up, Qt.Key_Down, Qt.Key_Return, Qt.Key_Enter, Qt.Key_Space):
                     # Let QMenu handle these keys natively
                     return False
+                elif (event.key() >= Qt.Key_0 and event.key() <= Qt.Key_9):
+                    # Handle number key presses for prompt execution (including 0 for multi-digit)
+                    digit = event.key() - Qt.Key_0
+                    is_alternative = self.shift_pressed or bool(QApplication.keyboardModifiers() & Qt.ShiftModifier)
+                    if self._handle_number_input(obj, str(digit), is_alternative):
+                        return True
+                else:
+                    # Handle any key that produces a digit character (including shifted numbers)
+                    text = event.text()
+                    if text and len(text) == 1 and text.isdigit():
+                        is_alternative = self.shift_pressed or bool(QApplication.keyboardModifiers() & Qt.ShiftModifier)
+                        if self._handle_number_input(obj, text, is_alternative):
+                            return True
+                    # Also handle shifted number characters (!@#$%^&*()
+                    elif text in "!@#$%^&*()":
+                        shift_char_to_number = {
+                            '!': '1', '@': '2', '#': '3', '$': '4', '%': '5',
+                            '^': '6', '&': '7', '*': '8', '(': '9', ')': '0'
+                        }
+                        digit = shift_char_to_number.get(text)
+                        if digit:
+                            if self._handle_number_input(obj, digit, True):
+                                return True
             elif event.type() == QEvent.KeyRelease:
                 if event.key() == Qt.Key_Shift:
                     self.shift_pressed = False
@@ -517,6 +560,93 @@ class PyQtContextMenu(QObject):
             elif event.type() == QEvent.Leave:
                 self._clear_all_hover_states()
 
+        return False
+
+    def _handle_number_input(self, menu, digit, is_alternative):
+        """Handle number input with debouncing for multi-digit numbers."""
+        # Add digit to buffer
+        self.number_input_buffer += digit
+        
+        # Cancel previous timer if exists
+        if self.number_timer:
+            self.number_timer.stop()
+            self.number_timer.deleteLater()
+        
+        # Create new timer to execute after 300ms
+        self.number_timer = QTimer()
+        self.number_timer.setSingleShot(True)
+        self.number_timer.timeout.connect(lambda: self._execute_buffered_number(menu, is_alternative))
+        self.number_timer.start(200)
+        
+        return True
+
+    def _execute_buffered_number(self, menu, is_alternative):
+        """Execute the number from the buffer."""
+        if not self.number_input_buffer:
+            return
+        
+        try:
+            number = int(self.number_input_buffer)
+            if number >= 1:  # Allow any number >= 1
+                self._handle_number_key_press(menu, number, is_alternative)
+        except ValueError:
+            pass
+        finally:
+            # Clear buffer
+            self.number_input_buffer = ""
+            if self.number_timer:
+                self.number_timer.deleteLater()
+                self.number_timer = None
+
+    def _cancel_number_input(self):
+        """Cancel pending number input."""
+        if self.number_timer:
+            self.number_timer.stop()
+            self.number_timer.deleteLater()
+            self.number_timer = None
+        self.number_input_buffer = ""
+    
+    def _on_menu_about_to_hide(self):
+        """Handle menu about to hide - cleanup number timer."""
+        if self.number_timer:
+            self.number_timer.stop()
+            self.number_timer.deleteLater()
+            self.number_timer = None
+        self.number_input_buffer = ""
+
+    def _handle_number_key_press(self, menu, number, is_alternative):
+        """Handle number key press to execute prompts by index."""
+        # Find prompt items and their indices
+        prompt_items = []
+        for action in menu.actions():
+            if isinstance(action, QWidgetAction):
+                widget = action.defaultWidget()
+                if hasattr(widget, '_menu_item') and widget._menu_item.item_type.name == 'PROMPT':
+                    menu_item = widget._menu_item
+                    if hasattr(menu_item, 'data') and 'menu_index' in menu_item.data:
+                        prompt_items.append((menu_item.data['menu_index'], widget, menu_item))
+        
+        # Sort by menu index
+        prompt_items.sort(key=lambda x: x[0])
+        
+        # Check if the number is valid
+        if 1 <= number <= len(prompt_items):
+            _, widget, menu_item = prompt_items[number - 1]
+            
+            # Hide menu before execution
+            menu.hide()
+            
+            # Execute the prompt using the context menu's execution callback
+            if self.execution_callback:
+                self.execution_callback(menu_item, is_alternative)
+                # Close the menu after execution
+                if self.menu:
+                    self.menu.close()
+                if self.focus_window:
+                    self.focus_window.hide()
+            
+            return True
+        
         return False
 
     def _handle_shift_right_click(self, action):

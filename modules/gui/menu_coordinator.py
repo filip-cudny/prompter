@@ -67,10 +67,23 @@ class PyQtMenuCoordinator(QObject):
     def _handle_menu_item_execution(self, item: MenuItem, shift_pressed: bool = False):
         """Handle menu item execution from the context menu."""
         try:
-            if shift_pressed and hasattr(item, 'alternative_action') and item.alternative_action:
-                result = item.alternative_action()
-                if result:
-                    self._handle_execution_result(result)
+            if shift_pressed:
+                # For shift+click, modify the item to include alternative execution flag
+                if hasattr(item, 'alternative_action') and item.alternative_action:
+                    result = item.alternative_action()
+                    if result:
+                        self._handle_execution_result(result)
+                else:
+                    # Create modified item with alternative execution flag
+                    alt_item = MenuItem(
+                        id=item.id,
+                        label=item.label,
+                        item_type=item.item_type,
+                        action=item.action,
+                        data={**(item.data or {}), "alternative_execution": True},
+                        enabled=item.enabled,
+                    )
+                    self._execute_menu_item(alt_item)
             else:
                 self._execute_menu_item(item)
         except Exception as e:
