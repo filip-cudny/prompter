@@ -8,8 +8,7 @@ from PyQt5.QtWidgets import QApplication
 from core.models import MenuItem, ExecutionResult, MenuItemType, ErrorCode
 from core.exceptions import MenuError
 from modules.utils.config import ConfigService
-# Import native context menu implementation
-from .native_context_menu import NativeContextMenu as ContextMenuImpl
+from .context_menu import PyQtContextMenu
 
 logger = logging.getLogger(__name__)
 
@@ -25,15 +24,10 @@ class PyQtMenuCoordinator(QObject):
         super().__init__(parent)
         self.prompt_store_service = prompt_store_service
         self.providers = []
-        self.context_menu = ContextMenuImpl()
-        self.app = QApplication.instance()
-
-        # Set up execution callback for the context menu
+        self.context_menu = PyQtContextMenu()
+        self.context_menu.menu_coordinator = self
         self.context_menu.set_execution_callback(self._handle_menu_item_execution)
-        
-        # Connect signals
-        self.context_menu.item_selected.connect(self._on_item_selected)
-        self.context_menu.menu_closed.connect(self._on_menu_closed)
+        self.app = QApplication.instance()
 
         # Set menu coordinator reference in Prompter service for GUI updates
         if hasattr(self.prompt_store_service, "set_menu_coordinator"):
@@ -78,7 +72,6 @@ class PyQtMenuCoordinator(QObject):
                 if result:
                     self._handle_execution_result(result)
             else:
-                # _execute_menu_item handles the result internally via signals
                 self._execute_menu_item(item)
         except Exception as e:
             self._handle_error(f"Failed to execute menu item: {str(e)}")
@@ -121,19 +114,16 @@ class PyQtMenuCoordinator(QObject):
 
     def show_menu(self) -> None:
         """Show the context menu at cursor position."""
-        if self.context_menu.menu and hasattr(self.context_menu.menu, 'isVisible') and self.context_menu.menu.isVisible():
+        if self.context_menu.menu and self.context_menu.menu.isVisible():
             self.context_menu.menu.close()
         try:
             items = self._get_all_menu_items()
             if not items:
-                self._handle_error("No menu items available")
+                logger.warning("No menu items available")
                 return
 
             self.last_menu_items = items
-            # Convert MenuItem objects to dict format for native menu
-            menu_items = self._convert_menu_items_to_dict(items)
-            cursor_pos = self.context_menu.get_cursor_position()
-            self.context_menu.show_at_position(cursor_pos, menu_items)
+            self.context_menu.show_at_cursor(items)
 
         except (RuntimeError, Exception) as e:
             self._handle_error(f"Failed to show menu: {str(e)}")
@@ -147,11 +137,7 @@ class PyQtMenuCoordinator(QObject):
                 return
 
             self.last_menu_items = items
-            # Convert MenuItem objects to dict format for native menu
-            menu_items = self._convert_menu_items_to_dict(items)
-            from PyQt5.QtCore import QPoint
-            pos = QPoint(position[0], position[1])
-            self.context_menu.show_at_position(pos, menu_items)
+            self.context_menu.show_at_position(items, position)
 
         except (RuntimeError, Exception) as e:
             self._handle_error(f"Failed to show menu at position: {str(e)}")
@@ -263,7 +249,7 @@ class PyQtMenuCoordinator(QObject):
             self.execution_completed.emit(result)
 
         except (RuntimeError, Exception) as e:
-            error_msg = f"Failed to execute menu item '{item.title}': {str(e)}"
+            error_msg = f"Failed to execute menu item '{item.label}': {str(e)}"
             self.execution_error.emit(error_msg)
 
     def _handle_execution_result(self, result: ExecutionResult) -> None:
@@ -622,57 +608,6 @@ class PyQtMenuCoordinator(QObject):
             "dynamic_dirty": self._dynamic_items_dirty,
             "dynamic_provider_classes": self._dynamic_provider_classes,
         }
-
-    def _on_item_selected(self, item_data: Dict[str, Any]):
-        """Handle item selection from native context menu."""
-        try:
-            # Convert back to MenuItem if needed
-            if 'menu_item' in item_data:
-                menu_item = item_data['menu_item']
-                self._execute_menu_item(menu_item)
-            else:
-                # Handle direct execution
-                if 'action' in item_data and item_data['action']:
-                    result = item_data['action']()
-                    if result:
-                        self._handle_execution_result(result)
-        except Exception as e:
-            self._handle_error(f"Error executing menu item: {str(e)}")
-
-    def _on_menu_closed(self):
-        """Handle menu being closed."""
-        # Clean up any temporary state if needed
-        pass
-
-    def _convert_menu_items_to_dict(self, items: List[MenuItem]) -> List[Dict[str, Any]]:
-        """Convert MenuItem objects to dictionary format for native menu."""
-        result = []
-        
-        for item in items:
-            menu_dict = {
-                'text': item.label,
-                'enabled': item.enabled,
-                'menu_item': item  # Store reference for execution
-            }
-            
-            # Handle shortcuts
-            if hasattr(item, 'shortcut') and item.shortcut:
-                menu_dict['shortcut'] = item.shortcut
-                
-            # Handle submenus
-            if hasattr(item, 'submenu_items') and item.submenu_items:
-                menu_dict['submenu'] = self._convert_menu_items_to_dict(item.submenu_items)
-            elif item.action:
-                # Store action for execution
-                menu_dict['action'] = item.action
-                
-            result.append(menu_dict)
-            
-            # Add separator after item if requested
-            if hasattr(item, 'separator_after') and item.separator_after:
-                result.append({'type': 'separator'})
-            
-        return result
 
 
 class PyQtMenuEventHandler:
