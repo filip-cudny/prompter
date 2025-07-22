@@ -425,6 +425,11 @@ class PyQtContextMenu(QObject):
                     if self._context_menu.execution_callback:
                         shift_pressed = bool(QApplication.keyboardModifiers() & Qt.ShiftModifier)
                         self._context_menu.execution_callback(self._menu_item, shift_pressed)
+                        # Close the menu after execution
+                        if self._context_menu.menu:
+                            self._context_menu.menu.close()
+                        if self._context_menu.focus_window:
+                            self._context_menu.focus_window.hide()
 
             def enterEvent(self, event):
                 if self._menu_item.enabled:
@@ -457,6 +462,11 @@ class PyQtContextMenu(QObject):
                     if self._context_menu.execution_callback:
                         shift_pressed = bool(QApplication.keyboardModifiers() & Qt.ShiftModifier)
                         self._context_menu.execution_callback(self._menu_item, shift_pressed)
+                        # Close the menu after execution
+                        if self._context_menu.menu:
+                            self._context_menu.menu.close()
+                        if self._context_menu.focus_window:
+                            self._context_menu.focus_window.hide()
                     event.accept()
                 else:
                     super().keyPressEvent(event)
@@ -512,6 +522,8 @@ class PyQtContextMenu(QObject):
             self.execution_callback(menu_item, True)
             if self.menu:
                 self.menu.close()
+            if self.focus_window:
+                self.focus_window.hide()
 
     def _clear_all_hover_states(self):
         """Clear all hover states."""
