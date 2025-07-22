@@ -207,7 +207,7 @@ class PyQtContextMenu(QObject):
         else:
             menu.setWindowFlags(Qt.Popup | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint)
             
-        menu.setAttribute(Qt.WA_TranslucentBackground, False)
+        menu.setAttribute(Qt.WA_TranslucentBackground, True)  # Enable transparency for rounded corners
         menu.setAttribute(Qt.WA_ShowWithoutActivating, False)  # Allow activation
         menu.setStyleSheet(self._menu_stylesheet)
 
@@ -474,6 +474,10 @@ class PyQtContextMenu(QObject):
         widget = ClickableLabel(item.label, item, self)
         if not item.enabled:
             widget.setEnabled(False)
+        
+        # Set tooltip if available
+        if hasattr(item, "tooltip") and item.tooltip:
+            widget.setToolTip(item.tooltip)
 
         action = QWidgetAction(menu)
         action.setDefaultWidget(widget)
