@@ -22,6 +22,7 @@ class PromptExecutionHandler:
         notification_manager: Optional[PyQtNotificationManager],
         openai_service: OpenAiService,
         config: AppConfig,
+        context_manager,
         prompt_store_service=None,
     ):
         self.settings_prompt_provider = settings_prompt_provider
@@ -29,6 +30,7 @@ class PromptExecutionHandler:
         self.notification_manager = notification_manager or PyQtNotificationManager()
         self.openai_service = openai_service
         self.config = config
+        self.context_manager = context_manager
         self.prompt_store_service = prompt_store_service
 
         # Initialize async execution manager
@@ -38,6 +40,7 @@ class PromptExecutionHandler:
             notification_manager,
             openai_service,
             config,
+            context_manager,
             prompt_store_service,
         )
 

@@ -36,6 +36,9 @@ class PyQtMenuCoordinator(QObject):
         self.execution_callback: Optional[Callable[[ExecutionResult], None]] = None
         self.error_callback: Optional[Callable[[str], None]] = None
 
+        # Context manager for cache invalidation
+        self.context_manager = None
+
         # Menu state
         self.last_menu_items: List[MenuItem] = []
         self.menu_cache: Dict[str, List[MenuItem]] = {}
@@ -59,6 +62,17 @@ class PyQtMenuCoordinator(QObject):
         # Connect internal signals
         self.execution_completed.connect(self._handle_execution_result)
         self.execution_error.connect(self._handle_error)
+
+    def set_context_manager(self, context_manager):
+        """Set the context manager and register for change notifications."""
+        self.context_manager = context_manager
+        if context_manager:
+            context_manager.add_change_callback(self._on_context_changed)
+
+    def _on_context_changed(self):
+        """Handle context changes by invalidating cache."""
+        logger.debug("Context changed, invalidating menu cache")
+        self._invalidate_cache()
 
     def add_provider(self, provider) -> None:
         """Add a menu provider."""
@@ -119,6 +133,9 @@ class PyQtMenuCoordinator(QObject):
         """Clean up resources."""
         if self.cache_timer.isActive():
             self.cache_timer.stop()
+
+        if self.context_manager:
+            self.context_manager.remove_change_callback(self._on_context_changed)
 
         if self.context_menu:
             self.context_menu.destroy()
@@ -525,6 +542,9 @@ class PyQtMenuCoordinator(QObject):
             "execute_active_prompt",
             "speech_recording_started",
             "speech_recording_stopped",
+            "set_context",
+            "append_context",
+            "clear_context",
         ] or item_type in [MenuItemType.PROMPT]:
             self._invalidate_cache()
 
@@ -544,11 +564,15 @@ class PyQtMenuCoordinator(QObject):
             "execute_active_prompt",
             "speech_recording_started",
             "speech_recording_stopped",
+            "set_context",
+            "append_context",
+            "clear_context",
         ]:
             self._invalidate_cache()
 
     def _invalidate_cache(self) -> None:
         """Invalidate only dynamic items cache."""
+        logger.debug("Invalidating menu cache")
         self._cached_dynamic_items = None
         self._dynamic_items_dirty = True
         self._cached_static_items = None
