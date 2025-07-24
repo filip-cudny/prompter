@@ -68,22 +68,26 @@ class PyQtMenuCoordinator(QObject):
         """Handle menu item execution from the context menu."""
         try:
             if shift_pressed:
-                # For shift+click, modify the item to include alternative execution flag
+                # For shift+click, check if item has alternative action
                 if hasattr(item, 'alternative_action') and item.alternative_action:
                     result = item.alternative_action()
                     if result:
                         self._handle_execution_result(result)
                 else:
-                    # Create modified item with alternative execution flag
-                    alt_item = MenuItem(
-                        id=item.id,
-                        label=item.label,
-                        item_type=item.item_type,
-                        action=item.action,
-                        data={**(item.data or {}), "alternative_execution": True},
-                        enabled=item.enabled,
-                    )
-                    self._execute_menu_item(alt_item)
+                    # For items that support alternative execution (prompts), create modified item
+                    if item.item_type == MenuItemType.PROMPT:
+                        alt_item = MenuItem(
+                            id=item.id,
+                            label=item.label,
+                            item_type=item.item_type,
+                            action=item.action,
+                            data={**(item.data or {}), "alternative_execution": True},
+                            enabled=item.enabled,
+                        )
+                        self._execute_menu_item(alt_item)
+                    else:
+                        # For system items (set default model, set active prompt), just execute normally
+                        self._execute_menu_item(item)
             else:
                 self._execute_menu_item(item)
         except Exception as e:
@@ -250,16 +254,22 @@ class PyQtMenuCoordinator(QObject):
         return wrapped_items
 
     def _execute_menu_item(self, item: MenuItem) -> None:
-        """Execute a menu item through the Prompter service."""
+        """Execute a menu item through the Prompter service or direct action call."""
         try:
-            # Execute the item using the service
-            result = self.prompt_store_service.execute_item(item)
+            # For system items with direct actions (like set default model, set active prompt),
+            # call the action directly instead of going through the execution service
+            if item.item_type == MenuItemType.SYSTEM and item.action is not None and callable(item.action):
+                # Call the action directly - it will emit its own execution_completed signal
+                item.action()
+            else:
+                # Execute the item using the service for prompts and other items
+                result = self.prompt_store_service.execute_item(item)
 
-            # Invalidate dynamic cache based on action type
-            self._invalidate_cache_for_action(item, result)
+                # Invalidate dynamic cache based on action type
+                self._invalidate_cache_for_action(item, result)
 
-            # Emit signal for thread-safe handling
-            self.execution_completed.emit(result)
+                # Emit signal for thread-safe handling
+                self.execution_completed.emit(result)
 
         except (RuntimeError, Exception) as e:
             error_msg = f"Failed to execute menu item '{item.label}': {str(e)}"
@@ -452,7 +462,7 @@ class PyQtMenuCoordinator(QObject):
                 submenu_item = MenuItem(
                     id=f"select_prompt_{prompt.id}",
                     label=prompt.name,
-                    item_type=MenuItemType.PROMPT,
+                    item_type=MenuItemType.SYSTEM,
                     action=make_set_active_action(prompt),
                     enabled=True,
                     separator_after=False,
