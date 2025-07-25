@@ -157,6 +157,7 @@ class PyQtContextMenu(QObject):
         self.focus_window: Optional[InvisibleFocusWindow] = None
         self.number_input_buffer = ""
         self.number_timer = None
+        self._focus_restore_pending = False
 
         self._menu_stylesheet = """
             QMenu {
@@ -254,7 +255,9 @@ class PyQtContextMenu(QObject):
             return
 
         try:
+            # Store both Qt and external application info
             self._store_qt_active_window()
+            self._store_active_window()
 
             x, y = position
             offset_x, offset_y = self.menu_position_offset
@@ -369,8 +372,6 @@ class PyQtContextMenu(QObject):
                 pass
             self.menu = None
         
-        self.original_active_window = None
-        self.qt_active_window = None
         self.shift_pressed = False
         
         # Clean up number input timer
@@ -381,6 +382,10 @@ class PyQtContextMenu(QObject):
         self.number_input_buffer = ""
         self.event_filter_installed = False
         self.hovered_widgets.clear()
+        
+        # Clear focus references after ensuring restoration
+        self.original_active_window = None
+        self.qt_active_window = None
 
     def _add_menu_items(self, menu: QMenu, items: List[MenuItem]) -> None:
         """Add menu items to a QMenu."""
@@ -446,6 +451,9 @@ class PyQtContextMenu(QObject):
                             self._context_menu.menu.close()
                         if self._context_menu.focus_window:
                             self._context_menu.focus_window.hide()
+                        # Restore focus after execution
+                        self._context_menu._focus_restore_pending = True
+                        QTimer.singleShot(100, self._context_menu._restore_focus_with_cleanup)
 
             def enterEvent(self, event):
                 if self._menu_item.enabled:
@@ -483,6 +491,9 @@ class PyQtContextMenu(QObject):
                             self._context_menu.menu.close()
                         if self._context_menu.focus_window:
                             self._context_menu.focus_window.hide()
+                        # Restore focus after execution
+                        self._context_menu._focus_restore_pending = True
+                        QTimer.singleShot(100, self._context_menu._restore_focus_with_cleanup)
                     event.accept()
                 else:
                     super().keyPressEvent(event)
@@ -518,9 +529,9 @@ class PyQtContextMenu(QObject):
                     return False
                 elif event.key() in (Qt.Key_Up, Qt.Key_Down, Qt.Key_Return, Qt.Key_Enter, Qt.Key_Space):
                     # Let QMenu handle these keys natively
-                    return False
+                    return False 
                 elif (event.key() >= Qt.Key_0 and event.key() <= Qt.Key_9):
-                    # Handle number key presses for prompt execution (including 0 for multi-digit)
+                    # Handle number key presses for prompt execution (including 0 for multi-digait)
                     digit = event.key() - Qt.Key_0
                     self.shift_pressed = bool(QApplication.keyboardModifiers() & Qt.ShiftModifier)
                     is_alternative = self.shift_pressed
@@ -609,13 +620,18 @@ class PyQtContextMenu(QObject):
         self.number_input_buffer = ""
     
     def _on_menu_about_to_hide(self):
-        """Handle menu about to hide - cleanup number timer."""
+        """Handle menu about to hide - cleanup number timer and restore focus."""
         if self.number_timer:
             self.number_timer.stop()
             self.number_timer.deleteLater()
             self.number_timer = None
         self.number_input_buffer = ""
         self.shift_pressed = False
+        
+        # Restore focus when menu closes (only if not already restoring via execution)
+        if not hasattr(self, '_focus_restore_pending'):
+            self._focus_restore_pending = True
+            QTimer.singleShot(50, self._restore_focus_with_cleanup)
 
     def _handle_number_key_press(self, menu, number, is_alternative):
         """Handle number key press to execute prompts by index."""
@@ -642,11 +658,14 @@ class PyQtContextMenu(QObject):
             # Execute the prompt using the context menu's execution callback
             if self.execution_callback:
                 self.execution_callback(menu_item, is_alternative)
-                # Close the menu after execution
+                # Close the menu after execution and restore focus
                 if self.menu:
                     self.menu.close()
                 if self.focus_window:
                     self.focus_window.hide()
+                # Restore focus after execution
+                self._focus_restore_pending = True
+                QTimer.singleShot(100, self._restore_focus_with_cleanup)
             
             return True
         
@@ -661,6 +680,9 @@ class PyQtContextMenu(QObject):
                 self.menu.close()
             if self.focus_window:
                 self.focus_window.hide()
+            # Restore focus after execution
+            self._focus_restore_pending = True
+            QTimer.singleShot(100, self._restore_focus_with_cleanup)
 
     def _clear_all_hover_states(self):
         """Clear all hover states."""
@@ -694,3 +716,173 @@ class PyQtContextMenu(QObject):
             self.qt_active_window = QApplication.activeWindow()
         except Exception:
             self.qt_active_window = None
+
+    def _store_active_window(self):
+        """Store information about the currently active external application."""
+        try:
+            if platform.system() == "Darwin":  # macOS
+                # Use AppleScript to get the frontmost application
+                script = """
+                tell application "System Events"
+                    set frontApp to name of first application process whose frontmost is true
+                    set frontAppPath to POSIX path of (file of first application process whose frontmost is true)
+                end tell
+                return frontApp & "|||" & frontAppPath
+                """
+                result = subprocess.run(
+                    ["osascript", "-e", script], capture_output=True, text=True, timeout=2
+                )
+                if result.returncode == 0:
+                    app_info = result.stdout.strip().split("|||")
+                    self.original_active_window = {
+                        "name": app_info[0],
+                        "path": app_info[1] if len(app_info) > 1 else None,
+                    }
+            elif platform.system() == "Linux":  # Linux
+                # Use xdotool to get the active window
+                try:
+                    # Get active window ID
+                    result = subprocess.run(
+                        ["xdotool", "getactivewindow"], capture_output=True, text=True, timeout=1
+                    )
+                    if result.returncode == 0:
+                        window_id = result.stdout.strip()
+
+                        # Get window info
+                        result = subprocess.run(
+                            ["xdotool", "getwindowname", window_id],
+                            capture_output=True,
+                            text=True,
+                            timeout=1
+                        )
+                        window_name = (
+                            result.stdout.strip()
+                            if result.returncode == 0
+                            else "Unknown"
+                        )
+
+                        # Get process info
+                        result = subprocess.run(
+                            ["xdotool", "getwindowpid", window_id],
+                            capture_output=True,
+                            text=True,
+                            timeout=1
+                        )
+                        pid = result.stdout.strip() if result.returncode == 0 else None
+
+                        self.original_active_window = {
+                            "window_id": window_id,
+                            "name": window_name,
+                            "pid": pid,
+                        }
+                except FileNotFoundError:
+                    # xdotool not available, try xprop as fallback
+                    result = subprocess.run(
+                        ["xprop", "-root", "_NET_ACTIVE_WINDOW"],
+                        capture_output=True,
+                        text=True,
+                        timeout=1
+                    )
+                    if result.returncode == 0:
+                        # Extract window ID from xprop output
+                        import re
+                        match = re.search(r"0x[0-9a-fA-F]+", result.stdout)
+                        if match:
+                            window_id = match.group()
+                            self.original_active_window = {
+                                "window_id": window_id,
+                                "name": "Unknown",
+                                "pid": None,
+                            }
+        except Exception as e:
+            print(f"Error storing active window: {e}")
+            self.original_active_window = None
+
+    def _restore_focus(self):
+        """Restore focus to the original application that was active before menu was shown."""
+        try:
+            # First try Qt-native focus restoration (fast)
+            if self.qt_active_window and not sip.isdeleted(self.qt_active_window):
+                self.qt_active_window.activateWindow()
+                self.qt_active_window.raise_()
+                return
+
+            # If Qt window is not available, try external focus restoration
+            if not self.original_active_window:
+                return
+
+            if platform.system() == "Darwin":  # macOS
+                app_name = self.original_active_window.get("name")
+                if app_name and app_name not in ("Python", "Prompter"):  # Don't try to activate our own app
+                    try:
+                        # First try by application name
+                        script = f'''
+                        tell application "{app_name}"
+                            activate
+                        end tell
+                        '''
+                        result = subprocess.run(
+                            ["osascript", "-e", script], capture_output=True, text=True, timeout=2
+                        )
+                        
+                        # If that fails, try by process name
+                        if result.returncode != 0:
+                            script2 = f'''
+                            tell application "System Events"
+                                set frontmost of first process whose name is "{app_name}" to true
+                            end tell
+                            '''
+                            subprocess.run(
+                                ["osascript", "-e", script2], capture_output=True, text=True, timeout=2
+                            )
+                    except Exception as e:
+                        print(f"Error restoring macOS focus to {app_name}: {e}")
+            elif platform.system() == "Linux":  # Linux
+                window_id = self.original_active_window.get("window_id")
+                if window_id:
+                    try:
+                        # Try xdotool first
+                        subprocess.run(
+                            ["xdotool", "windowactivate", window_id],
+                            capture_output=True,
+                            text=True,
+                            timeout=1
+                        )
+                    except FileNotFoundError:
+                        # xdotool not available, try wmctrl as fallback
+                        try:
+                            subprocess.run(
+                                ["wmctrl", "-ia", window_id],
+                                capture_output=True,
+                                text=True,
+                                timeout=1
+                            )
+                        except FileNotFoundError:
+                            # Neither tool available, try xprop method
+                            subprocess.run(
+                                [
+                                    "xprop",
+                                    "-id",
+                                    window_id,
+                                    "-f",
+                                    "_NET_ACTIVE_WINDOW",
+                                    "32a",
+                                    "-set",
+                                    "_NET_ACTIVE_WINDOW",
+                                    window_id,
+                                ],
+                                capture_output=True,
+                                text=True,
+                                timeout=1
+                            )
+        except Exception as e:
+            print(f"Error restoring focus: {e}")
+
+    def _restore_focus_with_cleanup(self):
+        """Restore focus and clear the pending flag."""
+        try:
+            self._restore_focus()
+        finally:
+            # Clear the pending flag
+            if hasattr(self, '_focus_restore_pending'):
+                delattr(self, '_focus_restore_pending')
