@@ -148,6 +148,7 @@ class PyQtContextMenu(QObject):
         self.parent = parent
         self.menu: Optional[QMenu] = None
         self.menu_position_offset = (0, 0)
+        self.number_input_debounce_ms = 200
         self.execution_callback: Optional[Callable] = None
         self.shift_pressed = False
         self.event_filter_installed = False
@@ -348,6 +349,10 @@ class PyQtContextMenu(QObject):
     def set_menu_position_offset(self, offset: Tuple[int, int]) -> None:
         """Set offset for menu positioning."""
         self.menu_position_offset = offset
+
+    def set_number_input_debounce_ms(self, debounce_ms: int) -> None:
+        """Set debounce delay for number input in milliseconds."""
+        self.number_input_debounce_ms = debounce_ms
 
     def destroy(self) -> None:
         """Clean up the menu."""
@@ -589,7 +594,7 @@ class PyQtContextMenu(QObject):
         self.number_timer = QTimer()
         self.number_timer.setSingleShot(True)
         self.number_timer.timeout.connect(lambda: self._execute_buffered_number(menu, is_alternative))
-        self.number_timer.start(200)
+        self.number_timer.start(self.number_input_debounce_ms)
         
         return True
 

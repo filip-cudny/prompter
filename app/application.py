@@ -299,6 +299,7 @@ class PrompterApp(QObject):
         # Initialize menu coordinator
         self.menu_coordinator = PyQtMenuCoordinator(self.prompt_store_service, self.app)
         self.menu_coordinator.set_menu_position_offset(self.config.menu_position_offset)
+        self.menu_coordinator.set_number_input_debounce_ms(self.config.number_input_debounce_ms)
 
         # Initialize event handler
         self.event_handler = PyQtMenuEventHandler(self.menu_coordinator)
@@ -651,6 +652,9 @@ class PrompterApp(QObject):
             if self.menu_coordinator and self.config:
                 self.menu_coordinator.set_menu_position_offset(
                     self.config.menu_position_offset
+                )
+                self.menu_coordinator.set_number_input_debounce_ms(
+                    self.config.number_input_debounce_ms
                 )
 
             # Restart if was running

@@ -129,6 +129,10 @@ class PyQtMenuCoordinator(QObject):
         """Set menu positioning offset."""
         self.context_menu.set_menu_position_offset(offset)
 
+    def set_number_input_debounce_ms(self, debounce_ms: int) -> None:
+        """Set debounce delay for number input in milliseconds."""
+        self.context_menu.set_number_input_debounce_ms(debounce_ms)
+
     def show_menu(self) -> None:
         """Show the context menu at cursor position."""
         if self.context_menu.menu and self.context_menu.menu.isVisible():

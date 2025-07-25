@@ -33,6 +33,7 @@ class AppConfig:
     """Application configuration."""
 
     menu_position_offset: tuple = (0, 0)
+    number_input_debounce_ms: int = 200
     keymap_manager: Optional["KeymapManager"] = None
     models: Optional[Dict[str, Any]] = None
     speech_to_text_model: Optional[Dict[str, Any]] = None
@@ -123,6 +124,13 @@ class ConfigService:
         except ValueError:
             config.menu_position_offset = (0, 0)
 
+        # Parse number input debounce delay
+        debounce_str = os.getenv("NUMBER_INPUT_DEBOUNCE_MS", "200")
+        try:
+            config.number_input_debounce_ms = int(debounce_str)
+        except ValueError:
+            config.number_input_debounce_ms = 200
+
         # Load settings file
         keymap_settings_file = settings_file or "settings/settings.json"
         if Path(keymap_settings_file).exists():
@@ -146,6 +154,15 @@ class ConfigService:
                 config.default_model = self._settings_data.get("default_model")
                 if config.models and not config.default_model:
                     config.default_model = next(iter(config.models.keys()))
+
+                # Load number input debounce delay from settings if available
+                if "number_input_debounce_ms" in self._settings_data:
+                    try:
+                        config.number_input_debounce_ms = int(
+                            self._settings_data["number_input_debounce_ms"]
+                        )
+                    except (ValueError, TypeError):
+                        pass
 
                 # Load API keys from environment variables
                 _load_api_keys(config.models)
@@ -247,6 +264,19 @@ def validate_config(config: AppConfig) -> None:
                 raise ConfigurationError(
                     f"Model '{model_name}' base_url must start with http:// or https://"
                 )
+
+    # Validate number_input_debounce_ms
+    if config.number_input_debounce_ms is not None:
+        try:
+            debounce_ms = int(config.number_input_debounce_ms)
+            if debounce_ms < 0 or debounce_ms > 10000:
+                raise ConfigurationError(
+                    "number_input_debounce_ms must be between 0 and 10000 milliseconds"
+                )
+        except (ValueError, TypeError):
+            raise ConfigurationError(
+                "number_input_debounce_ms must be a valid integer"
+            )
 
     # Validate speech_to_text_model if present
     if config.speech_to_text_model is not None:
