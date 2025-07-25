@@ -522,14 +522,16 @@ class PyQtContextMenu(QObject):
                 elif (event.key() >= Qt.Key_0 and event.key() <= Qt.Key_9):
                     # Handle number key presses for prompt execution (including 0 for multi-digit)
                     digit = event.key() - Qt.Key_0
-                    is_alternative = self.shift_pressed or bool(QApplication.keyboardModifiers() & Qt.ShiftModifier)
+                    self.shift_pressed = bool(QApplication.keyboardModifiers() & Qt.ShiftModifier)
+                    is_alternative = self.shift_pressed
                     if self._handle_number_input(obj, str(digit), is_alternative):
                         return True
                 else:
                     # Handle any key that produces a digit character (including shifted numbers)
                     text = event.text()
                     if text and len(text) == 1 and text.isdigit():
-                        is_alternative = self.shift_pressed or bool(QApplication.keyboardModifiers() & Qt.ShiftModifier)
+                        self.shift_pressed = bool(QApplication.keyboardModifiers() & Qt.ShiftModifier)
+                        is_alternative = self.shift_pressed
                         if self._handle_number_input(obj, text, is_alternative):
                             return True
                     # Also handle shifted number characters (!@#$%^&*()
@@ -613,6 +615,7 @@ class PyQtContextMenu(QObject):
             self.number_timer.deleteLater()
             self.number_timer = None
         self.number_input_buffer = ""
+        self.shift_pressed = False
 
     def _handle_number_key_press(self, menu, number, is_alternative):
         """Handle number key press to execute prompts by index."""
