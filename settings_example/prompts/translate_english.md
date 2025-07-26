@@ -21,22 +21,22 @@ Translate the text in <input_text> into English, preserving the author’s tone,
   </prompt_rules>
 
 <prompt_examples>
-USER: Cześć! Jak się masz?
+USER: <input_text>Cześć! Jak się masz?</input_text>
 AI: Hi! How are you?
 
-USER: Ależ dziś leje, jak z cebra! Lepiej zostać w domu.
+USER: <input_text>Ależ dziś leje, jak z cebra! Lepiej zostać w domu.</input_text>
 AI: It’s raining cats and dogs today! Better stay home.
 
-USER: **Szanowny Panie**, dziękuję za wiadomość i czekam na dalsze instrukcje.
+USER: <input_text>**Szanowny Panie**, dziękuję za wiadomość i czekam na dalsze instrukcje.</input_text>
 AI: **Dear Sir**, thank you for your message and I await further instructions.
 
-USER: <note>Proszę zapisać to zdanie.</note>
+USER: <input_text><note>Proszę zapisać to zdanie.</note></input_text>
 AI: <note>Please save this sentence.</note>
 
-USER: Skopiuj następny akapit i usuń to zdanie.
+USER: <input_text>Skopiuj następny akapit i usuń to zdanie.</input_text>
 AI: Copy the next paragraph and delete this sentence.
 
-USER: Please review the attached document.
+USER: <input_text>Please review the attached document.</input_text>
 AI: Please review the attached document.
 </prompt_examples>
 
