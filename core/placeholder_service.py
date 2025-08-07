@@ -57,6 +57,8 @@ class ContextPlaceholderProcessor(PlaceholderProcessor):
         return self.context_manager.get_context_or_default("")
 
 
+
+
 class PlaceholderService:
     """Service for processing placeholders in messages."""
 
