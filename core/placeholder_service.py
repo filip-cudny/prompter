@@ -57,15 +57,21 @@ class ContextPlaceholderProcessor(PlaceholderProcessor):
         return self.context_manager.get_context_or_default("")
 
 
+
+
 class PlaceholderService:
     """Service for processing placeholders in messages."""
 
-    def __init__(self, clipboard_manager: ClipboardManager, context_manager: ContextManager):
+    def __init__(
+        self, clipboard_manager: ClipboardManager, context_manager: ContextManager
+    ):
         self.processors: Dict[str, PlaceholderProcessor] = {}
         self.context_manager = context_manager
         self._register_default_processors(clipboard_manager, context_manager)
 
-    def _register_default_processors(self, clipboard_manager: ClipboardManager, context_manager: ContextManager) -> None:
+    def _register_default_processors(
+        self, clipboard_manager: ClipboardManager, context_manager: ContextManager
+    ) -> None:
         """Register default placeholder processors."""
         self.register_processor(ClipboardPlaceholderProcessor(clipboard_manager))
         self.register_processor(ContextPlaceholderProcessor(context_manager))
@@ -83,20 +89,56 @@ class PlaceholderService:
             logger.debug("Unregistered placeholder processor: %s", placeholder_name)
 
     def process_messages(
-        self,
-        messages: List[Dict[str, Any]],
-        context: Optional[str] = None
+        self, messages: List[Dict[str, Any]], context: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """Process placeholders in messages."""
         processed_messages = []
 
-        for message in messages:
+        for i, message in enumerate(messages):
             if message and isinstance(message.get("content"), str):
-                content = self._process_content(message["content"], context)
-                role = message.get("role", "user")
-                processed_messages.append({"role": role, "content": content})
+                # For the last message (user message), attach images if available
+                is_last_message = i == len(messages) - 1
+                processed_message = self._process_message_with_context(message, context, is_last_message)
+                processed_messages.append(processed_message)
 
         return processed_messages
+
+    def _process_message_with_context(
+        self, message: Dict[str, Any], context: Optional[str] = None, is_last_message: bool = False
+    ) -> Dict[str, Any]:
+        """Process message with context, handling both text and images."""
+        content = message.get("content", "")
+        role = message.get("role", "user")
+
+        # Process text placeholders
+        processed_content = self._process_content(content, context)
+
+        # For the last message, check if we have images to attach
+        if is_last_message and self.context_manager.has_images():
+            context_images = self.context_manager.get_context_images()
+            
+            # Create message with content array for images
+            message_content: List[Dict[str, Any]] = []
+
+            # Add text content first if not empty
+            if processed_content.strip():
+                message_content.append({"type": "text", "text": processed_content})
+
+            # Add images
+            for img in context_images:
+                message_content.append(
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:{img['media_type']};base64,{img['data']}"
+                        },
+                    }
+                )
+
+            return {"role": role, "content": message_content}
+
+        # Standard text-only message
+        return {"role": role, "content": processed_content}
 
     def _process_content(self, content: str, context: Optional[str] = None) -> str:
         """Process placeholders in content string."""
@@ -112,8 +154,12 @@ class PlaceholderService:
                     )
                     logger.debug("Processed placeholder: %s", placeholder_name)
                 except Exception as e:
-                    logger.error("Failed to process placeholder %s: %s", placeholder_name, e)
-                    processed_content = processed_content.replace(placeholder_pattern, "")
+                    logger.error(
+                        "Failed to process placeholder %s: %s", placeholder_name, e
+                    )
+                    processed_content = processed_content.replace(
+                        placeholder_pattern, ""
+                    )
 
         return processed_content
 

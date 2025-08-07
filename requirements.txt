@@ -19,6 +19,9 @@ python-xlib>=0.33; sys_platform == "linux"
 
 # windows support is handled by built-in ctypes
 
+# Image processing
+Pillow>=8.0.0
+
 # Speech-to-text dependencies (minimal version)
 sounddevice>=0.4.6
 numpy>=2.3.1
