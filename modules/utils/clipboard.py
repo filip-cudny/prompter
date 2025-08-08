@@ -174,23 +174,8 @@ class SystemClipboardManager(ClipboardManager):
 
     def _has_image_linux(self) -> bool:
         """Check if clipboard contains an image on Linux."""
-        try:
-            result = subprocess.run(
-                ["xsel", "--clipboard", "--output", "--targets"],
-                capture_output=True,
-                text=True,
-                timeout=5,
-            )
-
-            if result.returncode == 0:
-                targets = result.stdout.lower()
-                return any(
-                    fmt in targets
-                    for fmt in ["image/png", "image/jpeg", "image/gif", "image/bmp"]
-                )
-        except FileNotFoundError:
-            pass
-
+        logger.debug("Checking Linux clipboard for images")
+        # Try xclip first as it has reliable TARGETS support
         try:
             result = subprocess.run(
                 ["xclip", "-selection", "clipboard", "-t", "TARGETS", "-o"],
@@ -201,13 +186,34 @@ class SystemClipboardManager(ClipboardManager):
 
             if result.returncode == 0:
                 targets = result.stdout.lower()
-                return any(
+                logger.debug(f"xclip targets: {targets}")
+                has_image = any(
                     fmt in targets
                     for fmt in ["image/png", "image/jpeg", "image/gif", "image/bmp"]
                 )
+                logger.debug(f"xclip image detection result: {has_image}")
+                return has_image
         except FileNotFoundError:
-            pass
+            logger.debug("xclip not found, trying xsel with manual detection")
 
+        # Fallback: try to detect images by attempting to retrieve them with xsel
+        try:
+            image_formats = ["image/png", "image/jpeg", "image/gif", "image/bmp"]
+            for mime_type in image_formats:
+                result = subprocess.run(
+                    ["xsel", "--clipboard", "--output", "--target", mime_type],
+                    capture_output=True,
+                    timeout=2,
+                )
+                if result.returncode == 0 and result.stdout:
+                    logger.debug(f"xsel detected image format: {mime_type}")
+                    return True
+            logger.debug("xsel found no image formats")
+            return False
+        except FileNotFoundError:
+            logger.debug("xsel not found either")
+
+        logger.debug("No clipboard tools available for image detection")
         return False
 
     def _get_image_data_linux(self) -> Optional[Tuple[str, str]]:
@@ -219,31 +225,63 @@ class SystemClipboardManager(ClipboardManager):
             ("image/bmp", "bmp"),
         ]
 
+        logger.debug("Attempting to get image data from Linux clipboard")
+
+        # Try xclip first as it's more reliable
         for mime_type, ext in image_formats:
+            logger.debug(f"Trying to get image data for MIME type: {mime_type}")
             try:
                 result = subprocess.run(
-                    ["xsel", "--clipboard", "--output"],
+                    ["xclip", "-selection", "clipboard", "-t", mime_type, "-o"],
                     capture_output=True,
                     timeout=5,
                 )
 
                 if result.returncode == 0 and result.stdout:
+                    logger.debug(
+                        f"Successfully retrieved image data using xclip, size: {len(result.stdout)} bytes"
+                    )
                     image_data = base64.b64encode(result.stdout).decode("utf-8")
                     return (image_data, mime_type)
+                else:
+                    logger.debug(
+                        f"xclip failed for {mime_type}, return code: {result.returncode}"
+                    )
             except FileNotFoundError:
+                break  # Try xsel for all formats if xclip not found
+
+        # Fallback to xsel if xclip is not available
+        try:
+            subprocess.run(["xsel", "--version"], capture_output=True, timeout=2)
+            logger.debug("xclip not found, trying xsel")
+            for mime_type, ext in image_formats:
+                logger.debug(
+                    f"Trying to get image data for MIME type: {mime_type} using xsel"
+                )
                 try:
                     result = subprocess.run(
-                        ["xclip", "-selection", "clipboard", "-t", mime_type, "-o"],
+                        ["xsel", "--clipboard", "--output", "--target", mime_type],
                         capture_output=True,
                         timeout=5,
                     )
 
                     if result.returncode == 0 and result.stdout:
+                        logger.debug(
+                            f"Successfully retrieved image data using xsel, size: {len(result.stdout)} bytes"
+                        )
                         image_data = base64.b64encode(result.stdout).decode("utf-8")
                         return (image_data, mime_type)
-                except FileNotFoundError:
+                    else:
+                        logger.debug(
+                            f"xsel failed for {mime_type}, return code: {result.returncode}"
+                        )
+                except Exception as e:
+                    logger.debug(f"xsel error for {mime_type}: {e}")
                     continue
+        except FileNotFoundError:
+            logger.debug("xsel not found either")
 
+        logger.debug("No image data could be retrieved from Linux clipboard")
         return None
 
     def _has_image_windows(self) -> bool:
