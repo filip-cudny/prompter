@@ -178,23 +178,26 @@ class SystemClipboardManager(ClipboardManager):
         # Try xclip first as it has reliable TARGETS support
         try:
             result = subprocess.run(
-                ["xclip", "-selection", "clipboard", "-t", "TARGETS", "-o"],
+                ["xclip", "-selection", "clipboard", "-t", "TARGETS", "-out"],
                 capture_output=True,
                 text=True,
-                timeout=5,
+                timeout=3,
+                check=True,
             )
-
-            if result.returncode == 0:
-                targets = result.stdout.lower()
-                logger.debug(f"xclip targets: {targets}")
-                has_image = any(
-                    fmt in targets
-                    for fmt in ["image/png", "image/jpeg", "image/gif", "image/bmp"]
-                )
-                logger.debug(f"xclip image detection result: {has_image}")
-                return has_image
-        except FileNotFoundError:
-            logger.debug("xclip not found, trying xsel with manual detection")
+            targets = result.stdout.lower()
+            logger.debug(f"xclip targets: {targets}")
+            has_image = any(
+                fmt in targets
+                for fmt in ["image/png", "image/jpeg", "image/gif", "image/bmp"]
+            )
+            logger.debug(f"xclip image detection result: {has_image}")
+            return has_image
+        except (
+            FileNotFoundError,
+            subprocess.TimeoutExpired,
+            subprocess.CalledProcessError,
+        ):
+            logger.debug("xclip not found or failed, trying xsel with manual detection")
 
         # Fallback: try to detect images by attempting to retrieve them with xsel
         try:
@@ -204,6 +207,7 @@ class SystemClipboardManager(ClipboardManager):
                     ["xsel", "--clipboard", "--output", "--target", mime_type],
                     capture_output=True,
                     timeout=2,
+                    check=False,
                 )
                 if result.returncode == 0 and result.stdout:
                     logger.debug(f"xsel detected image format: {mime_type}")
@@ -232,54 +236,51 @@ class SystemClipboardManager(ClipboardManager):
             logger.debug(f"Trying to get image data for MIME type: {mime_type}")
             try:
                 result = subprocess.run(
-                    ["xclip", "-selection", "clipboard", "-t", mime_type, "-o"],
+                    ["xclip", "-selection", "clipboard", "-t", mime_type, "-out"],
                     capture_output=True,
-                    timeout=5,
+                    timeout=3,
+                    check=True,
                 )
-
-                if result.returncode == 0 and result.stdout:
+                if result.stdout:
                     logger.debug(
                         f"Successfully retrieved image data using xclip, size: {len(result.stdout)} bytes"
                     )
                     image_data = base64.b64encode(result.stdout).decode("utf-8")
                     return (image_data, mime_type)
-                else:
-                    logger.debug(
-                        f"xclip failed for {mime_type}, return code: {result.returncode}"
-                    )
-            except FileNotFoundError:
+            except (
+                FileNotFoundError,
+                subprocess.TimeoutExpired,
+                subprocess.CalledProcessError,
+            ):
+                if mime_type == image_formats[0][0]:  # Only log once on first format
+                    logger.debug("xclip not available for images, trying xsel")
                 break  # Try xsel for all formats if xclip not found
 
         # Fallback to xsel if xclip is not available
-        try:
-            subprocess.run(["xsel", "--version"], capture_output=True, timeout=2)
-            logger.debug("xclip not found, trying xsel")
-            for mime_type, ext in image_formats:
-                logger.debug(
-                    f"Trying to get image data for MIME type: {mime_type} using xsel"
+        for mime_type, ext in image_formats:
+            logger.debug(
+                f"Trying to get image data for MIME type: {mime_type} using xsel"
+            )
+            try:
+                result = subprocess.run(
+                    ["xsel", "--clipboard", "--output", "--target", mime_type],
+                    capture_output=True,
+                    timeout=3,
+                    check=True,
                 )
-                try:
-                    result = subprocess.run(
-                        ["xsel", "--clipboard", "--output", "--target", mime_type],
-                        capture_output=True,
-                        timeout=5,
+                if result.stdout:
+                    logger.debug(
+                        f"Successfully retrieved image data using xsel, size: {len(result.stdout)} bytes"
                     )
-
-                    if result.returncode == 0 and result.stdout:
-                        logger.debug(
-                            f"Successfully retrieved image data using xsel, size: {len(result.stdout)} bytes"
-                        )
-                        image_data = base64.b64encode(result.stdout).decode("utf-8")
-                        return (image_data, mime_type)
-                    else:
-                        logger.debug(
-                            f"xsel failed for {mime_type}, return code: {result.returncode}"
-                        )
-                except Exception as e:
-                    logger.debug(f"xsel error for {mime_type}: {e}")
-                    continue
-        except FileNotFoundError:
-            logger.debug("xsel not found either")
+                    image_data = base64.b64encode(result.stdout).decode("utf-8")
+                    return (image_data, mime_type)
+            except (
+                FileNotFoundError,
+                subprocess.TimeoutExpired,
+                subprocess.CalledProcessError,
+            ) as e:
+                logger.debug(f"xsel failed for {mime_type}: {e}")
+                continue
 
         logger.debug("No image data could be retrieved from Linux clipboard")
         return None
@@ -358,74 +359,84 @@ class SystemClipboardManager(ClipboardManager):
 
     def _get_content_linux(self) -> str:
         """Get clipboard content on Linux."""
-        # try:
-        #     result = subprocess.run(
-        #         ["xclip", "-selection", "clipboard", "-o"],
-        #         capture_output=True,
-        #         text=True,
-        #         timeout=5,
-        #     )
-        #     if result.returncode != 0:
-        #         raise ClipboardError(f"xclip failed: {result.stderr}")
-        #     return result.stdout
-        # except FileNotFoundError:
+        xclip_error = None
+        try:
+            result = subprocess.run(
+                ["xclip", "-selection", "clipboard", "-out"],
+                capture_output=True,
+                text=True,
+                timeout=3,
+                check=True,
+            )
+            return result.stdout
+        except FileNotFoundError:
+            xclip_error = "xclip not found"
+        except subprocess.TimeoutExpired:
+            xclip_error = "xclip timed out"
+        except subprocess.CalledProcessError as e:
+            xclip_error = f"xclip failed with code {e.returncode}: {e.stderr}"
+
+        # Try xsel as fallback
         try:
             result = subprocess.run(
                 ["xsel", "--clipboard", "--output"],
                 capture_output=True,
                 text=True,
-                timeout=5,
+                timeout=3,
+                check=True,
             )
-            if result.returncode != 0:
-                raise ClipboardError(f"xsel failed: {result.stderr}")
             return result.stdout
         except FileNotFoundError:
-            try:
-                result = subprocess.run(
-                    ["xclip", "-selection", "clipboard", "-o"],
-                    capture_output=True,
-                    text=True,
-                    timeout=5,
-                )
-                if result.returncode != 0:
-                    raise ClipboardError(f"xclip failed: {result.stderr}")
-                return result.stdout
-            except FileNotFoundError as exc:
-                raise ClipboardError(
-                    "Neither xsel nor xclip found. Please install one."
-                ) from exc
+            raise ClipboardError(f"xclip failed ({xclip_error}) and xsel not found")
+        except subprocess.TimeoutExpired:
+            raise ClipboardError(f"xclip failed ({xclip_error}) and xsel timed out")
+        except subprocess.CalledProcessError as e:
+            raise ClipboardError(
+                f"xclip failed ({xclip_error}) and xsel failed with code {e.returncode}: {e.stderr}"
+            )
 
     def _set_content_linux(self, content: str) -> bool:
         """Set clipboard content on Linux."""
+        xclip_error = None
         try:
-            result = subprocess.run(
+            subprocess.run(
+                ["xclip", "-selection", "clipboard", "-in"],
+                input=content,
+                text=True,
+                timeout=3,
+                check=True,
+            )
+            return True
+        except FileNotFoundError:
+            xclip_error = "xclip not found"
+        except subprocess.TimeoutExpired:
+            xclip_error = "xclip timed out"
+        except subprocess.CalledProcessError as e:
+            xclip_error = f"xclip failed with code {e.returncode}"
+
+        # Try xsel as fallback
+        try:
+            subprocess.run(
                 ["xsel", "--clipboard", "--input"],
                 input=content,
                 text=True,
-                capture_output=True,
-                timeout=5,
+                timeout=3,
+                check=True,
             )
-            return result.returncode == 0
+            return True
         except FileNotFoundError:
-            try:
-                result = subprocess.run(
-                    ["xclip", "-selection", "clipboard"],
-                    input=content,
-                    text=True,
-                    capture_output=True,
-                    timeout=5,
-                )
-                return result.returncode == 0
-            except FileNotFoundError as exc:
-                raise ClipboardError(
-                    "Neither xsel nor xclip found. Please install one."
-                ) from exc
+            raise ClipboardError(f"xclip failed ({xclip_error}) and xsel not found")
+        except subprocess.TimeoutExpired:
+            raise ClipboardError(f"xclip failed ({xclip_error}) and xsel timed out")
+        except subprocess.CalledProcessError as e:
+            raise ClipboardError(
+                f"xclip failed ({xclip_error}) and xsel failed with code {e.returncode}"
+            )
 
     def _get_content_windows(self) -> str:
         """Get clipboard content on Windows."""
         try:
             from PyQt5.QtWidgets import QApplication
-            from PyQt5.QtCore import QMimeData
 
             app = QApplication.instance()
             if app is None:
