@@ -64,31 +64,31 @@ class SystemClipboardManager(ClipboardManager):
 
     def _get_content_linux(self) -> str:
         """Get clipboard content on Linux."""
+        # try:
+        #     result = subprocess.run(
+        #         ["xclip", "-selection", "clipboard", "-o"],
+        #         capture_output=True,
+        #         text=True,
+        #         timeout=5,
+        #     )
+        #     if result.returncode != 0:
+        #         raise ClipboardError(f"xclip failed: {result.stderr}")
+        #     return result.stdout
+        # except FileNotFoundError:
         try:
             result = subprocess.run(
-                ["xclip", "-selection", "clipboard", "-o"],
+                ["xsel", "--clipboard", "--output"],
                 capture_output=True,
                 text=True,
                 timeout=5,
             )
             if result.returncode != 0:
-                raise ClipboardError(f"xclip failed: {result.stderr}")
+                raise ClipboardError(f"xsel failed: {result.stderr}")
             return result.stdout
-        except FileNotFoundError:
-            try:
-                result = subprocess.run(
-                    ["xsel", "--clipboard", "--output"],
-                    capture_output=True,
-                    text=True,
-                    timeout=5,
-                )
-                if result.returncode != 0:
-                    raise ClipboardError(f"xsel failed: {result.stderr}")
-                return result.stdout
-            except FileNotFoundError as exc:
-                raise ClipboardError(
-                    "Neither xclip nor xsel found. Please install one."
-                ) from exc
+        except FileNotFoundError as exc:
+            raise ClipboardError(
+                "Neither xclip nor xsel found. Please install one."
+            ) from exc
 
     def _set_content_linux(self, content: str) -> bool:
         """Set clipboard content on Linux."""
