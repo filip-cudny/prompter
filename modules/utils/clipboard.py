@@ -176,7 +176,7 @@ class SystemClipboardManager(ClipboardManager):
         """Check if clipboard contains an image on Linux."""
         try:
             result = subprocess.run(
-                ["xclip", "-selection", "clipboard", "-t", "TARGETS", "-o"],
+                ["xsel", "--clipboard", "--output", "--targets"],
                 capture_output=True,
                 text=True,
                 timeout=5,
@@ -193,7 +193,7 @@ class SystemClipboardManager(ClipboardManager):
 
         try:
             result = subprocess.run(
-                ["xsel", "--clipboard", "--output", "--targets"],
+                ["xclip", "-selection", "clipboard", "-t", "TARGETS", "-o"],
                 capture_output=True,
                 text=True,
                 timeout=5,
@@ -222,7 +222,7 @@ class SystemClipboardManager(ClipboardManager):
         for mime_type, ext in image_formats:
             try:
                 result = subprocess.run(
-                    ["xclip", "-selection", "clipboard", "-t", mime_type, "-o"],
+                    ["xsel", "--clipboard", "--output"],
                     capture_output=True,
                     timeout=5,
                 )
@@ -233,7 +233,7 @@ class SystemClipboardManager(ClipboardManager):
             except FileNotFoundError:
                 try:
                     result = subprocess.run(
-                        ["xsel", "--clipboard", "--output"],
+                        ["xclip", "-selection", "clipboard", "-t", mime_type, "-o"],
                         capture_output=True,
                         timeout=5,
                     )
@@ -341,16 +341,27 @@ class SystemClipboardManager(ClipboardManager):
             if result.returncode != 0:
                 raise ClipboardError(f"xsel failed: {result.stderr}")
             return result.stdout
-        except FileNotFoundError as exc:
-            raise ClipboardError(
-                "Neither xclip nor xsel found. Please install one."
-            ) from exc
+        except FileNotFoundError:
+            try:
+                result = subprocess.run(
+                    ["xclip", "-selection", "clipboard", "-o"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                if result.returncode != 0:
+                    raise ClipboardError(f"xclip failed: {result.stderr}")
+                return result.stdout
+            except FileNotFoundError as exc:
+                raise ClipboardError(
+                    "Neither xsel nor xclip found. Please install one."
+                ) from exc
 
     def _set_content_linux(self, content: str) -> bool:
         """Set clipboard content on Linux."""
         try:
             result = subprocess.run(
-                ["xclip", "-selection", "clipboard"],
+                ["xsel", "--clipboard", "--input"],
                 input=content,
                 text=True,
                 capture_output=True,
@@ -360,7 +371,7 @@ class SystemClipboardManager(ClipboardManager):
         except FileNotFoundError:
             try:
                 result = subprocess.run(
-                    ["xsel", "--clipboard", "--input"],
+                    ["xclip", "-selection", "clipboard"],
                     input=content,
                     text=True,
                     capture_output=True,
@@ -369,7 +380,7 @@ class SystemClipboardManager(ClipboardManager):
                 return result.returncode == 0
             except FileNotFoundError as exc:
                 raise ClipboardError(
-                    "Neither xclip nor xsel found. Please install one."
+                    "Neither xsel nor xclip found. Please install one."
                 ) from exc
 
     def _get_content_windows(self) -> str:

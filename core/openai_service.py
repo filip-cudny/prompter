@@ -110,6 +110,9 @@ class OpenAiService:
             if "max_tokens" in model_config:
                 completion_params["max_tokens"] = model_config["max_tokens"]
 
+            if "reasoning_effort" in model_config:
+                completion_params["reasoning_effort"] = model_config["reasoning_effort"]
+
             response = client.chat.completions.create(**completion_params)
             return response.choices[0].message.content.strip()
         except Exception as e:
