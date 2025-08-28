@@ -70,7 +70,6 @@ class OpenAiService:
         self,
         model_key: str,
         messages: List[ChatCompletionMessageParam],
-        max_tokens: Optional[int] = None,
         **kwargs: Any,
     ) -> str:
         """
@@ -99,13 +98,22 @@ class OpenAiService:
         model_config = self._models_config[model_key]
 
         try:
-            response = client.chat.completions.create(
-                model=model_config["model"],
-                messages=messages,
-                temperature=model_config.get("temperature", 0.7),
-                max_tokens=max_tokens,
+            completion_params = {
+                "model": model_config["model"],
+                "messages": messages,
                 **kwargs,
-            )
+            }
+
+            if "temperature" in model_config:
+                completion_params["temperature"] = model_config["temperature"]
+
+            if "max_tokens" in model_config:
+                completion_params["max_tokens"] = model_config["max_tokens"]
+
+            if "reasoning_effort" in model_config:
+                completion_params["reasoning_effort"] = model_config["reasoning_effort"]
+
+            response = client.chat.completions.create(**completion_params)
             return response.choices[0].message.content.strip()
         except Exception as e:
             raise Exception(f"Failed to generate completion: {e}") from e

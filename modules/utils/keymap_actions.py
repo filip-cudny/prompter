@@ -111,7 +111,7 @@ class ExecuteActivePromptAction(KeymapAction):
 
 
 class SetContextValueAction(KeymapAction):
-    """Action to set context value from clipboard."""
+    """Action to set context value from clipboard (supports both text and images)."""
 
     def __init__(
         self,
@@ -129,26 +129,43 @@ class SetContextValueAction(KeymapAction):
 
     @property
     def description(self) -> str:
-        return "Set context value from clipboard content"
+        return "Set context value from clipboard content (text or image)"
 
     def execute(self, context: Optional[Dict[str, Any]] = None) -> bool:
-        """Set context value from clipboard."""
+        """Set context value from clipboard (handles both text and images)."""
         try:
-            clipboard_content = self.clipboard_manager.get_content()
-            self.context_manager.set_context(clipboard_content)
-            logger.info("Context value set from clipboard")
+            if self.clipboard_manager.has_image():
+                image_data = self.clipboard_manager.get_image_data()
+                if image_data:
+                    base64_data, media_type = image_data
+                    self.context_manager.set_context_image(base64_data, media_type)
+                    logger.info("Context image set from clipboard")
 
-            if self.notification_manager:
-                self.notification_manager.show_success_notification("Context set")
+                    if self.notification_manager:
+                        self.notification_manager.show_success_notification(
+                            "Context image set"
+                        )
 
-            return True
+                    return True
+                else:
+                    logger.warning("Failed to get image data from clipboard")
+                    return False
+            else:
+                clipboard_content = self.clipboard_manager.get_content()
+                self.context_manager.set_context(clipboard_content)
+                logger.info("Context value set from clipboard")
+
+                if self.notification_manager:
+                    self.notification_manager.show_success_notification("Context set")
+
+                return True
         except Exception as e:
             logger.error(f"Failed to set context value: {e}")
             return False
 
 
 class AppendContextValueAction(KeymapAction):
-    """Action to append context value from clipboard."""
+    """Action to append context value from clipboard (supports both text and images)."""
 
     def __init__(
         self,
@@ -166,19 +183,38 @@ class AppendContextValueAction(KeymapAction):
 
     @property
     def description(self) -> str:
-        return "Append clipboard content to context value"
+        return "Append clipboard content to context value (text or image)"
 
     def execute(self, context: Optional[Dict[str, Any]] = None) -> bool:
-        """Append clipboard content to context value."""
+        """Append clipboard content to context value (handles both text and images)."""
         try:
-            clipboard_content = self.clipboard_manager.get_content()
-            self.context_manager.append_context(clipboard_content)
-            logger.info("Context value appended from clipboard")
+            if self.clipboard_manager.has_image():
+                image_data = self.clipboard_manager.get_image_data()
+                if image_data:
+                    base64_data, media_type = image_data
+                    self.context_manager.append_context_image(base64_data, media_type)
+                    logger.info("Context image appended from clipboard")
 
-            if self.notification_manager:
-                self.notification_manager.show_success_notification("Context appended")
+                    if self.notification_manager:
+                        self.notification_manager.show_success_notification(
+                            "Context image appended"
+                        )
 
-            return True
+                    return True
+                else:
+                    logger.warning("Failed to get image data from clipboard")
+                    return False
+            else:
+                clipboard_content = self.clipboard_manager.get_content()
+                self.context_manager.append_context(clipboard_content)
+                logger.info("Context value appended from clipboard")
+
+                if self.notification_manager:
+                    self.notification_manager.show_success_notification(
+                        "Context appended"
+                    )
+
+                return True
         except Exception as e:
             logger.error(f"Failed to append context value: {e}")
             return False

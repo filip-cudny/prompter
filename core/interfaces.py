@@ -1,7 +1,7 @@
 """Abstract interfaces and protocols for the Prompter application."""
 
 from abc import ABC, abstractmethod
-from typing import List, Optional, Protocol
+from typing import List, Optional, Protocol, Tuple
 from .models import (
     MenuItem,
     PromptData,
@@ -65,6 +65,16 @@ class ClipboardManager(ABC):
     @abstractmethod
     def is_empty(self) -> bool:
         """Check if the clipboard is empty."""
+        pass
+
+    @abstractmethod
+    def has_image(self) -> bool:
+        """Check if the clipboard contains an image."""
+        pass
+
+    @abstractmethod
+    def get_image_data(self) -> Optional[Tuple[str, str]]:
+        """Get image data from clipboard as (base64_data, media_type) tuple."""
         pass
 
 

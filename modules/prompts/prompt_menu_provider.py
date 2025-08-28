@@ -24,7 +24,7 @@ class PromptMenuProvider:
 
         try:
             prompts = self.prompt_store.get_prompts()
-            
+
             model_configs = {}
             if self.prompt_store.primary_provider and hasattr(self.prompt_store.primary_provider, 'get_model_configs'):
                 try:
@@ -43,10 +43,20 @@ class PromptMenuProvider:
                 model_display_name = prompt.model
                 if prompt.model and model_configs.get(prompt.model):
                     model_display_name = model_configs[prompt.model].get('display_name', prompt.model)
-                
-                numeration = f'<i style="color: rgba(128, 128, 128, 0.5)">{index}.</i> '
+
+                # Calculate max width needed (assume max 999 prompts)
+                max_digits = len(str(len(prompts))) if prompts else 1
+                max_digits = max(max_digits, 2)  # Minimum 2 digits for better appearance
+
+                # Right-align number with non-breaking spaces
+                number_str = str(index)
+                padding_needed = max_digits - len(number_str)
+                padding = "&nbsp;" * padding_needed
+                prefix = f"{padding}{number_str}. "
+
+                numeration = f'<i style="color: rgba(128, 128, 128, 0.5)">{prefix}</i>'
                 model_suffix = f' <i style="color: rgba(128, 128, 128, 0.5)">({model_display_name})</i>' if prompt.model else ''
-                
+
                 item = MenuItem(
                     id=item_id,
                     label=f"{numeration}{prompt.name}{model_suffix}",

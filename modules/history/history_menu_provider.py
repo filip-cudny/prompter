@@ -88,8 +88,10 @@ class HistoryMenuProvider:
 
         # Copy Context item
         context_content = None
+        context_images = []
         if self.context_manager:
             context_content = self.context_manager.get_context()
+            context_images = self.context_manager.get_context_images()
 
         context_label = "⎘ Copy context"
         if context_content:
@@ -105,6 +107,14 @@ class HistoryMenuProvider:
                 )
             )
 
+        tooltip_content = context_content
+        if context_images:
+            image_info = " ".join([f"<Image{i+1}>" for i in range(len(context_images))])
+            if tooltip_content:
+                tooltip_content = f"{image_info} {tooltip_content}"
+            else:
+                tooltip_content = image_info
+
         context_item = MenuItem(
             id="history_copy_context",
             label=context_label,
@@ -113,7 +123,7 @@ class HistoryMenuProvider:
             data={"type": "copy_context", "content": context_content},
             enabled=context_enabled,
             separator_after=True,
-            tooltip=context_content,
+            tooltip=tooltip_content,
         )
         context_item.action = lambda item=context_item: self.execute_callback(item)
         items.append(context_item)
