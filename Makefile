@@ -191,6 +191,7 @@ autostart-linux: ## Setup Linux systemd service for autostart
 	@echo '[Unit]' > ~/.config/systemd/user/prompter.service
 	@echo 'Description=Prompter Background Service' >> ~/.config/systemd/user/prompter.service
 	@echo 'After=graphical-session.target' >> ~/.config/systemd/user/prompter.service
+	@echo 'PartOf=graphical-session.target' >> ~/.config/systemd/user/prompter.service
 	@echo '' >> ~/.config/systemd/user/prompter.service
 	@echo '[Service]' >> ~/.config/systemd/user/prompter.service
 	@echo 'Type=simple' >> ~/.config/systemd/user/prompter.service
@@ -198,10 +199,12 @@ autostart-linux: ## Setup Linux systemd service for autostart
 	@echo 'WorkingDirectory=$(PWD)' >> ~/.config/systemd/user/prompter.service
 	@echo 'Restart=always' >> ~/.config/systemd/user/prompter.service
 	@echo 'RestartSec=5' >> ~/.config/systemd/user/prompter.service
-	@echo 'Environment=DISPLAY=:0' >> ~/.config/systemd/user/prompter.service
+	@echo 'Environment=DISPLAY=$(DISPLAY)' >> ~/.config/systemd/user/prompter.service
+	@echo 'Environment=XAUTHORITY=$(XAUTHORITY)' >> ~/.config/systemd/user/prompter.service
+	@echo 'Environment=XDG_RUNTIME_DIR=$(XDG_RUNTIME_DIR)' >> ~/.config/systemd/user/prompter.service
 	@echo '' >> ~/.config/systemd/user/prompter.service
 	@echo '[Install]' >> ~/.config/systemd/user/prompter.service
-	@echo 'WantedBy=default.target' >> ~/.config/systemd/user/prompter.service
+	@echo 'WantedBy=graphical-session.target' >> ~/.config/systemd/user/prompter.service
 	@systemctl --user daemon-reload
 	@echo "✅ Systemd service created"
 	@echo "To enable: systemctl --user enable prompter.service"
