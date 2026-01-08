@@ -12,6 +12,7 @@ def main():
 
     if is_macos():
         from AppKit import NSBundle
+
         info = NSBundle.mainBundle().infoDictionary()
         info["LSUIElement"] = "1"
 

@@ -63,13 +63,13 @@ class PyQtMenuCoordinator(QObject):
         # Connect internal signals
         self.execution_completed.connect(self._handle_execution_result)
         self.execution_error.connect(self._handle_error)
-        
+
     def _handle_menu_item_execution(self, item: MenuItem, shift_pressed: bool = False):
         """Handle menu item execution from the context menu."""
         try:
             if shift_pressed:
                 # For shift+click, check if item has alternative action
-                if hasattr(item, 'alternative_action') and item.alternative_action:
+                if hasattr(item, "alternative_action") and item.alternative_action:
                     result = item.alternative_action()
                     if result:
                         self._handle_execution_result(result)
@@ -262,7 +262,11 @@ class PyQtMenuCoordinator(QObject):
         try:
             # For system items with direct actions (like set default model, set active prompt),
             # call the action directly instead of going through the execution service
-            if item.item_type == MenuItemType.SYSTEM and item.action is not None and callable(item.action):
+            if (
+                item.item_type == MenuItemType.SYSTEM
+                and item.action is not None
+                and callable(item.action)
+            ):
                 # Call the action directly - it will emit its own execution_completed signal
                 item.action()
             else:

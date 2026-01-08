@@ -29,7 +29,10 @@ from modules.utils.system import check_macos_permissions, show_macos_permissions
 from modules.utils.notifications import PyQtNotificationManager
 from core.openai_service import OpenAiService
 from core.context_manager import ContextManager
-from modules.utils.keymap_actions import initialize_global_action_registry, get_global_action_registry
+from modules.utils.keymap_actions import (
+    initialize_global_action_registry,
+    get_global_action_registry,
+)
 
 
 class PrompterApp(QObject):
@@ -71,7 +74,7 @@ class PrompterApp(QObject):
 
         # Initialize basic services needed for config loading
         self._initialize_basic_services()
-        
+
         # Load configuration
         self._load_config(config_file)
 
@@ -93,10 +96,10 @@ class PrompterApp(QObject):
         """Initialize basic services needed for configuration loading."""
         # Initialize clipboard manager
         self.clipboard_manager = SystemClipboardManager()
-        
+
         # Initialize context manager
         self.context_manager = ContextManager()
-        
+
         # Initialize global action registry with managers
         initialize_global_action_registry(self.context_manager, self.clipboard_manager)
 
@@ -113,7 +116,9 @@ class PrompterApp(QObject):
             self.notification_manager = PyQtNotificationManager(self.app)
 
             # Re-initialize global action registry with notification manager
-            initialize_global_action_registry(self.context_manager, self.clipboard_manager, self.notification_manager)
+            initialize_global_action_registry(
+                self.context_manager, self.clipboard_manager, self.notification_manager
+            )
 
             # Initialize OpenAI service
             self._initialize_openai_service()
@@ -299,7 +304,9 @@ class PrompterApp(QObject):
         # Initialize menu coordinator
         self.menu_coordinator = PyQtMenuCoordinator(self.prompt_store_service, self.app)
         self.menu_coordinator.set_menu_position_offset(self.config.menu_position_offset)
-        self.menu_coordinator.set_number_input_debounce_ms(self.config.number_input_debounce_ms)
+        self.menu_coordinator.set_number_input_debounce_ms(
+            self.config.number_input_debounce_ms
+        )
 
         # Initialize event handler
         self.event_handler = PyQtMenuEventHandler(self.menu_coordinator)
@@ -310,7 +317,7 @@ class PrompterApp(QObject):
             self.event_handler.handle_execution_result
         )
         self.menu_coordinator.set_error_callback(self.event_handler.handle_error)
-        
+
         # Connect context manager for cache invalidation
         self.menu_coordinator.set_context_manager(self.context_manager)
 
@@ -329,7 +336,10 @@ class PrompterApp(QObject):
                 self.prompt_store_service,
             ),
             HistoryMenuProvider(
-                history_service, self._execute_menu_item, self.prompt_store_service, self.context_manager
+                history_service,
+                self._execute_menu_item,
+                self.prompt_store_service,
+                self.context_manager,
             ),
             SpeechMenuProvider(
                 self._speech_to_text,

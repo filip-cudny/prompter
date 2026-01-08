@@ -100,7 +100,7 @@ class KeymapManager:
 
     def _ensure_validation_complete(self) -> None:
         """Ensure validation is complete before using keymaps."""
-        if hasattr(self, '_validation_deferred') and self._validation_deferred:
+        if hasattr(self, "_validation_deferred") and self._validation_deferred:
             self._validate_keymaps()
             self._validation_deferred = False
 

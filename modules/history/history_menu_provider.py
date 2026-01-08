@@ -95,7 +95,11 @@ class HistoryMenuProvider:
 
         context_label = "⎘ Copy context"
         if context_content:
-            preview = context_content[:30] + "..." if len(context_content) > 30 else context_content
+            preview = (
+                context_content[:30] + "..."
+                if len(context_content) > 30
+                else context_content
+            )
             context_label = f"⎘ Copy context: {preview}"
 
         context_enabled = context_content is not None
@@ -109,7 +113,9 @@ class HistoryMenuProvider:
 
         tooltip_content = context_content
         if context_images:
-            image_info = " ".join([f"<Image{i+1}>" for i in range(len(context_images))])
+            image_info = " ".join(
+                [f"<Image{i + 1}>" for i in range(len(context_images))]
+            )
             if tooltip_content:
                 tooltip_content = f"{image_info} {tooltip_content}"
             else:
