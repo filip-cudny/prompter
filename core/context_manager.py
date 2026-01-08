@@ -98,15 +98,17 @@ class ContextManager:
                 logger.error(f"Error in context change callback: {e}")
 
     def set_context_images(self, images: List[Dict[str, Any]]) -> None:
-        """Set context images, clearing existing images."""
+        """Set context images, clearing existing images and text."""
         with self._lock:
+            self._context_value = None
             self._context_images = images.copy()
             logger.debug("Context images set")
             self._notify_change()
 
     def set_context_image(self, image_data: str, image_type: str = "image/png") -> None:
-        """Set context with a single image, clearing existing images."""
+        """Set context with a single image, clearing existing images and text."""
         with self._lock:
+            self._context_value = None
             self._context_images = [
                 {"type": "image", "data": image_data, "media_type": image_type}
             ]
