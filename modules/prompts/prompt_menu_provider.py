@@ -26,9 +26,13 @@ class PromptMenuProvider:
             prompts = self.prompt_store.get_prompts()
 
             model_configs = {}
-            if self.prompt_store.primary_provider and hasattr(self.prompt_store.primary_provider, 'get_model_configs'):
+            if self.prompt_store.primary_provider and hasattr(
+                self.prompt_store.primary_provider, "get_model_configs"
+            ):
                 try:
-                    model_configs = self.prompt_store.primary_provider.get_model_configs()
+                    model_configs = (
+                        self.prompt_store.primary_provider.get_model_configs()
+                    )
                 except Exception:
                     pass
 
@@ -42,11 +46,15 @@ class PromptMenuProvider:
 
                 model_display_name = prompt.model
                 if prompt.model and model_configs.get(prompt.model):
-                    model_display_name = model_configs[prompt.model].get('display_name', prompt.model)
+                    model_display_name = model_configs[prompt.model].get(
+                        "display_name", prompt.model
+                    )
 
                 # Calculate max width needed (assume max 999 prompts)
                 max_digits = len(str(len(prompts))) if prompts else 1
-                max_digits = max(max_digits, 2)  # Minimum 2 digits for better appearance
+                max_digits = max(
+                    max_digits, 2
+                )  # Minimum 2 digits for better appearance
 
                 # Right-align number with non-breaking spaces
                 number_str = str(index)
@@ -55,7 +63,11 @@ class PromptMenuProvider:
                 prefix = f"{padding}{number_str}. "
 
                 numeration = f'<i style="color: rgba(128, 128, 128, 0.5)">{prefix}</i>'
-                model_suffix = f' <i style="color: rgba(128, 128, 128, 0.5)">({model_display_name})</i>' if prompt.model else ''
+                model_suffix = (
+                    f' <i style="color: rgba(128, 128, 128, 0.5)">({model_display_name})</i>'
+                    if prompt.model
+                    else ""
+                )
 
                 item = MenuItem(
                     id=item_id,
@@ -72,8 +84,10 @@ class PromptMenuProvider:
                     },
                     enabled=enabled,
                 )
+
                 def create_action(menu_item):
                     return lambda: self.execute_callback(menu_item)
+
                 def create_alternative_action(menu_item):
                     # Create alternative item with speech-to-text flag
                     alt_item = MenuItem(
@@ -85,6 +99,7 @@ class PromptMenuProvider:
                         enabled=menu_item.enabled,
                     )
                     return lambda: self.execute_callback(alt_item)
+
                 item.action = create_action(item)
                 item.alternative_action = create_alternative_action(item)
                 items.append(item)

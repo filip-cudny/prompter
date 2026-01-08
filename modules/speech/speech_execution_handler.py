@@ -165,9 +165,7 @@ class PyQtSpeechExecutionHandler:
             success = self.clipboard_manager.set_content(content)
 
             if success:
-                self.notification_manager.show_success_notification(
-                    "Copied"
-                )
+                self.notification_manager.show_success_notification("Copied")
 
                 return ExecutionResult(
                     success=True,

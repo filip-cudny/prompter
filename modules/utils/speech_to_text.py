@@ -11,6 +11,7 @@ from typing import Callable, Dict, Optional
 
 try:
     import sounddevice as sd
+
     SOUNDDEVICE_AVAILABLE = True
 except ImportError:
     SOUNDDEVICE_AVAILABLE = False
@@ -44,30 +45,32 @@ class AudioRecorder:
                 self.input_device_index = self._find_working_input_device()
 
             rates_to_try = [44100, 48000, 16000, 8000]
-            
+
             for rate in rates_to_try:
                 try:
                     sd.check_input_settings(
                         device=self.input_device_index,
                         channels=self.channels,
-                        samplerate=rate
+                        samplerate=rate,
                     )
                     self.rate = rate
                     break
                 except Exception as e:
                     if rate == rates_to_try[-1]:
-                        raise Exception(f"Could not find working audio configuration: {e}") from e
+                        raise Exception(
+                            f"Could not find working audio configuration: {e}"
+                        ) from e
                     continue
 
             self.recording = True
             self.frames = []
-            
+
             self.stream = sd.InputStream(
                 device=self.input_device_index,
                 channels=self.channels,
                 samplerate=self.rate,
                 callback=self._audio_callback,
-                dtype='int16'
+                dtype="int16",
             )
             self.stream.start()
 
@@ -99,15 +102,15 @@ class AudioRecorder:
             temp_path = temp_file.name
             temp_file.close()
 
-            with wave.open(temp_path, 'wb') as wf:
+            with wave.open(temp_path, "wb") as wf:
                 wf.setnchannels(self.channels)
                 wf.setsampwidth(2)
                 wf.setframerate(self.rate)
-                
+
                 if self.frames:
-                    audio_data = array.array('h')
+                    audio_data = array.array("h")
                     for frame in self.frames:
-                        if hasattr(frame, 'flatten'):
+                        if hasattr(frame, "flatten"):
                             audio_data.extend(frame.flatten())
                         else:
                             audio_data.extend(frame)
@@ -128,7 +131,7 @@ class AudioRecorder:
         """Callback function for continuous audio input stream."""
         if status:
             print(f"Audio input status: {status}")
-        
+
         if self.recording:
             self.frames.append(indata.copy())
 
@@ -148,23 +151,21 @@ class AudioRecorder:
         """Find a working audio input device."""
         try:
             devices = sd.query_devices()
-            
+
             try:
                 default_device = sd.default.device[0]
                 if default_device is not None:
                     device_info = sd.query_devices(default_device)
-                    if device_info['max_input_channels'] > 0:
+                    if device_info["max_input_channels"] > 0:
                         return default_device
             except Exception:
                 pass
 
             for i, device_info in enumerate(devices):
-                if device_info['max_input_channels'] > 0:
+                if device_info["max_input_channels"] > 0:
                     try:
                         sd.check_input_settings(
-                            device=i,
-                            channels=1,
-                            samplerate=self.rate
+                            device=i, channels=1, samplerate=self.rate
                         )
                         return i
                     except Exception:

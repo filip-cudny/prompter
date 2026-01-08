@@ -274,9 +274,7 @@ def validate_config(config: AppConfig) -> None:
                     "number_input_debounce_ms must be between 0 and 10000 milliseconds"
                 )
         except (ValueError, TypeError):
-            raise ConfigurationError(
-                "number_input_debounce_ms must be a valid integer"
-            )
+            raise ConfigurationError("number_input_debounce_ms must be a valid integer")
 
     # Validate speech_to_text_model if present
     if config.speech_to_text_model is not None:

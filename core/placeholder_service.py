@@ -57,8 +57,6 @@ class ContextPlaceholderProcessor(PlaceholderProcessor):
         return self.context_manager.get_context_or_default("")
 
 
-
-
 class PlaceholderService:
     """Service for processing placeholders in messages."""
 
@@ -98,13 +96,18 @@ class PlaceholderService:
             if message and isinstance(message.get("content"), str):
                 # For the last message (user message), attach images if available
                 is_last_message = i == len(messages) - 1
-                processed_message = self._process_message_with_context(message, context, is_last_message)
+                processed_message = self._process_message_with_context(
+                    message, context, is_last_message
+                )
                 processed_messages.append(processed_message)
 
         return processed_messages
 
     def _process_message_with_context(
-        self, message: Dict[str, Any], context: Optional[str] = None, is_last_message: bool = False
+        self,
+        message: Dict[str, Any],
+        context: Optional[str] = None,
+        is_last_message: bool = False,
     ) -> Dict[str, Any]:
         """Process message with context, handling both text and images."""
         content = message.get("content", "")
@@ -116,7 +119,7 @@ class PlaceholderService:
         # For the last message, check if we have images to attach
         if is_last_message and self.context_manager.has_images():
             context_images = self.context_manager.get_context_images()
-            
+
             # Create message with content array for images
             message_content: List[Dict[str, Any]] = []
 

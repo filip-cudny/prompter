@@ -87,7 +87,9 @@ class PromptExecutionWorker(QThread):
         self.openai_service = openai_service
         self.config = config
         self.context_manager = context_manager
-        self.placeholder_service = PlaceholderService(clipboard_manager, context_manager)
+        self.placeholder_service = PlaceholderService(
+            clipboard_manager, context_manager
+        )
 
         # Callbacks for cross-thread communication
         self.started_callback = None
@@ -250,7 +252,9 @@ class AsyncPromptExecutionManager:
         self.config = config
         self.prompt_store_service = prompt_store_service
         self.context_manager = context_manager
-        self.placeholder_service = PlaceholderService(clipboard_manager, context_manager)
+        self.placeholder_service = PlaceholderService(
+            clipboard_manager, context_manager
+        )
 
         self.worker: Optional[PromptExecutionWorker] = None
         self.is_executing = False
