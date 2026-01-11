@@ -64,6 +64,9 @@ class PromptExecutionHandler:
                 logger.warning("Async manager stuck in executing state, forcing reset")
                 self.async_manager.force_reset_state()
             else:
+                # Log detailed state for debugging
+                status = self.async_manager.get_execution_status()
+                logger.warning(f"Execution in progress - status: {status}")
                 return ExecutionResult(
                     success=False,
                     error="Execution already in progress",

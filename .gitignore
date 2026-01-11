@@ -4,6 +4,7 @@ __pycache__/
 
 prompter.log
 prompter-error.log
+prompter-debug.log
 
 settings/
 .prompter.pid
