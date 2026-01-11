@@ -59,7 +59,7 @@ class PyQtMenuCoordinator(QObject):
 
         # Dynamic provider class names (providers whose items change frequently)
         self._dynamic_provider_classes = {
-            "HistoryMenuProvider",
+            "LastInteractionMenuProvider",
             "SpeechMenuProvider",
             "ContextMenuProvider",
         }

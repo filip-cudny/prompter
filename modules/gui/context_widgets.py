@@ -573,3 +573,335 @@ class ContextSectionWidget(QWidget):
             self.context_manager.remove_change_callback(self._on_context_changed)
         except Exception:
             pass
+
+
+class LastInteractionChip(QWidget):
+    """Chip widget for last interaction items (input/output/transcription)."""
+
+    copy_requested = pyqtSignal()
+    details_requested = pyqtSignal()
+
+    _chip_style = """
+        QWidget#lastInteractionChip {
+            background-color: #3a3a3a;
+            border: 1px solid #555555;
+            border-radius: 12px;
+            padding: 2px;
+        }
+    """
+
+    _chip_hover_style = """
+        QWidget#lastInteractionChip {
+            background-color: #454545;
+            border: 1px solid #555555;
+            border-radius: 12px;
+            padding: 2px;
+        }
+    """
+
+    _chip_disabled_style = """
+        QWidget#lastInteractionChip {
+            background-color: #2a2a2a;
+            border: 1px solid #444444;
+            border-radius: 12px;
+            padding: 2px;
+        }
+    """
+
+    _label_style = """
+        QLabel {
+            color: #f0f0f0;
+            font-size: 12px;
+            padding: 2px 4px;
+            background: transparent;
+        }
+    """
+
+    _label_disabled_style = """
+        QLabel {
+            color: #666666;
+            font-size: 12px;
+            padding: 2px 4px;
+            background: transparent;
+        }
+    """
+
+    _icon_btn_style = """
+        QPushButton {
+            background: transparent;
+            border: none;
+            color: #888888;
+            font-size: 12px;
+            padding: 2px 4px;
+            min-width: 16px;
+            max-width: 16px;
+        }
+        QPushButton:hover {
+            color: #aaaaaa;
+        }
+        QPushButton:disabled {
+            color: #555555;
+        }
+    """
+
+    def __init__(
+        self,
+        chip_type: str,
+        content: Optional[str],
+        title: str,
+        parent: Optional[QWidget] = None,
+    ):
+        super().__init__(parent)
+        self.chip_type = chip_type
+        self.content = content
+        self.title = title
+        self._enabled = content is not None and len(content) > 0
+
+        self.setObjectName("lastInteractionChip")
+        self.setAttribute(Qt.WA_StyledBackground, True)
+
+        if self._enabled:
+            self.setStyleSheet(self._chip_style)
+            self.setCursor(Qt.PointingHandCursor)
+        else:
+            self.setStyleSheet(self._chip_disabled_style)
+            self.setCursor(Qt.ArrowCursor)
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(6, 2, 4, 2)
+        layout.setSpacing(4)
+
+        # Copy icon at the beginning
+        self.copy_btn = QPushButton("\u2398")  # ⎘ copy icon
+        self.copy_btn.setStyleSheet(self._icon_btn_style)
+        self.copy_btn.setCursor(Qt.PointingHandCursor if self._enabled else Qt.ArrowCursor)
+        self.copy_btn.setToolTip("Copy to clipboard")
+        self.copy_btn.setEnabled(self._enabled)
+        self.copy_btn.clicked.connect(self._on_copy_clicked)
+        layout.addWidget(self.copy_btn)
+
+        # Label with type name
+        self.label = QLabel()
+        self.label.setStyleSheet(self._label_style if self._enabled else self._label_disabled_style)
+        self._set_display_text()
+        layout.addWidget(self.label)
+
+        # Details button (info icon) at the end
+        self.details_btn = QPushButton("\u2139")  # ℹ info icon
+        self.details_btn.setStyleSheet(self._icon_btn_style)
+        self.details_btn.setCursor(Qt.PointingHandCursor if self._enabled else Qt.ArrowCursor)
+        self.details_btn.setToolTip("Show details")
+        self.details_btn.setEnabled(self._enabled)
+        self.details_btn.clicked.connect(self._on_details_clicked)
+        layout.addWidget(self.details_btn)
+
+        self.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+
+        # Set tooltip
+        if self._enabled:
+            self.setToolTip(self.content)
+        else:
+            self.setToolTip("No content available")
+
+    def _set_display_text(self):
+        """Set the display text for the label."""
+        self.label.setText(self.chip_type.capitalize())
+
+    def _on_copy_clicked(self):
+        """Handle copy button click."""
+        if self._enabled:
+            self.copy_requested.emit()
+
+    def _on_details_clicked(self):
+        """Handle details button click."""
+        if self._enabled:
+            self.details_requested.emit()
+
+    def mousePressEvent(self, event):
+        """Handle mouse press - copy on click (except on buttons)."""
+        if not self._enabled:
+            super().mousePressEvent(event)
+            return
+
+        # Check if click is on button areas
+        details_btn_rect = self.details_btn.geometry()
+        copy_btn_rect = self.copy_btn.geometry()
+
+        if not details_btn_rect.contains(event.pos()) and not copy_btn_rect.contains(
+            event.pos()
+        ):
+            self._on_copy_clicked()
+        super().mousePressEvent(event)
+
+    def enterEvent(self, event):
+        """Handle mouse enter - show hover state."""
+        if self._enabled:
+            self.setStyleSheet(self._chip_hover_style)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        """Handle mouse leave - restore normal state."""
+        if self._enabled:
+            self.setStyleSheet(self._chip_style)
+        else:
+            self.setStyleSheet(self._chip_disabled_style)
+        super().leaveEvent(event)
+
+    def copy_to_clipboard(self):
+        """Copy chip content to clipboard."""
+        if self.content:
+            clipboard = QApplication.clipboard()
+            clipboard.setText(self.content)
+
+
+class LastInteractionHeaderWidget(QWidget):
+    """Header widget with 'Last interaction' label only."""
+
+    _header_style = """
+        QWidget {
+            background: transparent;
+        }
+    """
+
+    _title_style = """
+        QLabel {
+            color: #888888;
+            font-size: 11px;
+            font-weight: bold;
+            padding: 2px 4px;
+            background: transparent;
+        }
+    """
+
+    def __init__(self, parent: Optional[QWidget] = None):
+        super().__init__(parent)
+        self.setStyleSheet(self._header_style)
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(4, 4, 4, 2)
+        layout.setSpacing(4)
+
+        title_label = QLabel("Last interaction")
+        title_label.setStyleSheet(self._title_style)
+        layout.addWidget(title_label)
+
+        layout.addStretch()
+
+
+class LastInteractionSectionWidget(QWidget):
+    """Container widget for the last interaction section in the menu."""
+
+    _container_style = """
+        QWidget#lastInteractionSection {
+            background: transparent;
+        }
+    """
+
+    def __init__(
+        self,
+        history_service,
+        notification_manager=None,
+        clipboard_manager=None,
+        parent: Optional[QWidget] = None,
+    ):
+        super().__init__(parent)
+        self.history_service = history_service
+        self.notification_manager = notification_manager
+        self.clipboard_manager = clipboard_manager
+        self._chips = []
+
+        self.setObjectName("lastInteractionSection")
+        self.setStyleSheet(self._container_style)
+
+        self._setup_ui()
+
+    def _setup_ui(self):
+        """Set up the widget UI."""
+        from core.models import HistoryEntryType
+
+        self.main_layout = QVBoxLayout(self)
+        self.main_layout.setContentsMargins(0, 0, 0, 0)
+        self.main_layout.setSpacing(2)
+
+        # Header with title
+        header = LastInteractionHeaderWidget()
+        self.main_layout.addWidget(header)
+
+        # Retrieve last interaction data
+        last_text_entry = None
+        last_speech_entry = None
+
+        if self.history_service:
+            last_text_entry = self.history_service.get_last_item_by_type(
+                HistoryEntryType.TEXT
+            )
+            last_speech_entry = self.history_service.get_last_item_by_type(
+                HistoryEntryType.SPEECH
+            )
+
+        input_content = last_text_entry.input_content if last_text_entry else None
+        output_content = last_text_entry.output_content if last_text_entry else None
+        transcription_content = (
+            last_speech_entry.output_content if last_speech_entry else None
+        )
+
+        # Create horizontal layout for chips
+        chips_container = QWidget()
+        chips_layout = QHBoxLayout(chips_container)
+        chips_layout.setContentsMargins(4, 0, 4, 4)
+        chips_layout.setSpacing(6)
+
+        # Create chips
+        input_chip = LastInteractionChip(
+            chip_type="input",
+            content=input_content,
+            title="Input Content",
+        )
+        input_chip.copy_requested.connect(lambda: self._on_copy(input_chip))
+        input_chip.details_requested.connect(
+            lambda: self._on_details("Input Content", input_content)
+        )
+        self._chips.append(input_chip)
+        chips_layout.addWidget(input_chip)
+
+        output_chip = LastInteractionChip(
+            chip_type="output",
+            content=output_content,
+            title="Output Content",
+        )
+        output_chip.copy_requested.connect(lambda: self._on_copy(output_chip))
+        output_chip.details_requested.connect(
+            lambda: self._on_details("Output Content", output_content)
+        )
+        self._chips.append(output_chip)
+        chips_layout.addWidget(output_chip)
+
+        transcription_chip = LastInteractionChip(
+            chip_type="transcription",
+            content=transcription_content,
+            title="Transcription",
+        )
+        transcription_chip.copy_requested.connect(
+            lambda: self._on_copy(transcription_chip)
+        )
+        transcription_chip.details_requested.connect(
+            lambda: self._on_details("Transcription", transcription_content)
+        )
+        self._chips.append(transcription_chip)
+        chips_layout.addWidget(transcription_chip)
+
+        chips_layout.addStretch()
+        self.main_layout.addWidget(chips_container)
+
+    def _on_copy(self, chip: LastInteractionChip):
+        """Handle copy request from a chip."""
+        chip.copy_to_clipboard()
+        if self.notification_manager:
+            self.notification_manager.show_success_notification("Copied")
+
+    def _on_details(self, title: str, content: Optional[str]):
+        """Handle details request - show preview dialog."""
+        if content:
+            from modules.gui.text_preview_dialog import show_preview_dialog
+
+            show_preview_dialog(title, content)

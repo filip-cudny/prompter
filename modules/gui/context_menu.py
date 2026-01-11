@@ -472,6 +472,11 @@ class PyQtContextMenu(QObject):
                 action = self._create_context_section_item(menu, item)
                 if action:
                     menu.addAction(action)
+            elif item.item_type == MenuItemType.LAST_INTERACTION:
+                # Create last interaction section widget
+                action = self._create_last_interaction_section_item(menu, item)
+                if action:
+                    menu.addAction(action)
             elif hasattr(item, "submenu_items") and item.submenu_items:
                 # Create submenu with consistent styling
                 submenu = self.create_submenu(menu, item.label, item.submenu_items)
@@ -499,6 +504,27 @@ class PyQtContextMenu(QObject):
         clipboard_manager = item.data.get("clipboard_manager") if item.data else None
         widget = ContextSectionWidget(
             context_manager,
+            notification_manager=notification_manager,
+            clipboard_manager=clipboard_manager,
+        )
+        action = QWidgetAction(menu)
+        action.setDefaultWidget(widget)
+        return action
+
+    def _create_last_interaction_section_item(
+        self, menu: QMenu, item: MenuItem
+    ) -> Optional[QAction]:
+        """Create a last interaction section widget action."""
+        from modules.gui.context_widgets import LastInteractionSectionWidget
+
+        history_service = item.data.get("history_service") if item.data else None
+        if not history_service:
+            return None
+
+        notification_manager = item.data.get("notification_manager") if item.data else None
+        clipboard_manager = item.data.get("clipboard_manager") if item.data else None
+        widget = LastInteractionSectionWidget(
+            history_service,
             notification_manager=notification_manager,
             clipboard_manager=clipboard_manager,
         )
