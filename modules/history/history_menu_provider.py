@@ -54,9 +54,12 @@ class HistoryMenuProvider:
             action=lambda: None,
             data={"type": "last_input", "content": last_input},
             enabled=input_enabled,
-            tooltip=last_input,
         )
         input_item.action = lambda item=input_item: self.execute_callback(item)
+        if last_input:
+            input_item.alternative_action = self._create_preview_action(
+                "Input Content", last_input
+            )
         items.append(input_item)
 
         # Last Output item
@@ -81,9 +84,12 @@ class HistoryMenuProvider:
             action=lambda: None,
             data={"type": "last_output", "content": last_output},
             enabled=output_enabled,
-            tooltip=last_output,
         )
         output_item.action = lambda item=output_item: self.execute_callback(item)
+        if last_output:
+            output_item.alternative_action = self._create_preview_action(
+                "Output Content", last_output
+            )
         items.append(output_item)
 
         # Copy Context item
@@ -111,15 +117,15 @@ class HistoryMenuProvider:
                 )
             )
 
-        tooltip_content = context_content
+        preview_content = context_content
         if context_images:
             image_info = " ".join(
                 [f"<Image{i + 1}>" for i in range(len(context_images))]
             )
-            if tooltip_content:
-                tooltip_content = f"{image_info}\n\n{tooltip_content}"
+            if preview_content:
+                preview_content = f"{image_info}\n\n{preview_content}"
             else:
-                tooltip_content = image_info
+                preview_content = image_info
 
         context_item = MenuItem(
             id="history_copy_context",
@@ -129,12 +135,27 @@ class HistoryMenuProvider:
             data={"type": "copy_context", "content": context_content},
             enabled=context_enabled,
             separator_after=True,
-            tooltip=tooltip_content,
         )
         context_item.action = lambda item=context_item: self.execute_callback(item)
+        if preview_content:
+            context_item.alternative_action = self._create_preview_action(
+                "Context Content", preview_content
+            )
         items.append(context_item)
 
         return items
+
+    def _create_preview_action(self, title: str, content: str):
+        """Create an action that opens a text preview dialog."""
+
+        def show_preview():
+            from modules.gui.text_preview_dialog import TextPreviewDialog
+
+            dialog = TextPreviewDialog(title, content)
+            dialog.exec_()
+            return None
+
+        return show_preview
 
     def refresh(self) -> None:
         """Refresh the provider's data."""
