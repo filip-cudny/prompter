@@ -79,15 +79,30 @@ class SpeechMenuProvider:
             data={"type": "last_speech_output", "content": last_transcription},
             enabled=speech_output_enabled,
             separator_after=True,
-            tooltip=last_transcription,
         )
         if self.execute_callback:
             speech_output_item.action = (
                 lambda item=speech_output_item: self.execute_callback(item)
             )
+        if last_transcription:
+            speech_output_item.alternative_action = self._create_preview_action(
+                "Speech Output", last_transcription
+            )
         items.append(speech_output_item)
 
         return items
+
+    def _create_preview_action(self, title: str, content: str):
+        """Create an action that opens a text preview dialog."""
+
+        def show_preview():
+            from modules.gui.text_preview_dialog import TextPreviewDialog
+
+            dialog = TextPreviewDialog(title, content)
+            dialog.exec_()
+            return None
+
+        return show_preview
 
     def refresh(self) -> None:
         """Refresh the provider's data."""

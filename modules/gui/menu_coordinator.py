@@ -253,6 +253,10 @@ class PyQtMenuCoordinator(QObject):
             if hasattr(item, "separator_after"):
                 wrapped_item.separator_after = item.separator_after
 
+            # Copy alternative_action if present
+            if hasattr(item, "alternative_action"):
+                wrapped_item.alternative_action = item.alternative_action
+
             wrapped_items.append(wrapped_item)
 
         return wrapped_items
