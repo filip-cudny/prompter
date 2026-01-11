@@ -58,7 +58,11 @@ class PyQtMenuCoordinator(QObject):
         self._static_items_dirty = True
 
         # Dynamic provider class names (providers whose items change frequently)
-        self._dynamic_provider_classes = {"HistoryMenuProvider", "SpeechMenuProvider"}
+        self._dynamic_provider_classes = {
+            "HistoryMenuProvider",
+            "SpeechMenuProvider",
+            "ContextMenuProvider",
+        }
 
         # Connect internal signals
         self.execution_completed.connect(self._handle_execution_result)
@@ -253,8 +257,8 @@ class PyQtMenuCoordinator(QObject):
             if hasattr(item, "separator_after"):
                 wrapped_item.separator_after = item.separator_after
 
-            # Copy alternative_action if present
-            if hasattr(item, "alternative_action"):
+            # Copy alternative_action if present (but NOT for PROMPT items which use their own alternative execution path)
+            if hasattr(item, "alternative_action") and item.item_type != MenuItemType.PROMPT:
                 wrapped_item.alternative_action = item.alternative_action
 
             wrapped_items.append(wrapped_item)
