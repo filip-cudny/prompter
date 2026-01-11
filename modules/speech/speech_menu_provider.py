@@ -79,6 +79,7 @@ class SpeechMenuProvider:
             data={"type": "last_speech_output", "content": last_transcription},
             enabled=speech_output_enabled,
             separator_after=True,
+            tooltip=last_transcription,
         )
         if self.execute_callback:
             speech_output_item.action = (
@@ -96,10 +97,9 @@ class SpeechMenuProvider:
         """Create an action that opens a text preview dialog."""
 
         def show_preview():
-            from modules.gui.text_preview_dialog import TextPreviewDialog
+            from modules.gui.text_preview_dialog import show_preview_dialog
 
-            dialog = TextPreviewDialog(title, content)
-            dialog.exec_()
+            show_preview_dialog(title, content)
             return None
 
         return show_preview

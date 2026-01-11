@@ -54,6 +54,7 @@ class HistoryMenuProvider:
             action=lambda: None,
             data={"type": "last_input", "content": last_input},
             enabled=input_enabled,
+            tooltip=last_input,
         )
         input_item.action = lambda item=input_item: self.execute_callback(item)
         if last_input:
@@ -84,6 +85,7 @@ class HistoryMenuProvider:
             action=lambda: None,
             data={"type": "last_output", "content": last_output},
             enabled=output_enabled,
+            tooltip=last_output,
         )
         output_item.action = lambda item=output_item: self.execute_callback(item)
         if last_output:
@@ -135,6 +137,7 @@ class HistoryMenuProvider:
             data={"type": "copy_context", "content": context_content},
             enabled=context_enabled,
             separator_after=True,
+            tooltip=preview_content,
         )
         context_item.action = lambda item=context_item: self.execute_callback(item)
         if preview_content:
@@ -149,10 +152,9 @@ class HistoryMenuProvider:
         """Create an action that opens a text preview dialog."""
 
         def show_preview():
-            from modules.gui.text_preview_dialog import TextPreviewDialog
+            from modules.gui.text_preview_dialog import show_preview_dialog
 
-            dialog = TextPreviewDialog(title, content)
-            dialog.exec_()
+            show_preview_dialog(title, content)
             return None
 
         return show_preview
