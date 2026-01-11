@@ -254,9 +254,10 @@ class ImageContextChip(ContextChipBase):
 
 
 class ContextHeaderWidget(QWidget):
-    """Header widget with 'Context' label and clear all button."""
+    """Header widget with 'Context' label, copy and clear buttons."""
 
     clear_requested = pyqtSignal()
+    copy_requested = pyqtSignal()
 
     _header_style = """
         QWidget {
@@ -274,7 +275,7 @@ class ContextHeaderWidget(QWidget):
         }
     """
 
-    _clear_btn_style = """
+    _btn_style = """
         QPushButton {
             background: transparent;
             border: none;
@@ -284,6 +285,9 @@ class ContextHeaderWidget(QWidget):
         }
         QPushButton:hover {
             color: #aaaaaa;
+        }
+        QPushButton:disabled {
+            color: #555555;
         }
     """
 
@@ -301,8 +305,18 @@ class ContextHeaderWidget(QWidget):
 
         layout.addStretch()
 
-        clear_btn = QPushButton("\u00d7")  # × multiplication sign (ASCII-style)
-        clear_btn.setStyleSheet(self._clear_btn_style)
+        # Copy button
+        self.copy_btn = QPushButton("\u2398")  # ⎘ clipboard icon
+        self.copy_btn.setStyleSheet(self._btn_style)
+        self.copy_btn.setCursor(Qt.PointingHandCursor)
+        self.copy_btn.setToolTip("Copy context text")
+        self.copy_btn.clicked.connect(self._on_copy_clicked)
+        self.copy_btn.setEnabled(False)  # Disabled by default
+        layout.addWidget(self.copy_btn)
+
+        # Clear button
+        clear_btn = QPushButton("\u00d7")  # × multiplication sign
+        clear_btn.setStyleSheet(self._btn_style)
         clear_btn.setCursor(Qt.PointingHandCursor)
         clear_btn.setToolTip("Clear all context")
         clear_btn.clicked.connect(self._on_clear_clicked)
@@ -311,6 +325,14 @@ class ContextHeaderWidget(QWidget):
     def _on_clear_clicked(self):
         """Handle clear button click."""
         self.clear_requested.emit()
+
+    def _on_copy_clicked(self):
+        """Handle copy button click."""
+        self.copy_requested.emit()
+
+    def set_copy_enabled(self, enabled: bool):
+        """Enable or disable the copy button."""
+        self.copy_btn.setEnabled(enabled)
 
 
 class FlowLayout(QVBoxLayout):
@@ -389,11 +411,13 @@ class ContextSectionWidget(QWidget):
         self,
         context_manager: ContextManager,
         copy_callback: Optional[Callable[[], None]] = None,
+        notification_manager=None,
         parent: Optional[QWidget] = None,
     ):
         super().__init__(parent)
         self.context_manager = context_manager
         self.copy_callback = copy_callback
+        self.notification_manager = notification_manager
         self._chips = []  # Store references to chips
         self.setObjectName("contextSection")
         self.setStyleSheet(self._container_style)
@@ -410,9 +434,10 @@ class ContextSectionWidget(QWidget):
         self.main_layout.setContentsMargins(0, 0, 0, 0)
         self.main_layout.setSpacing(2)
 
-        # Header with title and clear button
+        # Header with title, copy and clear buttons
         self.header = ContextHeaderWidget()
         self.header.clear_requested.connect(self._on_clear_all)
+        self.header.copy_requested.connect(self._on_copy_text)
         self.main_layout.addWidget(self.header)
 
         # Container for chips
@@ -427,6 +452,11 @@ class ContextSectionWidget(QWidget):
         self._chips = []  # Store references to chips for copy handling
 
         items = self.context_manager.get_items()
+
+        # Update header copy button state (enabled only if text content exists)
+        has_text = self.context_manager.has_context()
+        self.header.set_copy_enabled(has_text)
+
         if not items:
             # Show "No context" label when empty
             empty_label = QLabel("No context items")
@@ -487,11 +517,25 @@ class ContextSectionWidget(QWidget):
         for chip in self._chips:
             if chip.index == index:
                 chip.copy_to_clipboard()
+                self._show_copied_notification()
                 break
 
     def _on_clear_all(self):
         """Handle clear all request."""
         self.context_manager.clear_context()
+
+    def _on_copy_text(self):
+        """Handle copy text request from header button."""
+        text_content = self.context_manager.get_context()
+        if text_content:
+            clipboard = QApplication.clipboard()
+            clipboard.setText(text_content)
+            self._show_copied_notification()
+
+    def _show_copied_notification(self):
+        """Show a 'Copied' notification."""
+        if self.notification_manager:
+            self.notification_manager.show_success_notification("Copied")
 
     def cleanup(self):
         """Clean up resources."""
