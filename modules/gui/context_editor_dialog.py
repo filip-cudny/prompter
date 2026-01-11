@@ -70,6 +70,15 @@ class CollapsibleSectionHeader(QWidget):
     toggle_requested = pyqtSignal()
     save_requested = pyqtSignal()
 
+    # Transparent button style (no border, no background)
+    _icon_btn_style = """
+        QPushButton {
+            background: transparent;
+            border: none;
+            padding: 2px;
+        }
+    """
+
     def __init__(
         self,
         title: str,
@@ -93,16 +102,18 @@ class CollapsibleSectionHeader(QWidget):
 
         layout.addStretch()
 
-        # Save button (optional)
+        # Save button (optional) - icon only, no border
         if show_save_button:
             self.save_btn = IconButton("save", size=16)
             self.save_btn.setToolTip(f"Save {title.lower()}")
+            self.save_btn.setStyleSheet(self._icon_btn_style)
             self.save_btn.clicked.connect(lambda: self.save_requested.emit())
             layout.addWidget(self.save_btn)
 
-        # Collapse toggle button at the end
+        # Collapse toggle button at the end - icon only, no border
         self.toggle_btn = IconButton("chevron-down", size=16)
         self.toggle_btn.setToolTip("Collapse section")
+        self.toggle_btn.setStyleSheet(self._icon_btn_style)
         self.toggle_btn.clicked.connect(lambda: self.toggle_requested.emit())
         layout.addWidget(self.toggle_btn)
 
@@ -461,7 +472,17 @@ class ContextEditorDialog(QDialog):
         self.clipboard_header.save_requested.connect(self._save_clipboard_only)
         section_layout.addWidget(self.clipboard_header)
 
-        # Text edit area
+        # Image container (shown when clipboard has image) - fixed height, not stretched
+        self.clipboard_image_container = QWidget()
+        self.clipboard_image_container.setStyleSheet("background: transparent;")
+        self.clipboard_image_layout = QHBoxLayout(self.clipboard_image_container)
+        self.clipboard_image_layout.setContentsMargins(0, 4, 0, 4)
+        self.clipboard_image_layout.setSpacing(6)
+        self.clipboard_image_layout.addStretch()
+        section_layout.addWidget(self.clipboard_image_container, 0, Qt.AlignTop)  # No stretch, align top
+        self.clipboard_image_container.hide()  # Hidden by default
+
+        # Text edit area (shown when clipboard has text)
         self.clipboard_edit = QTextEdit()
         self.clipboard_edit.setFont(QFont("Menlo, Monaco, Consolas, monospace", 12))
         self.clipboard_edit.setLineWrapMode(QTextEdit.WidgetWidth)
@@ -497,8 +518,9 @@ class ContextEditorDialog(QDialog):
 
     def _toggle_clipboard_section(self):
         """Toggle clipboard section visibility."""
-        is_visible = self.clipboard_edit.isVisible()
-        will_collapse = is_visible
+        # Content is visible if either text edit or image container is shown
+        content_visible = self.clipboard_edit.isVisible() or self.clipboard_image_container.isVisible()
+        will_collapse = content_visible
 
         if will_collapse:
             # Save current height before collapsing
@@ -507,16 +529,24 @@ class ContextEditorDialog(QDialog):
                 self._ui_state.set(
                     "context_editor_dialog.sections.clipboard.height", sizes[1]
                 )
+            # Hide both (one is already hidden)
+            self.clipboard_edit.hide()
+            self.clipboard_image_container.hide()
+        else:
+            # Show the appropriate content
+            if self._clipboard_image:
+                self.clipboard_image_container.show()
+            else:
+                self.clipboard_edit.show()
 
-        self.clipboard_edit.setVisible(not is_visible)
-        self.clipboard_header.set_collapsed(is_visible)
-        self._save_section_state("clipboard", collapsed=is_visible)
+        self.clipboard_header.set_collapsed(will_collapse)
+        self._save_section_state("clipboard", collapsed=will_collapse)
         self._adjust_splitter_for_collapse()
 
     def _adjust_splitter_for_collapse(self):
         """Adjust splitter sizes based on collapsed states."""
         context_collapsed = not self.text_edit.isVisible()
-        clipboard_collapsed = not self.clipboard_edit.isVisible()
+        clipboard_collapsed = not (self.clipboard_edit.isVisible() or self.clipboard_image_container.isVisible())
 
         header_height = 30  # Approximate height of collapsed section header
         total_height = sum(self.main_splitter.sizes())
@@ -554,7 +584,7 @@ class ContextEditorDialog(QDialog):
         """Save splitter sizes (only when both sections are expanded)."""
         # Only save sizes when both sections are expanded
         context_expanded = self.text_edit.isVisible()
-        clipboard_expanded = self.clipboard_edit.isVisible()
+        clipboard_expanded = self.clipboard_edit.isVisible() or self.clipboard_image_container.isVisible()
 
         if not (context_expanded and clipboard_expanded):
             return
@@ -590,6 +620,7 @@ class ContextEditorDialog(QDialog):
             self.context_header.set_collapsed(True)
         if clipboard_collapsed:
             self.clipboard_edit.hide()
+            self.clipboard_image_container.hide()
             self.clipboard_header.set_collapsed(True)
         if images_collapsed and self._current_images:
             self.images_content.hide()
@@ -619,8 +650,11 @@ class ContextEditorDialog(QDialog):
 
     def _save_clipboard_only(self):
         """Save only the clipboard changes."""
-        clipboard_content = self.clipboard_edit.toPlainText()
-        self.clipboard_manager.set_content(clipboard_content)
+        # If clipboard has image, it's already in the system clipboard - no action needed
+        # Only save text if text edit is visible
+        if self.clipboard_edit.isVisible():
+            clipboard_content = self.clipboard_edit.toPlainText()
+            self.clipboard_manager.set_content(clipboard_content)
 
         if self.notification_manager:
             self.notification_manager.show_success_notification("Clipboard saved")
@@ -733,15 +767,23 @@ class ContextEditorDialog(QDialog):
         self.text_edit.setPlainText(text_content)
         self._last_text = text_content
 
-        # Load clipboard content
+        # Load clipboard content (check for image first)
         try:
-            clipboard_content = self.clipboard_manager.get_content()
-            self.clipboard_edit.setPlainText(clipboard_content or "")
-            self._last_clipboard_text = clipboard_content or ""
+            if self.clipboard_manager.has_image():
+                image_data = self.clipboard_manager.get_image_data()
+                if image_data:
+                    self._clipboard_image = image_data
+                    self._rebuild_clipboard_image_chip()
+                    self.clipboard_image_container.show()
+                    self.clipboard_edit.hide()
+                    self._last_clipboard_text = ""
+                else:
+                    self._load_clipboard_text()
+            else:
+                self._load_clipboard_text()
         except Exception as e:
             logger.warning(f"Failed to load clipboard content: {e}")
-            self.clipboard_edit.setPlainText("")
-            self._last_clipboard_text = ""
+            self._load_clipboard_text()
 
         # Clear undo/redo stacks
         self._undo_stack.clear()
@@ -778,6 +820,63 @@ class ContextEditorDialog(QDialog):
             self.images_layout.addWidget(chip)
 
         self.images_layout.addStretch()
+
+    def _load_clipboard_text(self):
+        """Load text content from clipboard."""
+        try:
+            clipboard_content = self.clipboard_manager.get_content()
+            self.clipboard_edit.setPlainText(clipboard_content or "")
+            self._last_clipboard_text = clipboard_content or ""
+        except Exception as e:
+            logger.warning(f"Failed to load clipboard text: {e}")
+            self.clipboard_edit.setPlainText("")
+            self._last_clipboard_text = ""
+        self._clipboard_image = None
+        self.clipboard_image_container.hide()
+        self.clipboard_edit.show()
+
+    def _rebuild_clipboard_image_chip(self):
+        """Rebuild the clipboard image chip."""
+        # Clear existing chip
+        if self._clipboard_image_chip:
+            self._clipboard_image_chip.deleteLater()
+            self._clipboard_image_chip = None
+
+        # Remove all items from layout
+        while self.clipboard_image_layout.count():
+            self.clipboard_image_layout.takeAt(0)
+
+        if not self._clipboard_image:
+            return
+
+        base64_data, media_type = self._clipboard_image
+        chip = ImageChipWidget(
+            index=0,
+            image_number=1,
+            image_data=base64_data,
+            media_type=media_type,
+        )
+        chip.delete_requested.connect(self._on_clipboard_image_delete)
+        chip.copy_requested.connect(self._on_clipboard_image_copy)
+        self._clipboard_image_chip = chip
+        self.clipboard_image_layout.addWidget(chip)
+        self.clipboard_image_layout.addStretch()
+
+    def _on_clipboard_image_delete(self, index: int):
+        """Handle clipboard image delete request."""
+        self._clipboard_image = None
+        self._rebuild_clipboard_image_chip()
+        self.clipboard_image_container.hide()
+        self.clipboard_edit.show()
+        self.clipboard_edit.setPlainText("")
+        self._last_clipboard_text = ""
+
+    def _on_clipboard_image_copy(self, index: int):
+        """Handle clipboard image copy request."""
+        if self._clipboard_image_chip:
+            self._clipboard_image_chip.copy_to_clipboard()
+            if self.notification_manager:
+                self.notification_manager.show_success_notification("Copied")
 
     def _get_current_state(self) -> EditorState:
         """Get current editor state."""
@@ -941,9 +1040,10 @@ class ContextEditorDialog(QDialog):
         if text_content:
             self.context_manager.append_context(text_content)
 
-        # Save clipboard
-        clipboard_content = self.clipboard_edit.toPlainText()
-        self.clipboard_manager.set_content(clipboard_content)
+        # Save clipboard (only if text edit is visible - image already in clipboard)
+        if self.clipboard_edit.isVisible():
+            clipboard_content = self.clipboard_edit.toPlainText()
+            self.clipboard_manager.set_content(clipboard_content)
 
         self.context_saved.emit()
         self.accept()
