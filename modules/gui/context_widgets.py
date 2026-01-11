@@ -18,6 +18,52 @@ from PyQt5.QtCore import Qt, pyqtSignal, QByteArray, QBuffer, QSize, QPoint, QMi
 from PyQt5.QtGui import QPixmap, QImage, QCursor
 
 from core.context_manager import ContextManager, ContextItem, ContextItemType
+from modules.gui.icons import (
+    create_icon,
+    ICON_COLOR_NORMAL,
+    ICON_COLOR_HOVER,
+    ICON_COLOR_DISABLED,
+)
+
+
+class IconButton(QPushButton):
+    """QPushButton with SVG icon that changes color on hover."""
+
+    def __init__(
+        self,
+        icon_name: str,
+        size: int = 16,
+        parent: Optional[QWidget] = None,
+    ):
+        super().__init__(parent)
+        self._icon_name = icon_name
+        self._icon_size = size
+        self._update_icon(ICON_COLOR_NORMAL)
+        self.setIconSize(QSize(size, size))
+
+    def _update_icon(self, color: str):
+        """Update the icon with specified color."""
+        self.setIcon(create_icon(self._icon_name, color, self._icon_size))
+
+    def enterEvent(self, event):
+        """Change icon color on hover."""
+        if self.isEnabled():
+            self._update_icon(ICON_COLOR_HOVER)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        """Restore icon color when not hovering."""
+        if self.isEnabled():
+            self._update_icon(ICON_COLOR_NORMAL)
+        super().leaveEvent(event)
+
+    def setEnabled(self, enabled: bool):
+        """Update icon color when enabled state changes."""
+        super().setEnabled(enabled)
+        if enabled:
+            self._update_icon(ICON_COLOR_NORMAL)
+        else:
+            self._update_icon(ICON_COLOR_DISABLED)
 
 logger = logging.getLogger(__name__)
 
@@ -59,14 +105,11 @@ class ContextChipBase(QWidget):
         QPushButton {
             background: transparent;
             border: none;
-            color: #888888;
-            font-size: 12px;
-            padding: 2px 4px;
-            min-width: 16px;
-            max-width: 16px;
-        }
-        QPushButton:hover {
-            color: #aaaaaa;
+            padding: 2px;
+            min-width: 20px;
+            max-width: 20px;
+            min-height: 20px;
+            max-height: 20px;
         }
     """
 
@@ -83,7 +126,7 @@ class ContextChipBase(QWidget):
         layout.setSpacing(4)
 
         # Copy icon at the beginning
-        self.copy_btn = QPushButton("\u2398")  # ⎘ copy icon
+        self.copy_btn = IconButton("copy", size=16)
         self.copy_btn.setStyleSheet(self._icon_btn_style)
         self.copy_btn.setCursor(Qt.PointingHandCursor)
         self.copy_btn.setToolTip("Copy to clipboard")
@@ -95,7 +138,7 @@ class ContextChipBase(QWidget):
         layout.addWidget(self.label)
 
         # Delete button (x) at the end
-        self.delete_btn = QPushButton("\u00d7")  # × multiplication sign
+        self.delete_btn = IconButton("delete", size=16)
         self.delete_btn.setStyleSheet(self._icon_btn_style)
         self.delete_btn.setCursor(Qt.PointingHandCursor)
         self.delete_btn.setToolTip("Remove from context")
@@ -280,15 +323,11 @@ class ContextHeaderWidget(QWidget):
         QPushButton {
             background: transparent;
             border: none;
-            color: #888888;
-            font-size: 14px;
-            padding: 2px 6px;
-        }
-        QPushButton:hover {
-            color: #aaaaaa;
-        }
-        QPushButton:disabled {
-            color: #555555;
+            padding: 2px;
+            min-width: 22px;
+            max-width: 22px;
+            min-height: 22px;
+            max-height: 22px;
         }
     """
 
@@ -307,7 +346,7 @@ class ContextHeaderWidget(QWidget):
         layout.addStretch()
 
         # Edit button
-        self.edit_btn = QPushButton("\u270E")  # Pencil icon
+        self.edit_btn = IconButton("edit", size=18)
         self.edit_btn.setStyleSheet(self._btn_style)
         self.edit_btn.setCursor(Qt.PointingHandCursor)
         self.edit_btn.setToolTip("Edit context")
@@ -315,7 +354,7 @@ class ContextHeaderWidget(QWidget):
         layout.addWidget(self.edit_btn)
 
         # Copy button
-        self.copy_btn = QPushButton("\u2398")  # ⎘ clipboard icon
+        self.copy_btn = IconButton("copy", size=18)
         self.copy_btn.setStyleSheet(self._btn_style)
         self.copy_btn.setCursor(Qt.PointingHandCursor)
         self.copy_btn.setToolTip("Copy context text")
@@ -324,7 +363,7 @@ class ContextHeaderWidget(QWidget):
         layout.addWidget(self.copy_btn)
 
         # Clear button
-        clear_btn = QPushButton("\u00d7")  # × multiplication sign
+        clear_btn = IconButton("delete", size=18)
         clear_btn.setStyleSheet(self._btn_style)
         clear_btn.setCursor(Qt.PointingHandCursor)
         clear_btn.setToolTip("Clear all context")
@@ -630,17 +669,11 @@ class LastInteractionChip(QWidget):
         QPushButton {
             background: transparent;
             border: none;
-            color: #888888;
-            font-size: 12px;
-            padding: 2px 4px;
-            min-width: 16px;
-            max-width: 16px;
-        }
-        QPushButton:hover {
-            color: #aaaaaa;
-        }
-        QPushButton:disabled {
-            color: #555555;
+            padding: 2px;
+            min-width: 20px;
+            max-width: 20px;
+            min-height: 20px;
+            max-height: 20px;
         }
     """
 
@@ -672,7 +705,7 @@ class LastInteractionChip(QWidget):
         layout.setSpacing(4)
 
         # Copy icon at the beginning
-        self.copy_btn = QPushButton("\u2398")  # ⎘ copy icon
+        self.copy_btn = IconButton("copy", size=16)
         self.copy_btn.setStyleSheet(self._icon_btn_style)
         self.copy_btn.setCursor(Qt.PointingHandCursor if self._enabled else Qt.ArrowCursor)
         self.copy_btn.setToolTip("Copy to clipboard")
@@ -687,7 +720,7 @@ class LastInteractionChip(QWidget):
         layout.addWidget(self.label)
 
         # Details button (info icon) at the end
-        self.details_btn = QPushButton("\u2139")  # ℹ info icon
+        self.details_btn = IconButton("info", size=16)
         self.details_btn.setStyleSheet(self._icon_btn_style)
         self.details_btn.setCursor(Qt.PointingHandCursor if self._enabled else Qt.ArrowCursor)
         self.details_btn.setToolTip("Show details")
