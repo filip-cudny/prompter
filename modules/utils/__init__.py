@@ -11,6 +11,7 @@ from .system import (
     is_windows,
 )
 from .config import AppConfig, load_config
+from .ui_state import UIStateManager
 
 
 __all__ = [
@@ -26,4 +27,5 @@ __all__ = [
     "load_config",
     "SpeechToTextService",
     "AudioRecorder",
+    "UIStateManager",
 ]
