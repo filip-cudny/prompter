@@ -14,6 +14,7 @@ class MenuItemType(Enum):
     HISTORY = "history"
     SYSTEM = "system"
     SPEECH = "speech"
+    CONTEXT = "context"
 
 
 class HistoryEntryType(Enum):

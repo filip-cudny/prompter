@@ -19,6 +19,7 @@ from modules.speech.speech_execution_handler import (
 )
 
 from modules.history.history_menu_provider import HistoryMenuProvider
+from modules.context.context_menu_provider import ContextMenuProvider
 from modules.prompts.prompt_execution_handler import PromptExecutionHandler
 from modules.history.history_execution_handler import HistoryExecutionHandler
 from modules.gui.menu_coordinator import PyQtMenuCoordinator, PyQtMenuEventHandler
@@ -335,11 +336,15 @@ class PrompterApp(QObject):
                 self._execute_menu_item,
                 self.prompt_store_service,
             ),
+            ContextMenuProvider(
+                self.context_manager,
+                self._execute_menu_item,
+                self.prompt_store_service,
+            ),
             HistoryMenuProvider(
                 history_service,
                 self._execute_menu_item,
                 self.prompt_store_service,
-                self.context_manager,
             ),
             SpeechMenuProvider(
                 self._speech_to_text,

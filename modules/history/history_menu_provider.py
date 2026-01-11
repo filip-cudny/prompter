@@ -1,7 +1,6 @@
 from typing import List, Callable
 from core.models import MenuItem, MenuItemType, HistoryEntryType
 from modules.history.history_service import HistoryService
-from core.context_manager import ContextManager
 
 
 class HistoryMenuProvider:
@@ -12,12 +11,10 @@ class HistoryMenuProvider:
         history_service: HistoryService,
         execute_callback: Callable[[MenuItem], None],
         prompt_store_service=None,
-        context_manager: ContextManager = None,
     ):
         self.history_service = history_service
         self.execute_callback = execute_callback
         self.prompt_store_service = prompt_store_service
-        self.context_manager = context_manager
 
     def get_menu_items(self) -> List[MenuItem]:
         """Return menu items for history operations."""
@@ -93,58 +90,6 @@ class HistoryMenuProvider:
                 "Output Content", last_output
             )
         items.append(output_item)
-
-        # Copy Context item
-        context_content = None
-        context_images = []
-        if self.context_manager:
-            context_content = self.context_manager.get_context()
-            context_images = self.context_manager.get_context_images()
-
-        context_label = "⎘ Copy context text"
-        if context_content:
-            preview = (
-                context_content[:30] + "..."
-                if len(context_content) > 30
-                else context_content
-            )
-            context_label = f"⎘ Copy context text: {preview}"
-
-        context_enabled = context_content is not None
-        if self.prompt_store_service:
-            context_enabled = (
-                context_enabled
-                and not self.prompt_store_service.should_disable_action(
-                    "history_copy_context"
-                )
-            )
-
-        preview_content = context_content
-        if context_images:
-            image_info = " ".join(
-                [f"<Image{i + 1}>" for i in range(len(context_images))]
-            )
-            if preview_content:
-                preview_content = f"{image_info}\n\n{preview_content}"
-            else:
-                preview_content = image_info
-
-        context_item = MenuItem(
-            id="history_copy_context",
-            label=context_label,
-            item_type=MenuItemType.HISTORY,
-            action=lambda: None,
-            data={"type": "copy_context", "content": context_content},
-            enabled=context_enabled,
-            separator_after=True,
-            tooltip=preview_content,
-        )
-        context_item.action = lambda item=context_item: self.execute_callback(item)
-        if preview_content:
-            context_item.alternative_action = self._create_preview_action(
-                "Context Content", preview_content
-            )
-        items.append(context_item)
 
         return items
 

@@ -4,7 +4,7 @@ from typing import List, Optional, Tuple, Callable
 from PyQt5.QtWidgets import QMenu, QAction, QApplication, QWidgetAction, QLabel, QWidget
 from PyQt5.QtCore import Qt, QPoint, QTimer, QObject, QEvent
 from PyQt5.QtGui import QCursor
-from core.models import MenuItem
+from core.models import MenuItem, MenuItemType
 import sip
 import platform
 import subprocess
@@ -467,7 +467,12 @@ class PyQtContextMenu(QObject):
     def _add_menu_items(self, menu: QMenu, items: List[MenuItem]) -> None:
         """Add menu items to a QMenu."""
         for item in items:
-            if hasattr(item, "submenu_items") and item.submenu_items:
+            if item.item_type == MenuItemType.CONTEXT:
+                # Create context section widget
+                action = self._create_context_section_item(menu, item)
+                if action:
+                    menu.addAction(action)
+            elif hasattr(item, "submenu_items") and item.submenu_items:
                 # Create submenu with consistent styling
                 submenu = self.create_submenu(menu, item.label, item.submenu_items)
                 submenu_action = menu.addMenu(submenu)
@@ -479,6 +484,21 @@ class PyQtContextMenu(QObject):
 
             if hasattr(item, "separator_after") and item.separator_after:
                 menu.addSeparator()
+
+    def _create_context_section_item(
+        self, menu: QMenu, item: MenuItem
+    ) -> Optional[QAction]:
+        """Create a context section widget action."""
+        from modules.gui.context_widgets import ContextSectionWidget
+
+        context_manager = item.data.get("context_manager") if item.data else None
+        if not context_manager:
+            return None
+
+        widget = ContextSectionWidget(context_manager)
+        action = QWidgetAction(menu)
+        action.setDefaultWidget(widget)
+        return action
 
     def _create_custom_menu_item(
         self, menu: QMenu, item: MenuItem
