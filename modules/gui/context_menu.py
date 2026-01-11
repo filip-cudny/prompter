@@ -496,7 +496,12 @@ class PyQtContextMenu(QObject):
             return None
 
         notification_manager = item.data.get("notification_manager") if item.data else None
-        widget = ContextSectionWidget(context_manager, notification_manager=notification_manager)
+        clipboard_manager = item.data.get("clipboard_manager") if item.data else None
+        widget = ContextSectionWidget(
+            context_manager,
+            notification_manager=notification_manager,
+            clipboard_manager=clipboard_manager,
+        )
         action = QWidgetAction(menu)
         action.setDefaultWidget(widget)
         return action

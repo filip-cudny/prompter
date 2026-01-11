@@ -254,10 +254,11 @@ class ImageContextChip(ContextChipBase):
 
 
 class ContextHeaderWidget(QWidget):
-    """Header widget with 'Context' label, copy and clear buttons."""
+    """Header widget with 'Context' label, edit, copy and clear buttons."""
 
     clear_requested = pyqtSignal()
     copy_requested = pyqtSignal()
+    edit_requested = pyqtSignal()
 
     _header_style = """
         QWidget {
@@ -305,6 +306,14 @@ class ContextHeaderWidget(QWidget):
 
         layout.addStretch()
 
+        # Edit button
+        self.edit_btn = QPushButton("\u270E")  # Pencil icon
+        self.edit_btn.setStyleSheet(self._btn_style)
+        self.edit_btn.setCursor(Qt.PointingHandCursor)
+        self.edit_btn.setToolTip("Edit context")
+        self.edit_btn.clicked.connect(self._on_edit_clicked)
+        layout.addWidget(self.edit_btn)
+
         # Copy button
         self.copy_btn = QPushButton("\u2398")  # ⎘ clipboard icon
         self.copy_btn.setStyleSheet(self._btn_style)
@@ -329,6 +338,10 @@ class ContextHeaderWidget(QWidget):
     def _on_copy_clicked(self):
         """Handle copy button click."""
         self.copy_requested.emit()
+
+    def _on_edit_clicked(self):
+        """Handle edit button click."""
+        self.edit_requested.emit()
 
     def set_copy_enabled(self, enabled: bool):
         """Enable or disable the copy button."""
@@ -412,12 +425,14 @@ class ContextSectionWidget(QWidget):
         context_manager: ContextManager,
         copy_callback: Optional[Callable[[], None]] = None,
         notification_manager=None,
+        clipboard_manager=None,
         parent: Optional[QWidget] = None,
     ):
         super().__init__(parent)
         self.context_manager = context_manager
         self.copy_callback = copy_callback
         self.notification_manager = notification_manager
+        self.clipboard_manager = clipboard_manager
         self._chips = []  # Store references to chips
         self.setObjectName("contextSection")
         self.setStyleSheet(self._container_style)
@@ -434,10 +449,11 @@ class ContextSectionWidget(QWidget):
         self.main_layout.setContentsMargins(0, 0, 0, 0)
         self.main_layout.setSpacing(2)
 
-        # Header with title, copy and clear buttons
+        # Header with title, edit, copy and clear buttons
         self.header = ContextHeaderWidget()
         self.header.clear_requested.connect(self._on_clear_all)
         self.header.copy_requested.connect(self._on_copy_text)
+        self.header.edit_requested.connect(self._on_edit_context)
         self.main_layout.addWidget(self.header)
 
         # Container for chips
@@ -531,6 +547,20 @@ class ContextSectionWidget(QWidget):
             clipboard = QApplication.clipboard()
             clipboard.setText(text_content)
             self._show_copied_notification()
+
+    def _on_edit_context(self):
+        """Handle edit context request - open the context editor dialog."""
+        if self.clipboard_manager is None:
+            logger.warning("Cannot open context editor: clipboard_manager not available")
+            return
+
+        from modules.gui.context_editor_dialog import show_context_editor
+
+        show_context_editor(
+            self.context_manager,
+            self.clipboard_manager,
+            self.notification_manager,
+        )
 
     def _show_copied_notification(self):
         """Show a 'Copied' notification."""

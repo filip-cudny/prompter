@@ -341,6 +341,7 @@ class PrompterApp(QObject):
                 self._execute_menu_item,
                 self.prompt_store_service,
                 self.notification_manager,
+                self.clipboard_manager,
             ),
             HistoryMenuProvider(
                 history_service,
