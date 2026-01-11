@@ -93,14 +93,14 @@ class HistoryMenuProvider:
             context_content = self.context_manager.get_context()
             context_images = self.context_manager.get_context_images()
 
-        context_label = "⎘ Copy context"
+        context_label = "⎘ Copy context text"
         if context_content:
             preview = (
                 context_content[:30] + "..."
                 if len(context_content) > 30
                 else context_content
             )
-            context_label = f"⎘ Copy context: {preview}"
+            context_label = f"⎘ Copy context text: {preview}"
 
         context_enabled = context_content is not None
         if self.prompt_store_service:
@@ -117,7 +117,7 @@ class HistoryMenuProvider:
                 [f"<Image{i + 1}>" for i in range(len(context_images))]
             )
             if tooltip_content:
-                tooltip_content = f"{image_info} {tooltip_content}"
+                tooltip_content = f"{image_info}\n\n{tooltip_content}"
             else:
                 tooltip_content = image_info
 
