@@ -95,8 +95,8 @@ class InvisibleFocusWindow(QWidget):
         QTimer.singleShot(50, lambda: self._show_menu_at_position(position))
 
         # Additional focus attempts to ensure keyboard events work
-        QTimer.singleShot(100, lambda: self.setFocus(Qt.OtherFocusReason))
-        QTimer.singleShot(150, lambda: self.activateWindow())
+        QTimer.singleShot(50, lambda: self.setFocus(Qt.OtherFocusReason))
+        QTimer.singleShot(75, lambda: self.activateWindow())
 
     def _force_app_activation(self):
         """Force application activation based on platform."""
@@ -788,7 +788,7 @@ class PyQtContextMenu(QObject):
                     self.focus_window.hide()
                 # Restore focus after execution
                 self._focus_restore_pending = True
-                QTimer.singleShot(100, self._restore_focus_with_cleanup)
+                QTimer.singleShot(50, self._restore_focus_with_cleanup)
 
             return True
 
@@ -805,7 +805,7 @@ class PyQtContextMenu(QObject):
                 self.focus_window.hide()
             # Restore focus after execution
             self._focus_restore_pending = True
-            QTimer.singleShot(100, self._restore_focus_with_cleanup)
+            QTimer.singleShot(50, self._restore_focus_with_cleanup)
 
     def _clear_all_hover_states(self):
         """Clear all hover states."""

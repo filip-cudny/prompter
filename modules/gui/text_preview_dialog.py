@@ -1,8 +1,28 @@
 """Text preview dialog for displaying full content."""
 
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QTextEdit
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QTimer, QEvent
 from PyQt5.QtGui import QFont
+
+# Module-level list to keep dialog references alive
+_open_dialogs = []
+
+
+def show_preview_dialog(title: str, content: str):
+    """Show a preview dialog with the given title and content."""
+
+    def create_and_show():
+        dialog = TextPreviewDialog(title, content)
+        _open_dialogs.append(dialog)
+        dialog.finished.connect(
+            lambda: _open_dialogs.remove(dialog) if dialog in _open_dialogs else None
+        )
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
+
+    # Delay to let context menu cleanup finish
+    QTimer.singleShot(75, create_and_show)
 
 
 class TextPreviewDialog(QDialog):
@@ -13,9 +33,7 @@ class TextPreviewDialog(QDialog):
         self.setWindowTitle(title)
         self.setMinimumSize(400, 300)
         self.resize(600, 400)
-        self.setWindowFlags(
-            Qt.Window | Qt.WindowCloseButtonHint | Qt.WindowTitleHint
-        )
+        self.setWindowFlags(Qt.Window)
 
         self._setup_ui(content)
         self._apply_styles()
@@ -82,6 +100,22 @@ class TextPreviewDialog(QDialog):
                 width: 0px;
             }
         """)
+
+    def event(self, event):
+        """Handle events to ensure proper focus behavior."""
+        if event.type() in (QEvent.WindowActivate, QEvent.FocusIn, QEvent.MouseButtonPress):
+            # Immediate raise
+            self.raise_()
+            self.activateWindow()
+            # Delayed raise to override context menu's focus restoration
+            QTimer.singleShot(75, self._ensure_focus)
+        return super().event(event)
+
+    def _ensure_focus(self):
+        """Ensure dialog stays focused after context menu cleanup."""
+        if self.isVisible():
+            self.raise_()
+            self.activateWindow()
 
     def keyPressEvent(self, event):
         """Handle key press events."""
