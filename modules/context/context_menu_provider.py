@@ -15,11 +15,13 @@ class ContextMenuProvider:
         execute_callback: Callable[[MenuItem], None],
         prompt_store_service=None,
         notification_manager=None,
+        clipboard_manager=None,
     ):
         self.context_manager = context_manager
         self.execute_callback = execute_callback
         self.prompt_store_service = prompt_store_service
         self.notification_manager = notification_manager
+        self.clipboard_manager = clipboard_manager
 
     def get_menu_items(self) -> List[MenuItem]:
         """Return menu items for the context section."""
@@ -36,6 +38,7 @@ class ContextMenuProvider:
             data={
                 "context_manager": self.context_manager,
                 "notification_manager": self.notification_manager,
+                "clipboard_manager": self.clipboard_manager,
             },
             enabled=True,
             separator_after=True,
