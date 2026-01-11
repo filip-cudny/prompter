@@ -1,7 +1,7 @@
 """Menu item provider for speech functionality."""
 
 from typing import List, Callable, Optional
-from core.models import MenuItem, MenuItemType, HistoryEntryType
+from core.models import MenuItem, MenuItemType
 
 
 class SpeechMenuProvider:
@@ -41,68 +41,11 @@ class SpeechMenuProvider:
                 action=self.speech_callback,
                 data={"type": "speech_to_text"},
                 enabled=speech_enabled,
+                separator_after=True,
             )
             items.append(speech_item)
 
-        # Last Speech Output item - always show, matching input/output button pattern
-        last_transcription = None
-        if self.history_service:
-            last_entry = self.history_service.get_last_item_by_type(
-                HistoryEntryType.SPEECH
-            )
-            if last_entry:
-                last_transcription = last_entry.output_content
-
-        speech_output_label = "⎘ Copy output"
-        if last_transcription:
-            preview = (
-                last_transcription[:30] + "..."
-                if len(last_transcription) > 30
-                else last_transcription
-            )
-            speech_output_label = f"⎘ Copy output: {preview}"
-
-        speech_output_enabled = last_transcription is not None
-        if self.prompt_store_service:
-            speech_output_enabled = (
-                speech_output_enabled
-                and not self.prompt_store_service.should_disable_action(
-                    "speech_last_output"
-                )
-            )
-
-        speech_output_item = MenuItem(
-            id="speech_last_output",
-            label=speech_output_label,
-            item_type=MenuItemType.SPEECH,
-            action=lambda: None,
-            data={"type": "last_speech_output", "content": last_transcription},
-            enabled=speech_output_enabled,
-            separator_after=True,
-            tooltip=last_transcription,
-        )
-        if self.execute_callback:
-            speech_output_item.action = (
-                lambda item=speech_output_item: self.execute_callback(item)
-            )
-        if last_transcription:
-            speech_output_item.alternative_action = self._create_preview_action(
-                "Speech Output", last_transcription
-            )
-        items.append(speech_output_item)
-
         return items
-
-    def _create_preview_action(self, title: str, content: str):
-        """Create an action that opens a text preview dialog."""
-
-        def show_preview():
-            from modules.gui.text_preview_dialog import show_preview_dialog
-
-            show_preview_dialog(title, content)
-            return None
-
-        return show_preview
 
     def refresh(self) -> None:
         """Refresh the provider's data."""

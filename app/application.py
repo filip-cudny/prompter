@@ -18,7 +18,7 @@ from modules.speech.speech_execution_handler import (
     PyQtSpeechExecutionHandler,
 )
 
-from modules.history.history_menu_provider import HistoryMenuProvider
+from modules.history.last_interaction_menu_provider import LastInteractionMenuProvider
 from modules.context.context_menu_provider import ContextMenuProvider
 from modules.prompts.prompt_execution_handler import PromptExecutionHandler
 from modules.history.history_execution_handler import HistoryExecutionHandler
@@ -343,10 +343,10 @@ class PrompterApp(QObject):
                 self.notification_manager,
                 self.clipboard_manager,
             ),
-            HistoryMenuProvider(
+            LastInteractionMenuProvider(
                 history_service,
-                self._execute_menu_item,
-                self.prompt_store_service,
+                self.notification_manager,
+                self.clipboard_manager,
             ),
             SpeechMenuProvider(
                 self._speech_to_text,
