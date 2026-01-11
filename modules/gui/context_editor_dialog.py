@@ -22,6 +22,7 @@ from PyQt5.QtCore import Qt, QTimer, QEvent, pyqtSignal, QByteArray, QBuffer
 from PyQt5.QtGui import QFont, QImage
 
 from core.context_manager import ContextManager, ContextItem, ContextItemType
+from modules.gui.context_widgets import IconButton
 
 logger = logging.getLogger(__name__)
 
@@ -77,14 +78,11 @@ class ImageChipWidget(QWidget):
         QWidget#editorChip QPushButton {
             background: transparent;
             border: none;
-            color: #888888;
-            font-size: 12px;
-            padding: 2px 4px;
-            min-width: 16px;
-            max-width: 16px;
-        }
-        QWidget#editorChip QPushButton:hover {
-            color: #aaaaaa;
+            padding: 2px;
+            min-width: 20px;
+            max-width: 20px;
+            min-height: 20px;
+            max-height: 20px;
         }
         QWidget#editorChip QLabel {
             color: #f0f0f0;
@@ -104,14 +102,11 @@ class ImageChipWidget(QWidget):
         QWidget#editorChip QPushButton {
             background: transparent;
             border: none;
-            color: #888888;
-            font-size: 12px;
-            padding: 2px 4px;
-            min-width: 16px;
-            max-width: 16px;
-        }
-        QWidget#editorChip QPushButton:hover {
-            color: #aaaaaa;
+            padding: 2px;
+            min-width: 20px;
+            max-width: 20px;
+            min-height: 20px;
+            max-height: 20px;
         }
         QWidget#editorChip QLabel {
             color: #f0f0f0;
@@ -143,19 +138,19 @@ class ImageChipWidget(QWidget):
         layout.setContentsMargins(6, 2, 4, 2)
         layout.setSpacing(4)
 
-        # Copy button (styled by parent widget stylesheet)
-        self.copy_btn = QPushButton("\u2398")  # Copy icon
+        # Copy button
+        self.copy_btn = IconButton("copy", size=16)
         self.copy_btn.setCursor(Qt.PointingHandCursor)
         self.copy_btn.setToolTip("Copy to clipboard")
         self.copy_btn.clicked.connect(self._on_copy_clicked)
         layout.addWidget(self.copy_btn)
 
-        # Label (styled by parent widget stylesheet)
+        # Label
         self.label = QLabel(f"[image #{image_number}]")
         layout.addWidget(self.label)
 
-        # Delete button (styled by parent widget stylesheet)
-        self.delete_btn = QPushButton("\u00d7")  # X icon
+        # Delete button
+        self.delete_btn = IconButton("delete", size=16)
         self.delete_btn.setCursor(Qt.PointingHandCursor)
         self.delete_btn.setToolTip("Remove image")
         self.delete_btn.clicked.connect(self._on_delete_clicked)
@@ -282,13 +277,13 @@ class ContextEditorDialog(QDialog):
         toolbar = QHBoxLayout()
         toolbar.setSpacing(4)
 
-        self.undo_btn = QPushButton("\u21b6")  # Undo arrow
+        self.undo_btn = IconButton("undo", size=18)
         self.undo_btn.setToolTip("Undo (Ctrl+Z)")
         self.undo_btn.clicked.connect(self._undo)
         self.undo_btn.setEnabled(False)
         toolbar.addWidget(self.undo_btn)
 
-        self.redo_btn = QPushButton("\u21b7")  # Redo arrow
+        self.redo_btn = IconButton("redo", size=18)
         self.redo_btn.setToolTip("Redo (Ctrl+Shift+Z)")
         self.redo_btn.clicked.connect(self._redo)
         self.redo_btn.setEnabled(False)
