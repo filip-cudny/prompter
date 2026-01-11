@@ -268,6 +268,7 @@ class PyQtMenuCoordinator(QObject):
     def _execute_menu_item(self, item: MenuItem) -> None:
         """Execute a menu item through the Prompter service or direct action call."""
         try:
+            logger.debug(f"Executing menu item: {item.id} (type: {item.item_type})")
             # For system items with direct actions (like set default model, set active prompt),
             # call the action directly instead of going through the execution service
             if (

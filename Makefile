@@ -1,7 +1,7 @@
 # Prompter Makefile
 # Background process management for the Prompter application
 
-.PHONY: help install setup start stop restart status logs clean dev test lint format check-deps
+.PHONY: help install setup start stop restart status logs logs-follow logs-debug start-debug debug clean clean-all autostart-macos autostart-linux info
 
 PYTHON := python3
 VENV_DIR := .venv
@@ -10,6 +10,7 @@ VENV_PIP := $(VENV_DIR)/bin/pip
 PID_FILE := .prompter.pid
 LOG_FILE := prompter.log
 ERROR_LOG := prompter-error.log
+DEBUG_LOG := prompter-debug.log
 
 help: ## Show this help message
 	@echo "Prompter - Background Service Management"
@@ -18,11 +19,16 @@ help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
 	@echo ""
 	@echo "Process Management:"
-	@echo "  make start     - Start service in background"
-	@echo "  make stop      - Stop background service"
-	@echo "  make restart   - Restart background service"
-	@echo "  make status    - Check service status"
-	@echo "  make logs      - Show service logs"
+	@echo "  make start       - Start service in background"
+	@echo "  make stop        - Stop background service"
+	@echo "  make restart     - Restart background service"
+	@echo "  make status      - Check service status"
+	@echo "  make logs        - Show service logs"
+	@echo ""
+	@echo "Debug Mode:"
+	@echo "  make debug       - Run in foreground with debug logging"
+	@echo "  make start-debug - Start in background with debug logging"
+	@echo "  make logs-debug  - Show debug logs"
 
 install: setup ## Install dependencies and setup virtual environment
 
@@ -142,10 +148,46 @@ logs-follow: ## Follow service logs in real-time
 		echo "No log file found. Start the service first."; \
 	fi
 
+start-debug: ## Start the service in debug mode (background)
+	@if [ -f "$(PID_FILE)" ] && kill -0 `cat $(PID_FILE)` 2>/dev/null; then \
+		echo "❌ Service is already running (PID: `cat $(PID_FILE)`)"; \
+		exit 1; \
+	fi
+	@echo "🚀 Starting Prompter in DEBUG mode..."
+	@nohup $(VENV_PYTHON) main.py --debug > $(LOG_FILE) 2> $(ERROR_LOG) & echo $$! > $(PID_FILE)
+	@sleep 2
+	@if [ -f "$(PID_FILE)" ] && kill -0 `cat $(PID_FILE)` 2>/dev/null; then \
+		echo "✅ Service started in DEBUG mode (PID: `cat $(PID_FILE)`)"; \
+		echo "📋 Debug logs: $(DEBUG_LOG)"; \
+		echo "📋 Use 'make logs-debug' to view debug output"; \
+	else \
+		echo "❌ Failed to start service"; \
+		if [ -f "$(ERROR_LOG)" ]; then \
+			echo "Error log:"; \
+			tail -10 $(ERROR_LOG); \
+		fi; \
+		exit 1; \
+	fi
+
+debug: ## Run in foreground with debug logging (Ctrl+C to stop)
+	@echo "🔍 Starting Prompter in DEBUG mode (foreground)..."
+	@echo "📋 Debug logs will be saved to: $(DEBUG_LOG)"
+	@echo "Press Ctrl+C to stop"
+	@echo ""
+	@$(VENV_PYTHON) main.py --debug
+
+logs-debug: ## Show debug logs
+	@echo "🔍 Debug Logs (last 100 lines)"
+	@echo "=============================="
+	@if [ -f "$(DEBUG_LOG)" ]; then \
+		tail -100 $(DEBUG_LOG); \
+	else \
+		echo "No debug log file found. Run 'make debug' or 'make start-debug' first."; \
+	fi
 
 clean: ## Clean up generated files
 	@echo "🧹 Cleaning up..."
-	@rm -f $(PID_FILE) $(LOG_FILE) $(ERROR_LOG)
+	@rm -f $(PID_FILE) $(LOG_FILE) $(ERROR_LOG) $(DEBUG_LOG)
 	@find . -type f -name "*.pyc" -delete
 	@find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 	@echo "✅ Cleanup complete"

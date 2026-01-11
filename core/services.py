@@ -141,17 +141,21 @@ class ExecutionService:
                                     result,
                                 )
 
-                            # For alternative execution, don't emit signal here - async manager will handle it
-                            # For non-alternative execution, emit signal to update GUI
-                            if not is_alternative:
+                            # Always emit signal for failed executions so user gets feedback
+                            # For successful alternative execution, async manager will handle it
+                            if not result.success:
+                                self.prompt_store_service.emit_execution_completed(
+                                    result
+                                )
+                            elif not is_alternative:
                                 self.prompt_store_service.emit_execution_completed(
                                     result
                                 )
                             break
                         except Exception as e:
-                            print(f"Handler execution failed: {e}")
+                            logger.error(f"Handler execution failed: {e}")
             else:
-                print("Empty transcription received, execution cancelled")
+                logger.info("Empty transcription received, execution cancelled")
                 # Still emit signal to update GUI even if transcription was empty
                 empty_result = ExecutionResult(
                     success=False,

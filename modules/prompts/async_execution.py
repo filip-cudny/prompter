@@ -109,6 +109,10 @@ class PromptExecutionWorker(QThread):
     def run(self):
         """Execute the prompt in the worker thread."""
         if not self.item:
+            # Ensure error callback is called for early return so cleanup happens
+            logger.warning("Worker run() called with no item - triggering error callback")
+            if self.error_callback:
+                self.error_callback("No item to execute", "Unknown", 0)
             return
 
         self.start_time = time.time()
@@ -262,9 +266,18 @@ class AsyncPromptExecutionManager:
         self.current_context: Optional[str] = None
         self.is_alternative_execution: bool = False
         self.original_input_content: Optional[str] = None
+        logger.info(
+            "AsyncPromptExecutionManager initialized - is_executing=False, worker=None"
+        )
 
     def is_busy(self) -> bool:
         """Check if execution is currently in progress."""
+        if self.is_executing:
+            logger.warning(
+                f"is_busy() returning True - is_executing={self.is_executing}, "
+                f"worker={self.worker is not None}, "
+                f"worker_running={self.is_worker_still_running()}"
+            )
         return self.is_executing
 
     def execute_prompt_async(
@@ -276,6 +289,10 @@ class AsyncPromptExecutionManager:
         Returns:
             True if execution started, False if already executing
         """
+        logger.info(
+            f"execute_prompt_async called - item={item.id if item else None}, "
+            f"current_state: is_executing={self.is_executing}"
+        )
         if self.is_executing:
             return False
 
