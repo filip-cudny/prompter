@@ -15,6 +15,7 @@ from PyQt5.QtWidgets import (
     QPushButton,
     QApplication,
     QSplitter,
+    QSizePolicy,
 )
 from PyQt5.QtCore import Qt, QTimer, QEvent, pyqtSignal, QByteArray, QBuffer
 from PyQt5.QtGui import QFont, QImage
@@ -29,14 +30,33 @@ logger = logging.getLogger(__name__)
 # Module-level list to keep dialog references alive
 _open_dialogs = []
 
+# Transparent button style (no border, no background)
+# Explicitly override min-width from dialog QPushButton style
+_icon_btn_style = """
+    QPushButton {
+        background: transparent;
+        border: none;
+        padding: 2px;
+        min-width: 0px;
+        max-width: 24px;
+    }
+"""
+
 
 @dataclass
-class EditorState:
-    """Snapshot of editor state for undo/redo."""
+class ContextState:
+    """Snapshot of context editor state for undo/redo."""
 
     images: List[ContextItem]
     text: str
-    clipboard_text: str
+
+
+@dataclass
+class ClipboardState:
+    """Snapshot of clipboard editor state for undo/redo."""
+
+    text: str
+    image: Optional[Tuple[str, str]]  # (base64, media_type)
 
 
 def show_context_editor(
@@ -44,9 +64,20 @@ def show_context_editor(
     clipboard_manager,
     notification_manager=None,
 ):
-    """Show the context editor dialog."""
+    """Show the context editor dialog. If already open, bring to front."""
+    # If dialog already open, just raise it
+    if _open_dialogs:
+        dialog = _open_dialogs[0]
+        dialog.raise_()
+        dialog.activateWindow()
+        return
 
     def create_and_show():
+        # Double-check in case dialog was opened during timer delay
+        if _open_dialogs:
+            _open_dialogs[0].raise_()
+            _open_dialogs[0].activateWindow()
+            return
         dialog = ContextEditorDialog(
             context_manager,
             clipboard_manager,
@@ -65,10 +96,12 @@ def show_context_editor(
 
 
 class CollapsibleSectionHeader(QWidget):
-    """Header widget for collapsible sections with title, collapse toggle, and optional save button."""
+    """Header widget for collapsible sections with title, collapse toggle, and optional buttons."""
 
     toggle_requested = pyqtSignal()
     save_requested = pyqtSignal()
+    undo_requested = pyqtSignal()
+    redo_requested = pyqtSignal()
 
     # Transparent button style (no border, no background)
     _icon_btn_style = """
@@ -83,6 +116,8 @@ class CollapsibleSectionHeader(QWidget):
         self,
         title: str,
         show_save_button: bool = True,
+        show_undo_redo: bool = False,
+        hint_text: str = "",
         parent: Optional[QWidget] = None,
     ):
         super().__init__(parent)
@@ -90,32 +125,65 @@ class CollapsibleSectionHeader(QWidget):
         self._title = title
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 4, 0, 4)
-        layout.setSpacing(8)
+        layout.setContentsMargins(0, 4, 12, 4)  # 12px right margin for alignment
+        layout.setSpacing(4)
 
-        # Title label first
+        # Collapse toggle button FIRST (left side)
+        self.toggle_btn = IconButton("chevron-down", size=16)
+        self.toggle_btn.setToolTip("Collapse section")
+        # Remove padding so chevron aligns with text edit border
+        self.toggle_btn.setStyleSheet("QPushButton { background: transparent; border: none; padding: 0px; }")
+        self.toggle_btn.clicked.connect(lambda: self.toggle_requested.emit())
+        layout.addWidget(self.toggle_btn)
+
+        # Title label after chevron
         self.title_label = QLabel(title)
         self.title_label.setStyleSheet(
             "QLabel { color: #888888; font-size: 11px; font-weight: bold; }"
         )
         layout.addWidget(self.title_label)
 
+        # Optional hint text (e.g., "Paste image: Ctrl+V")
+        if hint_text:
+            hint_label = QLabel(hint_text)
+            hint_label.setStyleSheet("QLabel { color: #666666; font-size: 11px; }")
+            layout.addWidget(hint_label)
+
         layout.addStretch()
 
-        # Save button (optional) - icon only, no border
+        # Button container for tighter spacing
+        btn_container = QWidget()
+        btn_layout = QHBoxLayout(btn_container)
+        btn_layout.setContentsMargins(0, 0, 0, 0)
+        btn_layout.setSpacing(2)
+
+        # Undo/redo buttons (optional)
+        self.undo_btn = None
+        self.redo_btn = None
+        if show_undo_redo:
+            self.undo_btn = IconButton("undo", size=16)
+            self.undo_btn.setToolTip("Undo (Ctrl+Z)")
+            self.undo_btn.setStyleSheet(self._icon_btn_style)
+            self.undo_btn.clicked.connect(lambda: self.undo_requested.emit())
+            self.undo_btn.setEnabled(False)
+            btn_layout.addWidget(self.undo_btn)
+
+            self.redo_btn = IconButton("redo", size=16)
+            self.redo_btn.setToolTip("Redo (Ctrl+Shift+Z)")
+            self.redo_btn.setStyleSheet(self._icon_btn_style)
+            self.redo_btn.clicked.connect(lambda: self.redo_requested.emit())
+            self.redo_btn.setEnabled(False)
+            btn_layout.addWidget(self.redo_btn)
+
+        # Save button (optional) - icon only, no border, on right side
         if show_save_button:
             self.save_btn = IconButton("save", size=16)
             self.save_btn.setToolTip(f"Save {title.lower()}")
             self.save_btn.setStyleSheet(self._icon_btn_style)
             self.save_btn.clicked.connect(lambda: self.save_requested.emit())
-            layout.addWidget(self.save_btn)
+            btn_layout.addWidget(self.save_btn)
 
-        # Collapse toggle button at the end - icon only, no border
-        self.toggle_btn = IconButton("chevron-down", size=16)
-        self.toggle_btn.setToolTip("Collapse section")
-        self.toggle_btn.setStyleSheet(self._icon_btn_style)
-        self.toggle_btn.clicked.connect(lambda: self.toggle_requested.emit())
-        layout.addWidget(self.toggle_btn)
+        layout.addWidget(btn_container)
 
     def set_collapsed(self, collapsed: bool):
         """Update the visual state of the toggle button."""
@@ -126,6 +194,13 @@ class CollapsibleSectionHeader(QWidget):
         self.toggle_btn.setToolTip(
             "Expand section" if collapsed else "Collapse section"
         )
+
+    def set_undo_redo_enabled(self, can_undo: bool, can_redo: bool):
+        """Update undo/redo button enabled states."""
+        if self.undo_btn:
+            self.undo_btn.setEnabled(can_undo)
+        if self.redo_btn:
+            self.redo_btn.setEnabled(can_redo)
 
 
 class ImageChipWidget(QWidget):
@@ -241,7 +316,7 @@ class ImageChipWidget(QWidget):
             orig_height = image.height()
 
             thumbnail = image.scaled(
-                150, 150, Qt.KeepAspectRatio, Qt.SmoothTransformation
+                300, 300, Qt.KeepAspectRatio, Qt.SmoothTransformation
             )
 
             buffer = QBuffer()
@@ -322,9 +397,11 @@ class ContextEditorDialog(QDialog):
         self._clipboard_image: Optional[Tuple[str, str]] = None  # (base64, media_type)
         self._clipboard_image_chip: Optional[ImageChipWidget] = None
 
-        # Undo/redo stacks
-        self._undo_stack: List[EditorState] = []
-        self._redo_stack: List[EditorState] = []
+        # Separate undo/redo stacks for context and clipboard
+        self._context_undo_stack: List[ContextState] = []
+        self._context_redo_stack: List[ContextState] = []
+        self._clipboard_undo_stack: List[ClipboardState] = []
+        self._clipboard_redo_stack: List[ClipboardState] = []
 
         self.setWindowTitle("Context Editor")
         self.setMinimumSize(500, 400)
@@ -346,36 +423,13 @@ class ContextEditorDialog(QDialog):
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(8)
 
-        # Toolbar with undo/redo
-        toolbar = QHBoxLayout()
-        toolbar.setSpacing(4)
-
-        self.undo_btn = IconButton("undo", size=18)
-        self.undo_btn.setToolTip("Undo (Ctrl+Z)")
-        self.undo_btn.clicked.connect(self._undo)
-        self.undo_btn.setEnabled(False)
-        toolbar.addWidget(self.undo_btn)
-
-        self.redo_btn = IconButton("redo", size=18)
-        self.redo_btn.setToolTip("Redo (Ctrl+Shift+Z)")
-        self.redo_btn.clicked.connect(self._redo)
-        self.redo_btn.setEnabled(False)
-        toolbar.addWidget(self.redo_btn)
-
-        paste_hint = QLabel("(Paste image: Cmd/Ctrl+V)")
-        paste_hint.setStyleSheet("QLabel { color: #666666; font-size: 11px; }")
-        toolbar.addWidget(paste_hint)
-
-        toolbar.addStretch()
-        layout.addLayout(toolbar)
-
         # Images section (collapsible, not in splitter - fixed height)
         self.images_section = self._create_images_section()
         layout.addWidget(self.images_section)
 
         # Main splitter for resizable sections
         self.main_splitter = QSplitter(Qt.Vertical)
-        self.main_splitter.setHandleWidth(6)
+        self.main_splitter.setHandleWidth(3)
         self.main_splitter.setChildrenCollapsible(False)
 
         # Context section (collapsible, resizable)
@@ -391,8 +445,10 @@ class ContextEditorDialog(QDialog):
 
         layout.addWidget(self.main_splitter)
 
-        # Button bar
-        button_bar = QHBoxLayout()
+        # Button bar (wrapped in QWidget for consistent positioning)
+        button_widget = QWidget()
+        button_bar = QHBoxLayout(button_widget)
+        button_bar.setContentsMargins(0, 0, 12, 0)  # 12px right margin for alignment
         button_bar.addStretch()
 
         cancel_btn = QPushButton("Cancel")
@@ -404,7 +460,7 @@ class ContextEditorDialog(QDialog):
         save_btn.setDefault(True)
         button_bar.addWidget(save_btn)
 
-        layout.addLayout(button_bar)
+        layout.addWidget(button_widget)
 
         # Track text changes for undo
         self._last_text = ""
@@ -415,27 +471,16 @@ class ContextEditorDialog(QDialog):
         self._text_change_timer.timeout.connect(self._save_text_state)
 
     def _create_images_section(self) -> QWidget:
-        """Create the collapsible images section."""
-        container = QWidget()
-        section_layout = QVBoxLayout(container)
-        section_layout.setContentsMargins(0, 0, 0, 0)
-        section_layout.setSpacing(4)
-
-        # Header with collapse toggle (no save button for images)
-        self.images_header = CollapsibleSectionHeader("Images", show_save_button=False)
-        self.images_header.toggle_requested.connect(self._toggle_images_section)
-        section_layout.addWidget(self.images_header)
-
-        # Content area
+        """Create the images row (no header, just chips)."""
+        # Just the images container - no header
         self.images_content = QWidget()
         self.images_content.setStyleSheet("background: transparent;")
         self.images_layout = QHBoxLayout(self.images_content)
-        self.images_layout.setContentsMargins(0, 0, 0, 0)
+        self.images_layout.setContentsMargins(0, 0, 0, 4)
         self.images_layout.setSpacing(6)
         self.images_layout.addStretch()
-        section_layout.addWidget(self.images_content)
 
-        return container
+        return self.images_content
 
     def _create_context_section(self) -> QWidget:
         """Create the collapsible context text section."""
@@ -444,16 +489,23 @@ class ContextEditorDialog(QDialog):
         section_layout.setContentsMargins(0, 0, 0, 0)
         section_layout.setSpacing(4)
 
-        # Header with collapse toggle and save button
-        self.context_header = CollapsibleSectionHeader("Context")
+        # Header with collapse toggle, hint, undo/redo, and save button
+        self.context_header = CollapsibleSectionHeader(
+            "Context",
+            show_undo_redo=True,
+            hint_text="(Paste image: Ctrl+V)",
+        )
         self.context_header.toggle_requested.connect(self._toggle_context_section)
         self.context_header.save_requested.connect(self._save_context_only)
+        self.context_header.undo_requested.connect(self._undo_context)
+        self.context_header.redo_requested.connect(self._redo_context)
         section_layout.addWidget(self.context_header)
 
         # Text edit area
         self.text_edit = QTextEdit()
         self.text_edit.setFont(QFont("Menlo, Monaco, Consolas, monospace", 12))
         self.text_edit.setLineWrapMode(QTextEdit.WidgetWidth)
+        self.text_edit.setMinimumHeight(0)  # Allow section to be resized very small
         self.text_edit.textChanged.connect(self._on_text_changed)
         section_layout.addWidget(self.text_edit, 1)  # stretch factor 1 to fill space
 
@@ -466,10 +518,15 @@ class ContextEditorDialog(QDialog):
         section_layout.setContentsMargins(0, 0, 0, 0)
         section_layout.setSpacing(4)
 
-        # Header with collapse toggle and save button
-        self.clipboard_header = CollapsibleSectionHeader("Clipboard")
+        # Header with collapse toggle, undo/redo, and save button
+        self.clipboard_header = CollapsibleSectionHeader(
+            "Clipboard",
+            show_undo_redo=True,
+        )
         self.clipboard_header.toggle_requested.connect(self._toggle_clipboard_section)
         self.clipboard_header.save_requested.connect(self._save_clipboard_only)
+        self.clipboard_header.undo_requested.connect(self._undo_clipboard)
+        self.clipboard_header.redo_requested.connect(self._redo_clipboard)
         section_layout.addWidget(self.clipboard_header)
 
         # Image container (shown when clipboard has image) - fixed height, not stretched
@@ -486,17 +543,17 @@ class ContextEditorDialog(QDialog):
         self.clipboard_edit = QTextEdit()
         self.clipboard_edit.setFont(QFont("Menlo, Monaco, Consolas, monospace", 12))
         self.clipboard_edit.setLineWrapMode(QTextEdit.WidgetWidth)
+        self.clipboard_edit.setMinimumHeight(0)  # Allow section to be resized very small
         self.clipboard_edit.textChanged.connect(self._on_clipboard_text_changed)
         section_layout.addWidget(self.clipboard_edit, 1)  # stretch factor 1 to fill space
 
-        return container
+        # Stretch widget for when image is shown (pushes content to top)
+        self.clipboard_stretch = QWidget()
+        self.clipboard_stretch.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+        section_layout.addWidget(self.clipboard_stretch)
+        self.clipboard_stretch.hide()  # Hidden by default (shown when image is displayed)
 
-    def _toggle_images_section(self):
-        """Toggle images section visibility."""
-        is_visible = self.images_content.isVisible()
-        self.images_content.setVisible(not is_visible)
-        self.images_header.set_collapsed(is_visible)
-        self._save_section_state("images", collapsed=is_visible)
+        return container
 
     def _toggle_context_section(self):
         """Toggle context section visibility."""
@@ -532,12 +589,15 @@ class ContextEditorDialog(QDialog):
             # Hide both (one is already hidden)
             self.clipboard_edit.hide()
             self.clipboard_image_container.hide()
+            self.clipboard_stretch.hide()
         else:
             # Show the appropriate content
             if self._clipboard_image:
                 self.clipboard_image_container.show()
+                self.clipboard_stretch.show()  # Show stretch to push content to top
             else:
                 self.clipboard_edit.show()
+                self.clipboard_stretch.hide()
 
         self.clipboard_header.set_collapsed(will_collapse)
         self._save_section_state("clipboard", collapsed=will_collapse)
@@ -548,32 +608,37 @@ class ContextEditorDialog(QDialog):
         context_collapsed = not self.text_edit.isVisible()
         clipboard_collapsed = not (self.clipboard_edit.isVisible() or self.clipboard_image_container.isVisible())
 
-        header_height = 30  # Approximate height of collapsed section header
-        total_height = sum(self.main_splitter.sizes())
+        header_height = 30  # Height of collapsed section (just header)
+
+        # Reset size constraints first
+        self.context_section.setMinimumHeight(0)
+        self.context_section.setMaximumHeight(16777215)  # QWIDGETSIZE_MAX
+        self.clipboard_section.setMinimumHeight(0)
+        self.clipboard_section.setMaximumHeight(16777215)
 
         if context_collapsed and clipboard_collapsed:
-            # Both collapsed - split evenly (just headers)
-            self.main_splitter.setSizes([header_height, header_height])
+            # Both collapsed - lock both to header height, hide splitter handle
+            self.context_section.setFixedHeight(header_height)
+            self.clipboard_section.setFixedHeight(header_height)
+            self.main_splitter.setHandleWidth(0)
         elif context_collapsed:
-            # Context collapsed, clipboard gets the space
-            self.main_splitter.setSizes([header_height, total_height - header_height])
+            # Context collapsed and locked, clipboard takes rest
+            self.context_section.setFixedHeight(header_height)
+            self.main_splitter.setHandleWidth(0)  # Hide handle - can't resize
         elif clipboard_collapsed:
-            # Clipboard collapsed, context gets the space
-            self.main_splitter.setSizes([total_height - header_height, header_height])
+            # Clipboard collapsed and locked, context takes rest
+            self.clipboard_section.setFixedHeight(header_height)
+            self.main_splitter.setHandleWidth(0)  # Hide handle - can't resize
         else:
-            # Both expanded - restore saved sizes
-            context_height = self._ui_state.get(
+            # Both expanded - restore saved sizes, show splitter handle
+            self.main_splitter.setHandleWidth(3)
+            saved_context_height = self._ui_state.get(
                 "context_editor_dialog.sections.context.height", 200
             )
-            clipboard_height = self._ui_state.get(
+            saved_clipboard_height = self._ui_state.get(
                 "context_editor_dialog.sections.clipboard.height", 150
             )
-            # Scale to fit available space
-            ratio = total_height / (context_height + clipboard_height) if (context_height + clipboard_height) > 0 else 1
-            self.main_splitter.setSizes([
-                int(context_height * ratio),
-                int(clipboard_height * ratio)
-            ])
+            self.main_splitter.setSizes([saved_context_height, saved_clipboard_height])
 
     def _save_section_state(self, section: str, collapsed: bool):
         """Save section collapsed state."""
@@ -604,15 +669,17 @@ class ContextEditorDialog(QDialog):
 
     def _restore_ui_state(self):
         """Restore splitter sizes and collapsed states from saved state."""
+        # FIRST: Restore geometry before adjusting splitter
+        geometry = self._ui_state.get("context_editor_dialog.geometry")
+        if geometry:
+            self._restore_geometry(geometry)
+
         # Restore collapsed states
         context_collapsed = self._ui_state.get(
             "context_editor_dialog.sections.context.collapsed", False
         )
         clipboard_collapsed = self._ui_state.get(
             "context_editor_dialog.sections.clipboard.collapsed", False
-        )
-        images_collapsed = self._ui_state.get(
-            "context_editor_dialog.sections.images.collapsed", False
         )
 
         if context_collapsed:
@@ -621,13 +688,38 @@ class ContextEditorDialog(QDialog):
         if clipboard_collapsed:
             self.clipboard_edit.hide()
             self.clipboard_image_container.hide()
+            self.clipboard_stretch.hide()
             self.clipboard_header.set_collapsed(True)
-        if images_collapsed and self._current_images:
-            self.images_content.hide()
-            self.images_header.set_collapsed(True)
 
-        # Adjust splitter sizes based on collapsed states
-        self._adjust_splitter_for_collapse()
+        # Defer splitter adjustment until Qt has processed the layout
+        QTimer.singleShot(0, self._adjust_splitter_for_collapse)
+
+    def _restore_geometry(self, geometry: dict):
+        """Restore window geometry."""
+        width = geometry.get("width", 600)
+        height = geometry.get("height", 500)
+        x = geometry.get("x")
+        y = geometry.get("y")
+
+        self.resize(max(width, 500), max(height, 400))
+
+        if x is not None and y is not None:
+            self.move(x, y)
+
+    def _save_window_geometry(self):
+        """Save window geometry to UI state."""
+        geom = self.geometry()
+        self._ui_state.set("context_editor_dialog.geometry", {
+            "x": geom.x(),
+            "y": geom.y(),
+            "width": geom.width(),
+            "height": geom.height()
+        })
+
+    def closeEvent(self, event):
+        """Save geometry on close."""
+        self._save_window_geometry()
+        super().closeEvent(event)
 
     def _save_context_only(self):
         """Save only the context changes."""
@@ -650,9 +742,12 @@ class ContextEditorDialog(QDialog):
 
     def _save_clipboard_only(self):
         """Save only the clipboard changes."""
-        # If clipboard has image, it's already in the system clipboard - no action needed
-        # Only save text if text edit is visible
-        if self.clipboard_edit.isVisible():
+        if self._clipboard_image:
+            # Copy image to system clipboard
+            if self._clipboard_image_chip:
+                self._clipboard_image_chip.copy_to_clipboard()
+        elif self.clipboard_edit.isVisible():
+            # Save text to clipboard
             clipboard_content = self.clipboard_edit.toPlainText()
             self.clipboard_manager.set_content(clipboard_content)
 
@@ -775,6 +870,7 @@ class ContextEditorDialog(QDialog):
                     self._clipboard_image = image_data
                     self._rebuild_clipboard_image_chip()
                     self.clipboard_image_container.show()
+                    self.clipboard_stretch.show()  # Push content to top
                     self.clipboard_edit.hide()
                     self._last_clipboard_text = ""
                 else:
@@ -786,8 +882,10 @@ class ContextEditorDialog(QDialog):
             self._load_clipboard_text()
 
         # Clear undo/redo stacks
-        self._undo_stack.clear()
-        self._redo_stack.clear()
+        self._context_undo_stack.clear()
+        self._context_redo_stack.clear()
+        self._clipboard_undo_stack.clear()
+        self._clipboard_redo_stack.clear()
         self._update_undo_redo_buttons()
 
     def _rebuild_image_chips(self):
@@ -833,6 +931,7 @@ class ContextEditorDialog(QDialog):
             self._last_clipboard_text = ""
         self._clipboard_image = None
         self.clipboard_image_container.hide()
+        self.clipboard_stretch.hide()
         self.clipboard_edit.show()
 
     def _rebuild_clipboard_image_chip(self):
@@ -864,9 +963,11 @@ class ContextEditorDialog(QDialog):
 
     def _on_clipboard_image_delete(self, index: int):
         """Handle clipboard image delete request."""
+        self._save_clipboard_state()
         self._clipboard_image = None
         self._rebuild_clipboard_image_chip()
         self.clipboard_image_container.hide()
+        self.clipboard_stretch.hide()
         self.clipboard_edit.show()
         self.clipboard_edit.setPlainText("")
         self._last_clipboard_text = ""
@@ -878,9 +979,11 @@ class ContextEditorDialog(QDialog):
             if self.notification_manager:
                 self.notification_manager.show_success_notification("Copied")
 
-    def _get_current_state(self) -> EditorState:
-        """Get current editor state."""
-        return EditorState(
+    # --- Context state management ---
+
+    def _get_context_state(self) -> ContextState:
+        """Get current context state."""
+        return ContextState(
             images=[
                 ContextItem(
                     item_type=item.item_type,
@@ -890,11 +993,10 @@ class ContextEditorDialog(QDialog):
                 for item in self._current_images
             ],
             text=self.text_edit.toPlainText(),
-            clipboard_text=self.clipboard_edit.toPlainText(),
         )
 
-    def _restore_state(self, state: EditorState):
-        """Restore editor state."""
+    def _restore_context_state(self, state: ContextState):
+        """Restore context state."""
         self._current_images = [
             ContextItem(
                 item_type=item.item_type,
@@ -911,26 +1013,121 @@ class ContextEditorDialog(QDialog):
         self._last_text = state.text
         self.text_edit.blockSignals(False)
 
+    def _save_context_state(self):
+        """Save current context state to undo stack."""
+        state = self._get_context_state()
+        self._context_undo_stack.append(state)
+        self._context_redo_stack.clear()
+        self._update_undo_redo_buttons()
+
+    def _undo_context(self):
+        """Undo last context change."""
+        if not self._context_undo_stack:
+            return
+
+        # Save current state to redo stack
+        self._context_redo_stack.append(self._get_context_state())
+
+        # Restore previous state
+        state = self._context_undo_stack.pop()
+        self._restore_context_state(state)
+        self._update_undo_redo_buttons()
+
+    def _redo_context(self):
+        """Redo last undone context change."""
+        if not self._context_redo_stack:
+            return
+
+        # Save current state to undo stack
+        self._context_undo_stack.append(self._get_context_state())
+
+        # Restore redo state
+        state = self._context_redo_stack.pop()
+        self._restore_context_state(state)
+        self._update_undo_redo_buttons()
+
+    # --- Clipboard state management ---
+
+    def _get_clipboard_state(self) -> ClipboardState:
+        """Get current clipboard state."""
+        return ClipboardState(
+            text=self.clipboard_edit.toPlainText(),
+            image=self._clipboard_image,
+        )
+
+    def _restore_clipboard_state(self, state: ClipboardState):
+        """Restore clipboard state."""
         self.clipboard_edit.blockSignals(True)
-        self.clipboard_edit.setPlainText(state.clipboard_text)
-        self._last_clipboard_text = state.clipboard_text
+        self.clipboard_edit.setPlainText(state.text)
+        self._last_clipboard_text = state.text
         self.clipboard_edit.blockSignals(False)
 
-    def _save_state(self):
-        """Save current state to undo stack."""
-        state = self._get_current_state()
-        self._undo_stack.append(state)
-        self._redo_stack.clear()
+        # Restore clipboard image state
+        self._clipboard_image = state.image
+        self._rebuild_clipboard_image_chip()
+        if self._clipboard_image:
+            self.clipboard_image_container.show()
+            self.clipboard_stretch.show()
+            self.clipboard_edit.hide()
+        else:
+            self.clipboard_image_container.hide()
+            self.clipboard_stretch.hide()
+            self.clipboard_edit.show()
+
+    def _save_clipboard_state(self):
+        """Save current clipboard state to undo stack."""
+        state = self._get_clipboard_state()
+        self._clipboard_undo_stack.append(state)
+        self._clipboard_redo_stack.clear()
         self._update_undo_redo_buttons()
+
+    def _undo_clipboard(self):
+        """Undo last clipboard change."""
+        if not self._clipboard_undo_stack:
+            return
+
+        # Save current state to redo stack
+        self._clipboard_redo_stack.append(self._get_clipboard_state())
+
+        # Restore previous state
+        state = self._clipboard_undo_stack.pop()
+        self._restore_clipboard_state(state)
+        self._update_undo_redo_buttons()
+
+    def _redo_clipboard(self):
+        """Redo last undone clipboard change."""
+        if not self._clipboard_redo_stack:
+            return
+
+        # Save current state to undo stack
+        self._clipboard_undo_stack.append(self._get_clipboard_state())
+
+        # Restore redo state
+        state = self._clipboard_redo_stack.pop()
+        self._restore_clipboard_state(state)
+        self._update_undo_redo_buttons()
+
+    # --- Common state management ---
+
+    def _update_undo_redo_buttons(self):
+        """Update undo/redo button states for both sections."""
+        self.context_header.set_undo_redo_enabled(
+            len(self._context_undo_stack) > 0,
+            len(self._context_redo_stack) > 0,
+        )
+        self.clipboard_header.set_undo_redo_enabled(
+            len(self._clipboard_undo_stack) > 0,
+            len(self._clipboard_redo_stack) > 0,
+        )
 
     def _save_text_state(self):
         """Save state if text has significantly changed."""
         current_text = self.text_edit.toPlainText()
         current_clipboard = self.clipboard_edit.toPlainText()
 
-        if current_text != self._last_text or current_clipboard != self._last_clipboard_text:
-            # Save state with previous text
-            state = EditorState(
+        # Save context state if text changed
+        if current_text != self._last_text:
+            state = ContextState(
                 images=[
                     ContextItem(
                         item_type=item.item_type,
@@ -940,44 +1137,22 @@ class ContextEditorDialog(QDialog):
                     for item in self._current_images
                 ],
                 text=self._last_text,
-                clipboard_text=self._last_clipboard_text,
             )
-            self._undo_stack.append(state)
-            self._redo_stack.clear()
+            self._context_undo_stack.append(state)
+            self._context_redo_stack.clear()
             self._last_text = current_text
+
+        # Save clipboard state if text changed
+        if current_clipboard != self._last_clipboard_text:
+            state = ClipboardState(
+                text=self._last_clipboard_text,
+                image=self._clipboard_image,
+            )
+            self._clipboard_undo_stack.append(state)
+            self._clipboard_redo_stack.clear()
             self._last_clipboard_text = current_clipboard
-            self._update_undo_redo_buttons()
 
-    def _undo(self):
-        """Undo last change."""
-        if not self._undo_stack:
-            return
-
-        # Save current state to redo stack
-        self._redo_stack.append(self._get_current_state())
-
-        # Restore previous state
-        state = self._undo_stack.pop()
-        self._restore_state(state)
         self._update_undo_redo_buttons()
-
-    def _redo(self):
-        """Redo last undone change."""
-        if not self._redo_stack:
-            return
-
-        # Save current state to undo stack
-        self._undo_stack.append(self._get_current_state())
-
-        # Restore redo state
-        state = self._redo_stack.pop()
-        self._restore_state(state)
-        self._update_undo_redo_buttons()
-
-    def _update_undo_redo_buttons(self):
-        """Update undo/redo button states."""
-        self.undo_btn.setEnabled(len(self._undo_stack) > 0)
-        self.redo_btn.setEnabled(len(self._redo_stack) > 0)
 
     def _on_text_changed(self):
         """Handle text changes - debounce state saving."""
@@ -990,7 +1165,7 @@ class ContextEditorDialog(QDialog):
     def _on_image_delete(self, index: int):
         """Handle image chip delete request."""
         if 0 <= index < len(self._current_images):
-            self._save_state()
+            self._save_context_state()
             del self._current_images[index]
             self._rebuild_image_chips()
 
@@ -1009,7 +1184,7 @@ class ContextEditorDialog(QDialog):
         image_data = self.clipboard_manager.get_image_data()
         if image_data:
             base64_data, media_type = image_data
-            self._save_state()
+            self._save_context_state()
             new_image = ContextItem(
                 item_type=ContextItemType.IMAGE,
                 data=base64_data,
@@ -1050,22 +1225,54 @@ class ContextEditorDialog(QDialog):
 
     def keyPressEvent(self, event):
         """Handle key press events."""
-        # Ctrl+Z for undo
+        # Ctrl+Z for undo (focus-aware)
         if event.key() == Qt.Key_Z and (event.modifiers() & Qt.ControlModifier):
             if event.modifiers() & Qt.ShiftModifier:
                 # Ctrl+Shift+Z for redo
-                self._redo()
+                if self.clipboard_edit.hasFocus():
+                    self._redo_clipboard()
+                else:
+                    self._redo_context()
             else:
                 # Ctrl+Z for undo
-                self._undo()
+                if self.clipboard_edit.hasFocus():
+                    self._undo_clipboard()
+                else:
+                    self._undo_context()
             event.accept()
             return
 
-        # Ctrl+Y for redo (alternative)
+        # Ctrl+Y for redo (alternative, focus-aware)
         if event.key() == Qt.Key_Y and (event.modifiers() & Qt.ControlModifier):
-            self._redo()
+            if self.clipboard_edit.hasFocus():
+                self._redo_clipboard()
+            else:
+                self._redo_context()
             event.accept()
             return
+
+        # Ctrl+C for copy (use xclip to avoid X11 clipboard ownership freeze)
+        if (
+            event.key() == Qt.Key_C
+            and (event.modifiers() & Qt.ControlModifier)
+            and not (event.modifiers() & Qt.ShiftModifier)
+        ):
+            # Check which text edit has focus and get selected text
+            focused_edit = None
+            if self.text_edit.hasFocus():
+                focused_edit = self.text_edit
+            elif self.clipboard_edit.hasFocus():
+                focused_edit = self.clipboard_edit
+
+            if focused_edit:
+                selected_text = focused_edit.textCursor().selectedText()
+                if selected_text:
+                    # Replace paragraph separators with newlines
+                    selected_text = selected_text.replace('\u2029', '\n')
+                    self.clipboard_manager.set_content(selected_text)
+                    event.accept()
+                    return
+            # Fall through to default Qt handling if no selection
 
         # Ctrl+V for paste image (always try if clipboard has image)
         if event.key() == Qt.Key_V and (event.modifiers() & Qt.ControlModifier):
@@ -1094,8 +1301,43 @@ class ContextEditorDialog(QDialog):
         return super().event(event)
 
     def eventFilter(self, obj, event):
-        """Filter events to intercept Ctrl+V on text_edit when clipboard has image."""
+        """Filter events to intercept Ctrl+Z, Ctrl+C, and Ctrl+V on text edits."""
         if obj in (self.text_edit, self.clipboard_edit) and event.type() == QEvent.KeyPress:
+            # Ctrl+Z for undo (focus-aware)
+            if event.key() == Qt.Key_Z and (event.modifiers() & Qt.ControlModifier):
+                if event.modifiers() & Qt.ShiftModifier:
+                    # Ctrl+Shift+Z for redo
+                    if obj == self.clipboard_edit:
+                        self._redo_clipboard()
+                    else:
+                        self._redo_context()
+                else:
+                    # Ctrl+Z for undo
+                    if obj == self.clipboard_edit:
+                        self._undo_clipboard()
+                    else:
+                        self._undo_context()
+                return True  # Event handled
+            # Ctrl+Y for redo (alternative)
+            if event.key() == Qt.Key_Y and (event.modifiers() & Qt.ControlModifier):
+                if obj == self.clipboard_edit:
+                    self._redo_clipboard()
+                else:
+                    self._redo_context()
+                return True  # Event handled
+            # Ctrl+C for copy (use xclip to avoid X11 clipboard ownership freeze)
+            if (
+                event.key() == Qt.Key_C
+                and (event.modifiers() & Qt.ControlModifier)
+                and not (event.modifiers() & Qt.ShiftModifier)
+            ):
+                selected_text = obj.textCursor().selectedText()
+                if selected_text:
+                    # Replace paragraph separators with newlines
+                    selected_text = selected_text.replace('\u2029', '\n')
+                    self.clipboard_manager.set_content(selected_text)
+                    return True  # Event handled
+            # Ctrl+V for paste image
             if event.key() == Qt.Key_V and (event.modifiers() & Qt.ControlModifier):
                 if self.clipboard_manager.has_image():
                     self._paste_image_from_clipboard()
