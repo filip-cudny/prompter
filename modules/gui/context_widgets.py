@@ -13,6 +13,7 @@ from PyQt5.QtWidgets import (
     QSizePolicy,
     QToolTip,
     QApplication,
+    QGraphicsOpacityEffect,
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QByteArray, QBuffer, QSize, QPoint, QMimeData
 from PyQt5.QtGui import QPixmap, QImage, QCursor
@@ -58,12 +59,17 @@ class IconButton(QPushButton):
         super().leaveEvent(event)
 
     def setEnabled(self, enabled: bool):
-        """Update icon color when enabled state changes."""
+        """Update icon color and opacity when enabled state changes."""
         super().setEnabled(enabled)
         if enabled:
             self._update_icon(ICON_COLOR_NORMAL)
+            self.setGraphicsEffect(None)  # Remove opacity effect
         else:
             self._update_icon(ICON_COLOR_DISABLED)
+            # Apply opacity effect for clear visual feedback
+            effect = QGraphicsOpacityEffect(self)
+            effect.setOpacity(0.4)
+            self.setGraphicsEffect(effect)
 
 logger = logging.getLogger(__name__)
 
@@ -249,10 +255,10 @@ class ImageContextChip(ContextChipBase):
             orig_width = image.width()
             orig_height = image.height()
 
-            # Scale to thumbnail (max 150px)
+            # Scale to thumbnail (max 300px)
             thumbnail = image.scaled(
-                150,
-                150,
+                300,
+                300,
                 Qt.KeepAspectRatio,
                 Qt.SmoothTransformation,
             )
@@ -937,4 +943,4 @@ class LastInteractionSectionWidget(QWidget):
         if content:
             from modules.gui.text_preview_dialog import show_preview_dialog
 
-            show_preview_dialog(title, content)
+            show_preview_dialog(title, content, clipboard_manager=self.clipboard_manager)

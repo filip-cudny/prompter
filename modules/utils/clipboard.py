@@ -175,7 +175,22 @@ class SystemClipboardManager(ClipboardManager):
     def _has_image_linux(self) -> bool:
         """Check if clipboard contains an image on Linux."""
         logger.debug("Checking Linux clipboard for images")
-        # Try xclip first as it has reliable TARGETS support
+
+        # Try Qt's clipboard first (handles Qt-set images)
+        try:
+            from PyQt5.QtWidgets import QApplication
+
+            app = QApplication.instance()
+            if app:
+                clipboard = app.clipboard()
+                mime_data = clipboard.mimeData()
+                if mime_data.hasImage():
+                    logger.debug("Qt clipboard has image")
+                    return True
+        except Exception as e:
+            logger.debug(f"Qt clipboard check failed: {e}")
+
+        # Try xclip as it has reliable TARGETS support
         try:
             result = subprocess.run(
                 ["xclip", "-selection", "clipboard", "-t", "TARGETS", "-out"],
@@ -222,6 +237,30 @@ class SystemClipboardManager(ClipboardManager):
 
     def _get_image_data_linux(self) -> Optional[Tuple[str, str]]:
         """Get image data from clipboard on Linux."""
+        logger.debug("Attempting to get image data from Linux clipboard")
+
+        # Try Qt's clipboard first (handles Qt-set images)
+        try:
+            from PyQt5.QtWidgets import QApplication
+            from PyQt5.QtCore import QBuffer, QIODevice
+            from PyQt5.QtGui import QPixmap
+
+            app = QApplication.instance()
+            if app:
+                clipboard = app.clipboard()
+                mime_data = clipboard.mimeData()
+                if mime_data.hasImage():
+                    pixmap = QPixmap(clipboard.pixmap())
+                    if not pixmap.isNull():
+                        buffer = QBuffer()
+                        buffer.open(QIODevice.WriteOnly)
+                        pixmap.save(buffer, "PNG")
+                        image_data = base64.b64encode(buffer.data()).decode("utf-8")
+                        logger.debug(f"Got image from Qt clipboard, size: {len(image_data)}")
+                        return (image_data, "image/png")
+        except Exception as e:
+            logger.debug(f"Qt clipboard get image failed: {e}")
+
         image_formats = [
             ("image/png", "png"),
             ("image/jpeg", "jpeg"),
@@ -229,9 +268,7 @@ class SystemClipboardManager(ClipboardManager):
             ("image/bmp", "bmp"),
         ]
 
-        logger.debug("Attempting to get image data from Linux clipboard")
-
-        # Try xclip first as it's more reliable
+        # Try xclip as fallback
         for mime_type, ext in image_formats:
             logger.debug(f"Trying to get image data for MIME type: {mime_type}")
             try:
