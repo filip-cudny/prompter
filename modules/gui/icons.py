@@ -3,6 +3,7 @@
 from PyQt5.QtCore import QByteArray, QSize, Qt
 from PyQt5.QtGui import QIcon, QPixmap, QPainter
 from PyQt5.QtSvg import QSvgRenderer
+from PyQt5.QtWidgets import QApplication
 
 
 # Lucide icon SVG templates (viewBox 0 0 24 24, stroke-based)
@@ -26,7 +27,7 @@ LUCIDE_ICONS = {
 # Color constants matching the app's color scheme
 ICON_COLOR_NORMAL = "#888888"
 ICON_COLOR_HOVER = "#aaaaaa"
-ICON_COLOR_DISABLED = "#444444"
+ICON_COLOR_DISABLED = "#666666"
 
 
 def create_icon(name: str, color: str = ICON_COLOR_NORMAL, size: int = 16) -> QIcon:
@@ -46,14 +47,23 @@ def create_icon(name: str, color: str = ICON_COLOR_NORMAL, size: int = 16) -> QI
     svg_template = LUCIDE_ICONS[name]
     svg_data = svg_template.replace("currentColor", color)
 
-    # Render SVG to QPixmap
+    # Get device pixel ratio for HiDPI support
+    dpr = QApplication.instance().devicePixelRatio() if QApplication.instance() else 1.0
+    physical_size = int(size * dpr)
+
+    # Render SVG to QPixmap at physical pixel size
     renderer = QSvgRenderer(QByteArray(svg_data.encode()))
-    pixmap = QPixmap(QSize(size, size))
+    pixmap = QPixmap(QSize(physical_size, physical_size))
     pixmap.fill(Qt.transparent)
 
     painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.Antialiasing)
+    painter.setRenderHint(QPainter.SmoothPixmapTransform)
     renderer.render(painter)
     painter.end()
+
+    # Set device pixel ratio so Qt displays at correct logical size
+    pixmap.setDevicePixelRatio(dpr)
 
     return QIcon(pixmap)
 
@@ -77,12 +87,21 @@ def create_icon_pixmap(
     svg_template = LUCIDE_ICONS[name]
     svg_data = svg_template.replace("currentColor", color)
 
+    # Get device pixel ratio for HiDPI support
+    dpr = QApplication.instance().devicePixelRatio() if QApplication.instance() else 1.0
+    physical_size = int(size * dpr)
+
     renderer = QSvgRenderer(QByteArray(svg_data.encode()))
-    pixmap = QPixmap(QSize(size, size))
+    pixmap = QPixmap(QSize(physical_size, physical_size))
     pixmap.fill(Qt.transparent)
 
     painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.Antialiasing)
+    painter.setRenderHint(QPainter.SmoothPixmapTransform)
     renderer.render(painter)
     painter.end()
+
+    # Set device pixel ratio so Qt displays at correct logical size
+    pixmap.setDevicePixelRatio(dpr)
 
     return pixmap

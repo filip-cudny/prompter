@@ -4,7 +4,7 @@ import sys
 import signal
 from typing import Optional, List
 from PyQt5.QtWidgets import QApplication
-from PyQt5.QtCore import QTimer, pyqtSignal, QObject
+from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QObject
 
 from modules.prompts.prompt_service import PromptStoreService
 from core.exceptions import ConfigurationError
@@ -44,6 +44,9 @@ class PrompterApp(QObject):
 
     def __init__(self, config_file: Optional[str] = None):
         super().__init__()
+
+        # Enable HiDPI pixmap support (required for sharp icons on macOS Retina)
+        QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
 
         # Create QApplication
         self.app = QApplication(sys.argv)

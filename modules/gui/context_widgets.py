@@ -69,7 +69,7 @@ class IconButton(QPushButton):
             self._update_icon(ICON_COLOR_DISABLED)
             # Apply opacity effect for clear visual feedback
             effect = QGraphicsOpacityEffect(self)
-            effect.setOpacity(0.4)
+            effect.setOpacity(0.6)
             self.setGraphicsEffect(effect)
 
 logger = logging.getLogger(__name__)
