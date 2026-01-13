@@ -109,6 +109,7 @@ class CollapsibleSectionHeader(QWidget):
             background: transparent;
             border: none;
             padding: 2px;
+            min-width: 0px;
         }
     """
 

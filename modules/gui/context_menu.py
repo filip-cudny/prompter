@@ -224,7 +224,6 @@ class PyQtContextMenu(QObject):
                 padding: 8px 16px;
                 border-radius: 4px;
                 margin: 1px;
-                min-height: 24px;
             }
             QMenu::item:selected {
                 background-color: #454545;
@@ -322,13 +321,22 @@ class PyQtContextMenu(QObject):
 
             x, y = position
             offset_x, offset_y = self.menu_position_offset
-            adjusted_pos = QPoint(x + offset_x, y + offset_y)
 
             self.shift_pressed = bool(
                 QApplication.keyboardModifiers() & Qt.ShiftModifier
             )
 
             self.menu = self.create_menu(items)
+
+            # Calculate anchor offset to position cursor at prompts section
+            anchor_offset = self._calculate_anchor_offset()
+            adjusted_y = y + offset_y - anchor_offset
+
+            # Ensure menu doesn't go above screen top
+            if adjusted_y < 0:
+                adjusted_y = 0
+
+            adjusted_pos = QPoint(x + offset_x, adjusted_y)
 
             # Create focus window if needed
             if not self.focus_window:
@@ -339,6 +347,48 @@ class PyQtContextMenu(QObject):
 
         except Exception as e:
             print(f"Menu show error: {e}")
+
+    def _calculate_anchor_offset(self) -> int:
+        """Calculate Y offset to anchor menu at Prompts section.
+
+        This calculates the total height of Context and LastInteraction widgets
+        that appear before the prompts, so the menu can be positioned with
+        the cursor at the prompts section.
+        """
+        if not self.menu:
+            return 0
+
+        from modules.gui.context_widgets import (
+            ContextSectionWidget,
+            LastInteractionSectionWidget,
+        )
+
+        offset = 0
+        for action in self.menu.actions():
+            # Only QWidgetAction has defaultWidget(), not regular QAction
+            if not isinstance(action, QWidgetAction):
+                if action.isSeparator():
+                    offset += 9
+                else:
+                    # Regular action (submenu), stop counting
+                    break
+                continue
+
+            widget = action.defaultWidget()
+            if not widget:
+                # QWidgetAction without widget, stop counting
+                break
+
+            # Check if it's Context or LastInteraction widget
+            if isinstance(widget, (ContextSectionWidget, LastInteractionSectionWidget)):
+                # Force layout calculation for accurate size
+                widget.adjustSize()
+                offset += widget.sizeHint().height()
+            else:
+                # Reached prompts section, stop counting
+                break
+
+        return offset
 
     def _force_app_activation_macos(self):
         """Force application activation on macOS when triggered from another app."""
@@ -536,41 +586,89 @@ class PyQtContextMenu(QObject):
         self, menu: QMenu, item: MenuItem
     ) -> Optional[QAction]:
         """Create a custom menu item with hover effects."""
+        from PyQt5.QtWidgets import QHBoxLayout
+        from modules.gui.icons import create_icon_pixmap, ICON_COLOR_NORMAL, ICON_COLOR_DISABLED
 
-        class ClickableLabel(QLabel):
+        class ClickableMenuItem(QWidget):
             def __init__(self, text, menu_item, context_menu):
-                super().__init__(text)
+                super().__init__()
+                self.setAttribute(Qt.WA_StyledBackground, True)
                 self._menu_item = menu_item
                 self._context_menu = context_menu
                 self._is_highlighted = False
 
                 self._normal_style = """
-                    QLabel {
+                    QWidget {
                         background-color: transparent;
-                        padding: 8px 16px;
                         border-radius: 4px;
                         margin: 1px;
-                        color: #f0f0f0;
-                        font-size: 13px;
-                        min-height: 24px;
-                    }
-                    QLabel:disabled {
-                        color: #666666;
                     }
                 """
                 self._hover_style = """
-                    QLabel {
+                    QWidget {
                         background-color: #454545;
-                        padding: 8px 16px;
                         border-radius: 4px;
                         margin: 1px;
-                        color: #ffffff;
-                        font-size: 13px;
-                        min-height: 24px;
                     }
                 """
+                self._label_style = """
+                    QLabel {
+                        background: transparent;
+                        color: #f0f0f0;
+                        font-size: 13px;
+                    }
+                """
+                self._label_hover_style = """
+                    QLabel {
+                        background: transparent;
+                        color: #ffffff;
+                        font-size: 13px;
+                    }
+                """
+                self._label_disabled_style = """
+                    QLabel {
+                        background: transparent;
+                        color: #666666;
+                        font-size: 13px;
+                    }
+                """
+
                 self.setStyleSheet(self._normal_style)
                 self.setFocusPolicy(Qt.StrongFocus)
+
+                # Layout
+                layout = QHBoxLayout(self)
+                layout.setContentsMargins(16, 8, 16, 8)
+                layout.setSpacing(8)
+
+                # Icon (optional)
+                self._icon_label = None
+                if menu_item.icon:
+                    self._icon_label = QLabel()
+                    icon_color = ICON_COLOR_DISABLED if not menu_item.enabled else ICON_COLOR_NORMAL
+                    pixmap = create_icon_pixmap(menu_item.icon, icon_color, 16)
+                    self._icon_label.setPixmap(pixmap)
+                    self._icon_label.setFixedSize(16, 16)
+                    self._icon_label.setStyleSheet("background: transparent;")
+                    layout.addWidget(self._icon_label)
+
+                # Text label
+                self._text_label = QLabel(text)
+                self._text_label.setStyleSheet(self._label_style)
+                layout.addWidget(self._text_label)
+                layout.addStretch()
+
+            def _update_style(self, highlighted: bool):
+                """Update styles for highlight state."""
+                if highlighted:
+                    self.setStyleSheet(self._hover_style)
+                    self._text_label.setStyleSheet(self._label_hover_style)
+                else:
+                    self.setStyleSheet(self._normal_style)
+                    if self._menu_item.enabled:
+                        self._text_label.setStyleSheet(self._label_style)
+                    else:
+                        self._text_label.setStyleSheet(self._label_disabled_style)
 
             def mousePressEvent(self, event):
                 if event.button() == Qt.LeftButton and self._menu_item.enabled:
@@ -595,27 +693,27 @@ class PyQtContextMenu(QObject):
             def enterEvent(self, event):
                 if self._menu_item.enabled:
                     self._is_highlighted = True
-                    self.setStyleSheet(self._hover_style)
+                    self._update_style(True)
                     self._context_menu.hovered_widgets.add(self)
                 super().enterEvent(event)
 
             def leaveEvent(self, event):
                 if self._menu_item.enabled and not self.hasFocus():
                     self._is_highlighted = False
-                    self.setStyleSheet(self._normal_style)
+                    self._update_style(False)
                     self._context_menu.hovered_widgets.discard(self)
                 super().leaveEvent(event)
 
             def focusInEvent(self, event):
                 if self._menu_item.enabled:
                     self._is_highlighted = True
-                    self.setStyleSheet(self._hover_style)
+                    self._update_style(True)
                 super().focusInEvent(event)
 
             def focusOutEvent(self, event):
                 if self._menu_item.enabled:
                     self._is_highlighted = False
-                    self.setStyleSheet(self._normal_style)
+                    self._update_style(False)
                 super().focusOutEvent(event)
 
             def keyPressEvent(self, event):
@@ -644,7 +742,7 @@ class PyQtContextMenu(QObject):
                 else:
                     super().keyPressEvent(event)
 
-        widget = ClickableLabel(item.label, item, self)
+        widget = ClickableMenuItem(item.label, item, self)
         if not item.enabled:
             widget.setEnabled(False)
 

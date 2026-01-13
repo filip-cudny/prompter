@@ -51,6 +51,7 @@ class MenuItem:
     style: Optional[str] = None
     tooltip: Optional[str] = None
     submenu_items: Optional[List[MenuItem]] = None
+    icon: Optional[str] = None  # Icon name from icons.py (e.g., "mic", "copy")
 
 
 @dataclass
