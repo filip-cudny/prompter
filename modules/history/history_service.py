@@ -1,7 +1,7 @@
 import time
 import logging
 from collections import deque
-from typing import List, Optional
+from typing import Callable, List, Optional
 
 from core.models import (
     HistoryEntry,
@@ -17,6 +17,7 @@ class HistoryService:
     def __init__(self, max_entries: int = 10):
         self.max_entries = max_entries
         self._history: deque = deque(maxlen=max_entries)
+        self._change_callbacks: List[Callable[[], None]] = []
 
     def add_entry(
         self,
@@ -39,6 +40,25 @@ class HistoryService:
             error=error,
         )
         self._history.append(entry)
+        self._notify_change()
+
+    def add_change_callback(self, callback: Callable[[], None]) -> None:
+        """Add a callback to be notified when history changes."""
+        if callback not in self._change_callbacks:
+            self._change_callbacks.append(callback)
+
+    def remove_change_callback(self, callback: Callable[[], None]) -> None:
+        """Remove a change callback."""
+        if callback in self._change_callbacks:
+            self._change_callbacks.remove(callback)
+
+    def _notify_change(self) -> None:
+        """Notify all registered callbacks of a change."""
+        for callback in self._change_callbacks:
+            try:
+                callback()
+            except Exception as e:
+                logger.error(f"Error in history change callback: {e}")
 
     def get_history(self) -> List[HistoryEntry]:
         """Get all history entries, most recent first."""

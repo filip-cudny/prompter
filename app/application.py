@@ -135,6 +135,7 @@ class PrompterApp(QObject):
                 self.speech_service,
                 self.openai_service,
                 self.context_manager,
+                self.history_service,
             )
 
             # Initialize GUI components

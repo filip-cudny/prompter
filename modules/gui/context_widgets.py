@@ -14,6 +14,7 @@ from PyQt5.QtWidgets import (
     QToolTip,
     QApplication,
     QGraphicsOpacityEffect,
+    QScrollArea,
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QByteArray, QBuffer, QSize, QPoint, QMimeData
 from PyQt5.QtGui import QPixmap, QImage, QCursor
@@ -308,6 +309,8 @@ class ContextHeaderWidget(QWidget):
     clear_requested = pyqtSignal()
     copy_requested = pyqtSignal()
     edit_requested = pyqtSignal()
+    set_context_requested = pyqtSignal()
+    append_context_requested = pyqtSignal()
 
     _header_style = """
         QWidget {
@@ -351,6 +354,24 @@ class ContextHeaderWidget(QWidget):
 
         layout.addStretch()
 
+        # Set context from clipboard button
+        self.set_btn = IconButton("file-symlink", size=18)
+        self.set_btn.setStyleSheet(self._btn_style)
+        self.set_btn.setCursor(Qt.PointingHandCursor)
+        self.set_btn.setToolTip("Set context from clipboard")
+        self.set_btn.clicked.connect(self._on_set_clicked)
+        self.set_btn.setEnabled(False)  # Disabled by default
+        layout.addWidget(self.set_btn)
+
+        # Append clipboard to context button
+        self.append_btn = IconButton("file-plus", size=18)
+        self.append_btn.setStyleSheet(self._btn_style)
+        self.append_btn.setCursor(Qt.PointingHandCursor)
+        self.append_btn.setToolTip("Append clipboard to context")
+        self.append_btn.clicked.connect(self._on_append_clicked)
+        self.append_btn.setEnabled(False)  # Disabled by default
+        layout.addWidget(self.append_btn)
+
         # Edit button
         self.edit_btn = IconButton("edit", size=18)
         self.edit_btn.setStyleSheet(self._btn_style)
@@ -369,12 +390,13 @@ class ContextHeaderWidget(QWidget):
         layout.addWidget(self.copy_btn)
 
         # Clear button
-        clear_btn = IconButton("delete", size=18)
-        clear_btn.setStyleSheet(self._btn_style)
-        clear_btn.setCursor(Qt.PointingHandCursor)
-        clear_btn.setToolTip("Clear all context")
-        clear_btn.clicked.connect(self._on_clear_clicked)
-        layout.addWidget(clear_btn)
+        self.clear_btn = IconButton("trash", size=18)
+        self.clear_btn.setStyleSheet(self._btn_style)
+        self.clear_btn.setCursor(Qt.PointingHandCursor)
+        self.clear_btn.setToolTip("Clear all context")
+        self.clear_btn.clicked.connect(self._on_clear_clicked)
+        self.clear_btn.setEnabled(False)  # Disabled by default
+        layout.addWidget(self.clear_btn)
 
     def _on_clear_clicked(self):
         """Handle clear button click."""
@@ -388,9 +410,26 @@ class ContextHeaderWidget(QWidget):
         """Handle edit button click."""
         self.edit_requested.emit()
 
+    def _on_set_clicked(self):
+        """Handle set context button click."""
+        self.set_context_requested.emit()
+
+    def _on_append_clicked(self):
+        """Handle append context button click."""
+        self.append_context_requested.emit()
+
     def set_copy_enabled(self, enabled: bool):
         """Enable or disable the copy button."""
         self.copy_btn.setEnabled(enabled)
+
+    def set_clear_enabled(self, enabled: bool):
+        """Enable or disable the clear button."""
+        self.clear_btn.setEnabled(enabled)
+
+    def set_clipboard_buttons_enabled(self, enabled: bool):
+        """Enable or disable the set and append clipboard buttons."""
+        self.set_btn.setEnabled(enabled)
+        self.append_btn.setEnabled(enabled)
 
 
 class FlowLayout(QVBoxLayout):
@@ -499,13 +538,45 @@ class ContextSectionWidget(QWidget):
         self.header.clear_requested.connect(self._on_clear_all)
         self.header.copy_requested.connect(self._on_copy_text)
         self.header.edit_requested.connect(self._on_edit_context)
+        self.header.set_context_requested.connect(self._on_set_from_clipboard)
+        self.header.append_context_requested.connect(self._on_append_from_clipboard)
         self.main_layout.addWidget(self.header)
 
         # Container for chips
         self.chips_container = QWidget()
         self.chips_layout = FlowLayout()
         self.chips_container.setLayout(self.chips_layout)
-        self.main_layout.addWidget(self.chips_container)
+
+        # Wrap chips in scroll area for overflow handling
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidget(self.chips_container)
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.scroll_area.setMaximumHeight(150)
+        self.scroll_area.setStyleSheet("""
+            QScrollArea {
+                background: transparent;
+                border: none;
+            }
+            QScrollArea > QWidget > QWidget {
+                background: transparent;
+            }
+            QScrollBar:vertical {
+                background: #2a2a2a;
+                width: 8px;
+                border-radius: 4px;
+            }
+            QScrollBar::handle:vertical {
+                background: #555555;
+                border-radius: 4px;
+                min-height: 20px;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+            }
+        """)
+        self.main_layout.addWidget(self.scroll_area)
 
     def _rebuild_chips(self):
         """Rebuild all chips from current context items."""
@@ -514,9 +585,12 @@ class ContextSectionWidget(QWidget):
 
         items = self.context_manager.get_items()
 
-        # Update header copy button state (enabled only if text content exists)
+        # Update header button states
         has_text = self.context_manager.has_context()
+        has_items = bool(items)
         self.header.set_copy_enabled(has_text)
+        self.header.set_clear_enabled(has_items)
+        self._update_clipboard_button_state()
 
         if not items:
             # Show "No context" label when empty
@@ -606,6 +680,88 @@ class ContextSectionWidget(QWidget):
             self.clipboard_manager,
             self.notification_manager,
         )
+
+    def _on_set_from_clipboard(self):
+        """Handle set context from clipboard request."""
+        if self.clipboard_manager is None:
+            logger.warning("Cannot set context: clipboard_manager not available")
+            return
+
+        # Check for image first, then text
+        try:
+            if self.clipboard_manager.has_image():
+                image_data = self.clipboard_manager.get_image_data()
+                if image_data:
+                    base64_data, media_type = image_data
+                    self.context_manager.set_context_image(base64_data, media_type)
+                    return
+        except Exception as e:
+            logger.debug(f"Failed to get clipboard image: {e}")
+
+        # Try text content
+        try:
+            text = self.clipboard_manager.get_content()
+            if text and text.strip():
+                self.context_manager.set_context(text)
+        except Exception as e:
+            logger.warning(f"Failed to get clipboard text: {e}")
+
+    def _on_append_from_clipboard(self):
+        """Handle append clipboard to context request."""
+        if self.clipboard_manager is None:
+            logger.warning("Cannot append context: clipboard_manager not available")
+            return
+
+        # Check for image first, then text
+        try:
+            if self.clipboard_manager.has_image():
+                image_data = self.clipboard_manager.get_image_data()
+                if image_data:
+                    base64_data, media_type = image_data
+                    self.context_manager.append_context_image(base64_data, media_type)
+                    return
+        except Exception as e:
+            logger.debug(f"Failed to get clipboard image: {e}")
+
+        # Try text content
+        try:
+            text = self.clipboard_manager.get_content()
+            if text and text.strip():
+                self.context_manager.append_context(text)
+        except Exception as e:
+            logger.warning(f"Failed to get clipboard text: {e}")
+
+    def _has_clipboard_content(self) -> bool:
+        """Check if clipboard has any content (text or image)."""
+        if not self.clipboard_manager:
+            return False
+
+        # Check for image
+        try:
+            if self.clipboard_manager.has_image():
+                return True
+        except Exception:
+            pass
+
+        # Check for text
+        try:
+            text = self.clipboard_manager.get_content()
+            if text and text.strip():
+                return True
+        except Exception:
+            pass
+
+        return False
+
+    def _update_clipboard_button_state(self):
+        """Update the enabled state of clipboard buttons based on clipboard content."""
+        has_content = self._has_clipboard_content()
+        self.header.set_clipboard_buttons_enabled(has_content)
+
+    def showEvent(self, event):
+        """Handle show event - update clipboard button state."""
+        super().showEvent(event)
+        self._update_clipboard_button_state()
 
     def _show_copied_notification(self):
         """Show a 'Copied' notification."""
@@ -830,6 +986,9 @@ class LastInteractionHeaderWidget(QWidget):
 class LastInteractionSectionWidget(QWidget):
     """Container widget for the last interaction section in the menu."""
 
+    # Signal for thread-safe history change notifications
+    history_changed = pyqtSignal()
+
     _container_style = """
         QWidget#lastInteractionSection {
             background: transparent;
@@ -853,11 +1012,17 @@ class LastInteractionSectionWidget(QWidget):
         self.setStyleSheet(self._container_style)
 
         self._setup_ui()
+        self._rebuild_chips()
+
+        # Connect signal to rebuild chips (for thread-safe updates)
+        self.history_changed.connect(self._rebuild_chips)
+
+        # Subscribe to history changes
+        if self.history_service:
+            self.history_service.add_change_callback(self._on_history_changed)
 
     def _setup_ui(self):
-        """Set up the widget UI."""
-        from core.models import HistoryEntryType
-
+        """Set up the widget UI structure."""
         self.main_layout = QVBoxLayout(self)
         self.main_layout.setContentsMargins(0, 0, 0, 0)
         self.main_layout.setSpacing(2)
@@ -865,6 +1030,24 @@ class LastInteractionSectionWidget(QWidget):
         # Header with title
         header = LastInteractionHeaderWidget()
         self.main_layout.addWidget(header)
+
+        # Create container for chips (will be populated by _rebuild_chips)
+        self.chips_container = QWidget()
+        self.chips_layout = QHBoxLayout(self.chips_container)
+        self.chips_layout.setContentsMargins(4, 0, 4, 4)
+        self.chips_layout.setSpacing(6)
+        self.main_layout.addWidget(self.chips_container)
+
+    def _rebuild_chips(self):
+        """Rebuild all chips from current history data."""
+        from core.models import HistoryEntryType
+
+        # Clear existing chips
+        self._chips = []
+        while self.chips_layout.count():
+            item = self.chips_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
 
         # Retrieve last interaction data
         last_text_entry = None
@@ -884,12 +1067,6 @@ class LastInteractionSectionWidget(QWidget):
             last_speech_entry.output_content if last_speech_entry else None
         )
 
-        # Create horizontal layout for chips
-        chips_container = QWidget()
-        chips_layout = QHBoxLayout(chips_container)
-        chips_layout.setContentsMargins(4, 0, 4, 4)
-        chips_layout.setSpacing(6)
-
         # Create chips
         input_chip = LastInteractionChip(
             chip_type="input",
@@ -901,7 +1078,7 @@ class LastInteractionSectionWidget(QWidget):
             lambda: self._on_details("Input Content", input_content)
         )
         self._chips.append(input_chip)
-        chips_layout.addWidget(input_chip)
+        self.chips_layout.addWidget(input_chip)
 
         output_chip = LastInteractionChip(
             chip_type="output",
@@ -913,7 +1090,7 @@ class LastInteractionSectionWidget(QWidget):
             lambda: self._on_details("Output Content", output_content)
         )
         self._chips.append(output_chip)
-        chips_layout.addWidget(output_chip)
+        self.chips_layout.addWidget(output_chip)
 
         transcription_chip = LastInteractionChip(
             chip_type="transcription",
@@ -927,10 +1104,18 @@ class LastInteractionSectionWidget(QWidget):
             lambda: self._on_details("Transcription", transcription_content)
         )
         self._chips.append(transcription_chip)
-        chips_layout.addWidget(transcription_chip)
+        self.chips_layout.addWidget(transcription_chip)
 
-        chips_layout.addStretch()
-        self.main_layout.addWidget(chips_container)
+        self.chips_layout.addStretch()
+
+    def _on_history_changed(self):
+        """Handle history service change notification.
+
+        Emits signal to ensure UI update happens on the main thread,
+        since this callback may be invoked from a background thread
+        (e.g., after speech-to-text transcription completes).
+        """
+        self.history_changed.emit()
 
     def _on_copy(self, chip: LastInteractionChip):
         """Handle copy request from a chip."""

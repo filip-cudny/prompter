@@ -30,6 +30,7 @@ class PromptStoreService(PromptStoreServiceProtocol):
         speech_service: Optional[SpeechToTextService] = None,
         openai_service: Optional[OpenAiService] = None,
         context_manager=None,
+        history_service: Optional[HistoryService] = None,
     ):
         self.prompt_providers = (
             prompt_providers
@@ -47,7 +48,7 @@ class PromptStoreService(PromptStoreServiceProtocol):
         self.execution_service = ExecutionService(self)
         self.execution_service.set_speech_service(self.speech_service)
         self._menu_coordinator = None
-        self.history_service = HistoryService()
+        self.history_service = history_service or HistoryService()
         self.active_prompt_service = ActivePromptService()
         self._prompts_cache = None
 

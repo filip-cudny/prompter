@@ -26,7 +26,7 @@ class SpeechMenuProvider:
         # Speech to text item
         if self.speech_callback:
             speech_enabled = True
-            speech_label = "Speech to Text"
+            speech_label = "Speech to text"
             if self.prompt_store_service and self.prompt_store_service.is_recording():
                 speech_label = "Stop Recording"
             elif self.prompt_store_service:
@@ -42,6 +42,7 @@ class SpeechMenuProvider:
                 data={"type": "speech_to_text"},
                 enabled=speech_enabled,
                 separator_after=True,
+                icon="mic",
             )
             items.append(speech_item)
 

@@ -48,21 +48,27 @@ class PyQtMenuCoordinator(QObject):
         self.cache_timer.timeout.connect(self._clear_menu_cache)
 
         # Separate caches for different menu parts
-        self._cached_dynamic_items = (
-            None  # Active prompt info and dynamic provider items
-        )
-        self._cached_static_items = (
-            None  # Static provider items (prompts, presets, etc.)
-        )
+        self._cached_dynamic_items = None  # Top dynamic items (Context, Last Interaction)
+        self._cached_static_items = None  # Static provider items (prompts)
+        self._cached_bottom_items = None  # Bottom items (Speech, Settings, Active Prompt)
         self._dynamic_items_dirty = True
         self._static_items_dirty = True
 
-        # Dynamic provider class names (providers whose items change frequently)
-        self._dynamic_provider_classes = {
+        # Providers whose items appear at TOP of menu (before prompts)
+        self._top_dynamic_provider_classes = {
             "LastInteractionMenuProvider",
-            "SpeechMenuProvider",
             "ContextMenuProvider",
         }
+
+        # Providers whose items appear at BOTTOM of menu (after prompts)
+        self._bottom_dynamic_provider_classes = {
+            "SpeechMenuProvider",
+        }
+
+        # All dynamic provider classes (for cache invalidation)
+        self._dynamic_provider_classes = (
+            self._top_dynamic_provider_classes | self._bottom_dynamic_provider_classes
+        )
 
         # Connect internal signals
         self.execution_completed.connect(self._handle_execution_result)
@@ -187,17 +193,19 @@ class PyQtMenuCoordinator(QObject):
         if (
             self._cached_static_items is not None
             and self._cached_dynamic_items is not None
+            and self._cached_bottom_items is not None
             and not self._static_items_dirty
             and not self._dynamic_items_dirty
         ):
-            # Combine cached items
+            # Combine cached items in order: top dynamic, static (prompts), bottom
             all_items = []
-            all_items.extend(self._cached_static_items)
             all_items.extend(self._cached_dynamic_items)
+            all_items.extend(self._cached_static_items)
+            all_items.extend(self._cached_bottom_items)
             return all_items
 
         try:
-            # Get or rebuild static provider items
+            # Get or rebuild static provider items (prompts)
             if self._cached_static_items is None or self._static_items_dirty:
                 static_items = []
                 for provider in self.providers:
@@ -219,15 +227,18 @@ class PyQtMenuCoordinator(QObject):
                 self._cached_static_items = static_items
                 self._static_items_dirty = False
 
-            # Get or rebuild dynamic items
+            # Get or rebuild top dynamic items (Context, Last Interaction)
             if self._cached_dynamic_items is None or self._dynamic_items_dirty:
                 self._cached_dynamic_items = self._build_dynamic_items()
+                # Also rebuild bottom items when dynamic cache is dirty
+                self._cached_bottom_items = self._build_bottom_dynamic_items()
                 self._dynamic_items_dirty = False
 
-            # Combine all items
+            # Combine all items: top dynamic, static (prompts), bottom
             all_items = []
-            all_items.extend(self._cached_static_items or [])
             all_items.extend(self._cached_dynamic_items or [])
+            all_items.extend(self._cached_static_items or [])
+            all_items.extend(self._cached_bottom_items or [])
 
             self._start_cache_timer()
             return all_items
@@ -251,6 +262,7 @@ class PyQtMenuCoordinator(QObject):
                 data=item.data,
                 enabled=item.enabled,
                 tooltip=getattr(item, "tooltip", None),
+                icon=item.icon,
             )
 
             # Copy separator info if present
@@ -323,6 +335,7 @@ class PyQtMenuCoordinator(QObject):
         self.menu_cache.clear()
         self._cached_dynamic_items = None
         self._cached_static_items = None
+        self._cached_bottom_items = None
         self._dynamic_items_dirty = True
         self._static_items_dirty = True
         if self.cache_timer.isActive():
@@ -345,12 +358,12 @@ class PyQtMenuCoordinator(QObject):
         }
 
     def _build_dynamic_items(self) -> List[MenuItem]:
-        """Build dynamic menu items (active prompt info and dynamic provider items)."""
+        """Build TOP dynamic menu items (Context, Last Interaction - appear before prompts)."""
         dynamic_items = []
 
-        # Get items from dynamic providers
+        # Get items from TOP dynamic providers only
         for provider in self.providers:
-            if provider.__class__.__name__ in self._dynamic_provider_classes:
+            if provider.__class__.__name__ in self._top_dynamic_provider_classes:
                 try:
                     items = provider.get_menu_items()
                     if items:
@@ -362,10 +375,30 @@ class PyQtMenuCoordinator(QObject):
                     )
                     continue
 
-        # Add active prompt info
-        self._add_active_prompt_info(dynamic_items)
-
         return dynamic_items
+
+    def _build_bottom_dynamic_items(self) -> List[MenuItem]:
+        """Build BOTTOM dynamic menu items (Speech, Settings, Active Prompt - appear after prompts)."""
+        bottom_items = []
+
+        # Get items from BOTTOM dynamic providers
+        for provider in self.providers:
+            if provider.__class__.__name__ in self._bottom_dynamic_provider_classes:
+                try:
+                    items = provider.get_menu_items()
+                    if items:
+                        wrapped_items = self._wrap_provider_items(items)
+                        bottom_items.extend(wrapped_items)
+                except (RuntimeError, Exception) as e:
+                    print(
+                        f"Error getting items from dynamic provider {provider.__class__.__name__}: {e}"
+                    )
+                    continue
+
+        # Add active prompt info (Settings, Active Prompt)
+        self._add_active_prompt_info(bottom_items)
+
+        return bottom_items
 
     def _add_active_prompt_info(self, all_items: List[MenuItem]) -> None:
         """Add settings submenu and active prompt selector to the menu."""
@@ -627,6 +660,7 @@ class PyQtMenuCoordinator(QObject):
         """Invalidate only dynamic items cache."""
         logger.debug("Invalidating menu cache")
         self._cached_dynamic_items = None
+        self._cached_bottom_items = None
         self._dynamic_items_dirty = True
         self._cached_static_items = None
         self._static_items_dirty = True
