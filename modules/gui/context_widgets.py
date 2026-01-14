@@ -1129,3 +1129,348 @@ class LastInteractionSectionWidget(QWidget):
             from modules.gui.text_preview_dialog import show_preview_dialog
 
             show_preview_dialog(title, content, clipboard_manager=self.clipboard_manager)
+
+
+class SettingsSelectorChip(QWidget):
+    """Chip widget for selecting model or prompt with dropdown menu."""
+
+    selection_changed = pyqtSignal(str)  # Emits selected item key
+    clear_requested = pyqtSignal()  # Emits when clear button clicked
+
+    _chip_style = """
+        QWidget#settingsChip {
+            background-color: #3a3a3a;
+            border: 1px solid #555555;
+            border-radius: 12px;
+            padding: 2px;
+        }
+    """
+
+    _chip_hover_style = """
+        QWidget#settingsChip {
+            background-color: #454545;
+            border: 1px solid #555555;
+            border-radius: 12px;
+            padding: 2px;
+        }
+    """
+
+    _label_style = """
+        QLabel {
+            color: #f0f0f0;
+            font-size: 12px;
+            padding: 2px 4px;
+            background: transparent;
+        }
+    """
+
+    _icon_btn_style = """
+        QPushButton {
+            background: transparent;
+            border: none;
+            padding: 2px;
+            min-width: 20px;
+            max-width: 20px;
+            min-height: 20px;
+            max-height: 20px;
+        }
+    """
+
+    def __init__(
+        self,
+        prefix: str,
+        current_value: str,
+        options: list,
+        clearable: bool = False,
+        on_select: Optional[Callable[[str], None]] = None,
+        on_clear: Optional[Callable[[], None]] = None,
+        parent: Optional[QWidget] = None,
+    ):
+        super().__init__(parent)
+        self.prefix = prefix
+        self.current_value = current_value
+        self.options = options  # List of MenuItem objects
+        self.clearable = clearable
+        self._on_select_callback = on_select
+        self._on_clear_callback = on_clear
+
+        self.setObjectName("settingsChip")
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        self.setStyleSheet(self._chip_style)
+        self.setCursor(Qt.PointingHandCursor)
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(8, 2, 4, 2)
+        layout.setSpacing(4)
+
+        # Label with prefix and value
+        self.label = QLabel()
+        self.label.setStyleSheet(self._label_style)
+        self._update_label()
+        layout.addWidget(self.label)
+
+        # Clear button (only if clearable)
+        if self.clearable:
+            self.clear_btn = IconButton("delete", size=16)
+            self.clear_btn.setStyleSheet(self._icon_btn_style)
+            self.clear_btn.setToolTip(f"Clear {prefix}")
+            self.clear_btn.clicked.connect(self._on_clear_clicked)
+            # Enable only if there's a value selected (not "None")
+            has_value = current_value and current_value != "None"
+            self.clear_btn.setEnabled(has_value)
+            if has_value:
+                self.clear_btn.setCursor(Qt.PointingHandCursor)
+            layout.addWidget(self.clear_btn)
+
+        # Dropdown chevron
+        self.chevron_btn = IconButton("chevron-down", size=16)
+        self.chevron_btn.setStyleSheet(self._icon_btn_style)
+        self.chevron_btn.setCursor(Qt.PointingHandCursor)
+        self.chevron_btn.setToolTip(f"Select {prefix}")
+        self.chevron_btn.clicked.connect(self._show_menu)
+        layout.addWidget(self.chevron_btn)
+
+        self.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+
+    def _update_label(self):
+        """Update the label with prefix and current value."""
+        prefix_html = f'<i style="color: #999999">{self.prefix}:</i>'
+        # Truncate long values
+        max_length = 20
+        display_value = self.current_value
+        if len(display_value) > max_length:
+            display_value = display_value[:max_length - 3] + "..."
+            self.setToolTip(f"{self.prefix}: {self.current_value}")
+        else:
+            self.setToolTip("")
+        self.label.setText(f'{prefix_html} {display_value}')
+
+    def update_value(self, new_value: str):
+        """Update the displayed value."""
+        self.current_value = new_value
+        self._update_label()
+        # Update clear button state if it exists
+        if self.clearable and hasattr(self, 'clear_btn'):
+            has_value = new_value and new_value != "None"
+            self.clear_btn.setEnabled(has_value)
+            self.clear_btn.setCursor(Qt.PointingHandCursor if has_value else Qt.ArrowCursor)
+
+    def update_options(self, options: list):
+        """Update the available options."""
+        self.options = options
+
+    def _on_clear_clicked(self):
+        """Handle clear button click."""
+        # Update displayed value immediately
+        self.update_value("None")
+
+        self.clear_requested.emit()
+        if self._on_clear_callback:
+            self._on_clear_callback()
+
+    def _show_menu(self):
+        """Show dropdown menu with options."""
+        from PyQt5.QtWidgets import QMenu
+
+        menu = QMenu(self)
+        menu.setStyleSheet("""
+            QMenu {
+                background-color: #2b2b2b;
+                border: 1px solid #555555;
+                border-radius: 6px;
+                padding: 4px;
+                color: #ffffff;
+                font-size: 13px;
+            }
+            QMenu::item {
+                background-color: transparent;
+                padding: 8px 16px;
+                border-radius: 4px;
+                margin: 1px;
+            }
+            QMenu::item:selected {
+                background-color: #454545;
+                color: #ffffff;
+            }
+            QMenu::item:disabled {
+                color: #666666;
+            }
+        """)
+
+        for option in self.options:
+            action = menu.addAction(option.label)
+            action.setEnabled(option.enabled)
+            # Capture the option in the lambda
+            action.triggered.connect(
+                lambda checked, opt=option: self._on_option_selected(opt)
+            )
+
+        # Show menu below the chip
+        menu.exec_(self.mapToGlobal(QPoint(0, self.height())))
+
+    def _on_option_selected(self, option):
+        """Handle option selection from menu."""
+        # Update displayed value immediately (remove checkmark prefix if present)
+        display_name = option.label
+        if display_name.startswith("✓ "):
+            display_name = display_name[2:]
+        self.update_value(display_name)
+
+        self.selection_changed.emit(option.id)
+        if option.action:
+            option.action()
+        if self._on_select_callback:
+            self._on_select_callback(option.id)
+
+    def mousePressEvent(self, event):
+        """Handle mouse press - show menu on click (except on buttons)."""
+        if self.clearable and hasattr(self, 'clear_btn'):
+            clear_btn_rect = self.clear_btn.geometry()
+            if clear_btn_rect.contains(event.pos()):
+                super().mousePressEvent(event)
+                return
+
+        chevron_rect = self.chevron_btn.geometry()
+        if not chevron_rect.contains(event.pos()):
+            self._show_menu()
+        super().mousePressEvent(event)
+
+    def enterEvent(self, event):
+        """Handle mouse enter - show hover state."""
+        self.setStyleSheet(self._chip_hover_style)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        """Handle mouse leave - restore normal state."""
+        self.setStyleSheet(self._chip_style)
+        super().leaveEvent(event)
+
+
+class SettingsHeaderWidget(QWidget):
+    """Header widget with 'Settings' label."""
+
+    _header_style = """
+        QWidget {
+            background: transparent;
+        }
+    """
+
+    _title_style = """
+        QLabel {
+            color: #888888;
+            font-size: 11px;
+            font-weight: bold;
+            padding: 2px 4px;
+            background: transparent;
+        }
+    """
+
+    def __init__(self, parent: Optional[QWidget] = None):
+        super().__init__(parent)
+        self.setStyleSheet(self._header_style)
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(4, 4, 4, 2)
+        layout.setSpacing(4)
+
+        title = QLabel("Settings")
+        title.setStyleSheet(self._title_style)
+        layout.addWidget(title)
+        layout.addStretch()
+
+
+class SettingsSectionWidget(QWidget):
+    """Section widget containing settings chips for model and prompt selection."""
+
+    model_changed = pyqtSignal(str)  # Emits new model key
+    prompt_changed = pyqtSignal(str)  # Emits new prompt id
+    prompt_cleared = pyqtSignal()  # Emits when prompt is cleared
+
+    _section_style = """
+        QWidget {
+            background: transparent;
+        }
+    """
+
+    def __init__(
+        self,
+        model_options: list,
+        prompt_options: list,
+        current_model: str,
+        current_prompt: str,
+        on_model_select: Optional[Callable[[str], None]] = None,
+        on_prompt_select: Optional[Callable[[str], None]] = None,
+        on_prompt_clear: Optional[Callable[[], None]] = None,
+        parent: Optional[QWidget] = None,
+    ):
+        super().__init__(parent)
+        self.setStyleSheet(self._section_style)
+
+        self._on_model_select = on_model_select
+        self._on_prompt_select = on_prompt_select
+        self._on_prompt_clear = on_prompt_clear
+
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(4, 0, 4, 4)
+        main_layout.setSpacing(4)
+
+        # Header
+        header = SettingsHeaderWidget()
+        main_layout.addWidget(header)
+
+        # Chips row
+        chips_layout = QHBoxLayout()
+        chips_layout.setContentsMargins(4, 0, 4, 0)
+        chips_layout.setSpacing(8)
+
+        # Model chip (not clearable)
+        self.model_chip = SettingsSelectorChip(
+            prefix="model",
+            current_value=current_model,
+            options=model_options,
+            clearable=False,
+            on_select=self._handle_model_select,
+        )
+        chips_layout.addWidget(self.model_chip)
+
+        # Prompt chip (clearable)
+        self.prompt_chip = SettingsSelectorChip(
+            prefix="prompt",
+            current_value=current_prompt,
+            options=prompt_options,
+            clearable=True,
+            on_select=self._handle_prompt_select,
+            on_clear=self._handle_prompt_clear,
+        )
+        chips_layout.addWidget(self.prompt_chip)
+
+        chips_layout.addStretch()
+        main_layout.addLayout(chips_layout)
+
+    def _handle_model_select(self, model_key: str):
+        """Handle model selection."""
+        self.model_changed.emit(model_key)
+        if self._on_model_select:
+            self._on_model_select(model_key)
+
+    def _handle_prompt_select(self, prompt_id: str):
+        """Handle prompt selection."""
+        self.prompt_changed.emit(prompt_id)
+        if self._on_prompt_select:
+            self._on_prompt_select(prompt_id)
+
+    def _handle_prompt_clear(self):
+        """Handle prompt clear."""
+        self.prompt_cleared.emit()
+        if self._on_prompt_clear:
+            self._on_prompt_clear()
+
+    def update_model(self, model_name: str, options: list):
+        """Update model chip with new value and options."""
+        self.model_chip.update_value(model_name)
+        self.model_chip.update_options(options)
+
+    def update_prompt(self, prompt_name: str, options: list):
+        """Update prompt chip with new value and options."""
+        self.prompt_chip.update_value(prompt_name)
+        self.prompt_chip.update_options(options)
