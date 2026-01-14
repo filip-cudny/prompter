@@ -198,11 +198,57 @@ class PromptExecutionWorker(QThread):
                     metadata={"action": "execute_prompt"},
                 )
 
-            # Process messages with placeholder service
-            processed_messages: List[ChatCompletionMessageParam] = []
-            processed_messages = self.placeholder_service.process_messages(
-                messages, self.context
-            )
+            # Check for multi-turn conversation data
+            conversation_data = self.item.data.get("conversation_data")
+
+            if conversation_data:
+                # Multi-turn conversation mode
+                processed_messages = self._build_conversation_messages(
+                    prompt_id, messages, conversation_data
+                )
+            else:
+                # Single-turn mode (original logic)
+                processed_messages: List[ChatCompletionMessageParam] = []
+                processed_messages = self.placeholder_service.process_messages(
+                    messages, self.context
+                )
+
+                # Check for working_images in item.data (from MessageShareDialog)
+                # These are temporary images not saved to persistent context
+                working_images = self.item.data.get("working_images", [])
+                if working_images and processed_messages:
+                    # Add working images to the last message (user message)
+                    last_message = processed_messages[-1]
+                    last_content = last_message.get("content", "")
+
+                    # Build content array with text and images
+                    message_content = []
+
+                    # Handle existing content (could be string or list)
+                    if isinstance(last_content, str):
+                        if last_content.strip():
+                            message_content.append({"type": "text", "text": last_content})
+                    elif isinstance(last_content, list):
+                        message_content.extend(last_content)
+
+                    # Add working images
+                    for img in working_images:
+                        img_data = img.get("data", "")
+                        media_type = img.get("media_type", "image/png")
+                        if img_data:
+                            message_content.append({
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:{media_type};base64,{img_data}"
+                                },
+                            })
+
+                    # Update the last message with combined content
+                    if message_content:
+                        processed_messages[-1] = {
+                            "role": last_message.get("role", "user"),
+                            "content": message_content,
+                        }
 
             if not processed_messages:
                 return ExecutionResult(
@@ -232,6 +278,80 @@ class PromptExecutionWorker(QThread):
                 execution_time=time.time() - start_time,
                 metadata={"action": "execute_prompt"},
             )
+
+    def _build_conversation_messages(
+        self, prompt_id: str, base_messages: list, conversation_data: dict
+    ) -> List[ChatCompletionMessageParam]:
+        """Build messages from multi-turn conversation history."""
+        processed = []
+
+        # Start with system message from prompt
+        for msg in base_messages:
+            if msg.get("role") == "system":
+                content = msg.get("content", "")
+                # Process placeholders in system message
+                if hasattr(self.placeholder_service, "_process_content"):
+                    content = self.placeholder_service._process_content(
+                        content, self.context
+                    )
+                processed.append({"role": "system", "content": content})
+                break
+
+        # Add conversation turns
+        for turn in conversation_data.get("turns", []):
+            role = turn.get("role")
+
+            if role == "assistant":
+                # Assistant response
+                processed.append({
+                    "role": "assistant",
+                    "content": turn.get("text", "")
+                })
+            else:
+                # User turn - build content with text and images
+                content = []
+
+                # Handle context (only in first turn)
+                context_text = turn.get("context_text", "")
+                text = turn.get("text", "")
+
+                if context_text:
+                    # First turn with context
+                    content.append({
+                        "type": "text",
+                        "text": f"<context>\n{context_text}\n</context>\n\n{text}"
+                    })
+                elif text.strip():
+                    content.append({"type": "text", "text": text})
+
+                # Add context images (first turn only)
+                for img in turn.get("context_images", []):
+                    img_data = img.get("data", "")
+                    media_type = img.get("media_type", "image/png")
+                    if img_data:
+                        content.append({
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:{media_type};base64,{img_data}"
+                            }
+                        })
+
+                # Add message images
+                for img in turn.get("images", []):
+                    img_data = img.get("data", "")
+                    media_type = img.get("media_type", "image/png")
+                    if img_data:
+                        content.append({
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:{media_type};base64,{img_data}"
+                            }
+                        })
+
+                if content:
+                    processed.append({"role": "user", "content": content})
+
+        return processed
 
 
 class AsyncPromptExecutionManager:

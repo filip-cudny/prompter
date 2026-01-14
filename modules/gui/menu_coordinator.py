@@ -401,7 +401,7 @@ class PyQtMenuCoordinator(QObject):
         return bottom_items
 
     def _add_active_prompt_info(self, all_items: List[MenuItem]) -> None:
-        """Add settings submenu and active prompt selector to the menu."""
+        """Add settings section with model and prompt chips to the menu."""
         if not self.prompt_store_service:
             return
 
@@ -414,51 +414,54 @@ class PyQtMenuCoordinator(QObject):
                 "display_name", config.default_model
             )
 
-        # Add Settings subdmenu
-        settings_item = MenuItem(
-            id="settings_submenu",
-            label=f"Settings ({default_model_display_name})",
-            item_type=MenuItemType.SYSTEM,
-            action=lambda: None,
-            enabled=True,
-            separator_after=False,
-        )
-        settings_item.submenu_items = self._get_settings_submenu_items()
-
         # Get active prompt display name
-        display_name = "None"
+        active_prompt_display_name = "None"
         if self.prompt_store_service.active_prompt_service.has_active_prompt():
             active_name = self.prompt_store_service.active_prompt_service.get_active_prompt_display_name()
             if active_name:
                 # Truncate long names
                 if len(active_name) > 30:
-                    display_name = active_name[:27] + "..."
+                    active_prompt_display_name = active_name[:27] + "..."
                 else:
-                    display_name = active_name
+                    active_prompt_display_name = active_name
 
-        # Create active prompt selector item with submenu
-        active_prompt_item = MenuItem(
-            id="active_prompt_selector",
-            label=f"Active Prompt ({display_name})",
-            item_type=MenuItemType.SYSTEM,
-            action=lambda: None,  # No direct action, submenu will handle it
-            enabled=True,
-            separator_after=False,
-        )
-
-        # Set submenu items
-        active_prompt_item.submenu_items = self._get_prompt_selector_items()
-
-        # Add separator before settings item if there are other items
+        # Add separator before settings section if there are other items
         if all_items:
             if hasattr(all_items[-1], "separator_after"):
                 all_items[-1].separator_after = True
             else:
-                # Add separator attribute to the last item
                 setattr(all_items[-1], "separator_after", True)
 
-        all_items.append(settings_item)
-        all_items.append(active_prompt_item)
+        # Create settings section item
+        settings_section_item = MenuItem(
+            id="settings_section",
+            label="Settings",
+            item_type=MenuItemType.SETTINGS_SECTION,
+            action=lambda: None,
+            enabled=True,
+            separator_after=False,
+            data={
+                "model_options": self._get_settings_submenu_items(),
+                "prompt_options": self._get_prompt_selector_items(),
+                "current_model": default_model_display_name,
+                "current_prompt": active_prompt_display_name,
+                "on_prompt_clear": self._handle_prompt_clear,
+            },
+        )
+
+        all_items.append(settings_section_item)
+
+    def _handle_prompt_clear(self):
+        """Handle clearing the active prompt."""
+        if self.prompt_store_service:
+            self.prompt_store_service.active_prompt_service.clear_active_prompt()
+            result = ExecutionResult(
+                success=True,
+                content="Active prompt cleared",
+                metadata={"action": "clear_active_prompt"},
+            )
+            self.execution_completed.emit(result)
+            self._invalidate_cache()
 
     def _get_prompt_selector_items(self) -> List[MenuItem]:
         """Get prompt selector submenu items."""

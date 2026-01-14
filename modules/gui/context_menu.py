@@ -527,6 +527,11 @@ class PyQtContextMenu(QObject):
                 action = self._create_last_interaction_section_item(menu, item)
                 if action:
                     menu.addAction(action)
+            elif item.item_type == MenuItemType.SETTINGS_SECTION:
+                # Create settings section widget with chips
+                action = self._create_settings_section_item(menu, item)
+                if action:
+                    menu.addAction(action)
             elif hasattr(item, "submenu_items") and item.submenu_items:
                 # Create submenu with consistent styling
                 submenu = self.create_submenu(menu, item.label, item.submenu_items)
@@ -582,12 +587,39 @@ class PyQtContextMenu(QObject):
         action.setDefaultWidget(widget)
         return action
 
+    def _create_settings_section_item(
+        self, menu: QMenu, item: MenuItem
+    ) -> Optional[QAction]:
+        """Create a settings section widget action with model and prompt chips."""
+        from modules.gui.context_widgets import SettingsSectionWidget
+
+        if not item.data:
+            return None
+
+        model_options = item.data.get("model_options", [])
+        prompt_options = item.data.get("prompt_options", [])
+        current_model = item.data.get("current_model", "None")
+        current_prompt = item.data.get("current_prompt", "None")
+        on_prompt_clear = item.data.get("on_prompt_clear")
+
+        widget = SettingsSectionWidget(
+            model_options=model_options,
+            prompt_options=prompt_options,
+            current_model=current_model,
+            current_prompt=current_prompt,
+            on_prompt_clear=on_prompt_clear,
+        )
+        action = QWidgetAction(menu)
+        action.setDefaultWidget(widget)
+        return action
+
     def _create_custom_menu_item(
         self, menu: QMenu, item: MenuItem
     ) -> Optional[QAction]:
         """Create a custom menu item with hover effects."""
         from PyQt5.QtWidgets import QHBoxLayout
-        from modules.gui.icons import create_icon_pixmap, ICON_COLOR_NORMAL, ICON_COLOR_DISABLED
+        from modules.gui.icons import create_icon_pixmap, ICON_COLOR_NORMAL, ICON_COLOR_DISABLED, ICON_COLOR_HOVER
+        from modules.gui.context_widgets import IconButton
 
         class ClickableMenuItem(QWidget):
             def __init__(self, text, menu_item, context_menu):
@@ -658,6 +690,46 @@ class PyQtContextMenu(QObject):
                 layout.addWidget(self._text_label)
                 layout.addStretch()
 
+                # Mic button for alternative execution (only for PROMPT items)
+                self._mic_btn = None
+                if menu_item.item_type == MenuItemType.PROMPT:
+                    self._mic_btn = IconButton("mic", size=16)
+                    self._mic_btn.setStyleSheet("""
+                        QPushButton {
+                            background: transparent;
+                            border: none;
+                            padding: 2px;
+                            min-width: 20px;
+                            max-width: 20px;
+                            min-height: 20px;
+                            max-height: 20px;
+                        }
+                    """)
+                    self._mic_btn.setCursor(Qt.PointingHandCursor)
+                    self._mic_btn.setToolTip("Record voice input")
+                    self._mic_btn.clicked.connect(self._on_mic_clicked)
+                    layout.addWidget(self._mic_btn)
+
+                # Message share button (only for PROMPT items)
+                self._message_btn = None
+                if menu_item.item_type == MenuItemType.PROMPT:
+                    self._message_btn = IconButton("message-square-share", size=16)
+                    self._message_btn.setStyleSheet("""
+                        QPushButton {
+                            background: transparent;
+                            border: none;
+                            padding: 2px;
+                            min-width: 20px;
+                            max-width: 20px;
+                            min-height: 20px;
+                            max-height: 20px;
+                        }
+                    """)
+                    self._message_btn.setCursor(Qt.PointingHandCursor)
+                    self._message_btn.setToolTip("Send message to prompt")
+                    self._message_btn.clicked.connect(self._on_message_share_clicked)
+                    layout.addWidget(self._message_btn)
+
             def _update_style(self, highlighted: bool):
                 """Update styles for highlight state."""
                 if highlighted:
@@ -669,6 +741,50 @@ class PyQtContextMenu(QObject):
                         self._text_label.setStyleSheet(self._label_style)
                     else:
                         self._text_label.setStyleSheet(self._label_disabled_style)
+
+            def _on_message_share_clicked(self):
+                """Handle message share button click."""
+                # Close the menu
+                if self._context_menu.menu:
+                    self._context_menu.menu.close()
+                if self._context_menu.focus_window:
+                    self._context_menu.focus_window.hide()
+
+                # Get prompt store service, context manager, and clipboard manager from menu coordinator
+                prompt_store_service = None
+                context_manager = None
+                clipboard_manager = None
+                if hasattr(self._context_menu, 'menu_coordinator') and self._context_menu.menu_coordinator:
+                    prompt_store_service = self._context_menu.menu_coordinator.prompt_store_service
+                    context_manager = self._context_menu.menu_coordinator.context_manager
+                    if prompt_store_service and hasattr(prompt_store_service, 'clipboard_manager'):
+                        clipboard_manager = prompt_store_service.clipboard_manager
+
+                # Open message share dialog
+                from modules.gui.message_share_dialog import show_message_share_dialog
+                show_message_share_dialog(
+                    self._menu_item,
+                    self._context_menu.execution_callback,
+                    prompt_store_service=prompt_store_service,
+                    context_manager=context_manager,
+                    clipboard_manager=clipboard_manager,
+                )
+
+            def _on_mic_clicked(self):
+                """Handle mic button click - trigger alternative execution (speech input)."""
+                if self._context_menu.execution_callback and self._menu_item.enabled:
+                    # True = shift_pressed, triggers alternative execution (speech-to-text)
+                    self._context_menu.execution_callback(self._menu_item, True)
+                    # Close the menu after execution
+                    if self._context_menu.menu:
+                        self._context_menu.menu.close()
+                    if self._context_menu.focus_window:
+                        self._context_menu.focus_window.hide()
+                    # Restore focus after execution
+                    self._context_menu._focus_restore_pending = True
+                    QTimer.singleShot(
+                        100, self._context_menu._restore_focus_with_cleanup
+                    )
 
             def mousePressEvent(self, event):
                 if event.button() == Qt.LeftButton and self._menu_item.enabled:

@@ -16,6 +16,7 @@ class MenuItemType(Enum):
     SPEECH = "speech"
     CONTEXT = "context"
     LAST_INTERACTION = "last_interaction"
+    SETTINGS_SECTION = "settings_section"
 
 
 class HistoryEntryType(Enum):
