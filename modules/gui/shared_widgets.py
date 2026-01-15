@@ -44,6 +44,9 @@ ICON_BTN_STYLE = """
     }
 """ + TOOLTIP_STYLE
 
+# Minimum height for text edit widgets in dialogs
+TEXT_EDIT_MIN_HEIGHT = 300
+
 
 class CollapsibleSectionHeader(QWidget):
     """Header widget for collapsible sections with title, collapse toggle, and optional buttons."""
@@ -375,14 +378,14 @@ class ImageChipWidget(QWidget):
 
 def create_text_edit(
     placeholder: str = "",
-    min_height: int = 100,
+    min_height: int = TEXT_EDIT_MIN_HEIGHT,
     font_size: int = 12,
 ) -> QTextEdit:
     """Create a pre-configured QTextEdit with standard styling.
 
     Args:
         placeholder: Placeholder text
-        min_height: Minimum height in pixels (0 for no minimum)
+        min_height: Minimum height in pixels (default: TEXT_EDIT_MIN_HEIGHT)
         font_size: Font size for monospace font
 
     Returns:
