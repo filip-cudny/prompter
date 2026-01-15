@@ -97,8 +97,9 @@ class TextPreviewDialog(BaseDialog):
         content_layout.setContentsMargins(0, 0, 14, 0)  # Right margin for scrollbar
         content_layout.setSpacing(8)
 
-        # Toolbar
+        # Toolbar - compact, right-aligned
         toolbar = QHBoxLayout()
+        toolbar.setContentsMargins(0, 0, 0, 0)
         toolbar.setSpacing(2)
         toolbar.addStretch()
 
@@ -131,12 +132,11 @@ class TextPreviewDialog(BaseDialog):
 
         content_layout.addLayout(toolbar)
 
-        # Editable text area
-        self.text_edit = create_text_edit(min_height=0)
+        # Editable text area - stretch=1 makes it fill available space
+        self.text_edit = create_text_edit(min_height=100)
         self.text_edit.setPlainText(content or "")
         self.text_edit.textChanged.connect(self._on_text_changed)
-        self.text_edit.setMaximumHeight(DEFAULT_WRAPPED_HEIGHT)  # Default wrapped height
-        content_layout.addWidget(self.text_edit)
+        content_layout.addWidget(self.text_edit, 1)  # stretch=1 to fill space
 
         self.scroll_area.setWidget(content_container)
         layout.addWidget(self.scroll_area)

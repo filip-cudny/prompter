@@ -150,15 +150,21 @@ def apply_wrap_state(
 
     This is the shared implementation for wrap/expand toggling across all dialogs.
 
+    Behavior:
+    - Wrapped: text edit fills available space, uses internal scrollbar
+    - Expanded: text edit grows to fit content, may need external scroll area
+
     Args:
         text_edit: The QTextEdit widget to modify
-        is_wrapped: True to wrap (limit height), False to expand
-        wrapped_height: Maximum height when wrapped (default: DEFAULT_WRAPPED_HEIGHT)
+        is_wrapped: True to wrap (fill space), False to expand (fit content)
+        wrapped_height: Unused, kept for API compatibility
     """
     if is_wrapped:
+        # Fill available space, use internal scrollbar
         text_edit.setMinimumHeight(0)
-        text_edit.setMaximumHeight(wrapped_height)
+        text_edit.setMaximumHeight(QWIDGETSIZE_MAX)
     else:
+        # Expand to fit content (may exceed dialog, needs scroll area)
         content_height = get_text_edit_content_height(text_edit)
         text_edit.setMinimumHeight(content_height)
         text_edit.setMaximumHeight(QWIDGETSIZE_MAX)
