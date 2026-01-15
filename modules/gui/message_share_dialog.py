@@ -21,7 +21,7 @@ from PyQt5.QtCore import Qt, QTimer, QEvent
 from core.models import MenuItem, ExecutionResult
 from core.context_manager import ContextManager, ContextItem, ContextItemType
 from modules.gui.icons import create_icon
-from modules.gui.shared_widgets import CollapsibleSectionHeader, ImageChipWidget, create_text_edit, TOOLTIP_STYLE
+from modules.gui.shared_widgets import CollapsibleSectionHeader, ImageChipWidget, create_text_edit, TOOLTIP_STYLE, TEXT_EDIT_MIN_HEIGHT
 from modules.utils.ui_state import UIStateManager
 
 _open_dialogs: Dict[str, "MessageShareDialog"] = {}
@@ -278,12 +278,12 @@ class MessageShareDialog(QDialog):
         section_layout.addWidget(self.context_images_container)
         self.context_images_container.hide()  # Hidden if no images
 
-        # Text edit area
+        # Text edit area - context uses smaller min height since it has max constraint
         self.context_text_edit = create_text_edit(
             placeholder="Context content...",
-            min_height=0,
+            min_height=100,
         )
-        self.context_text_edit.setMaximumHeight(300)  # Default wrapped height
+        self.context_text_edit.setMaximumHeight(TEXT_EDIT_MIN_HEIGHT)  # Default wrapped height
         self.context_text_edit.textChanged.connect(self._on_context_text_changed)
         section_layout.addWidget(self.context_text_edit)
 
@@ -322,7 +322,7 @@ class MessageShareDialog(QDialog):
         self.message_images_container.hide()  # Hidden if no images
 
         # Text edit area
-        self.input_edit = create_text_edit(placeholder="Type your message here...", min_height=0)
+        self.input_edit = create_text_edit(placeholder="Type your message here...")
         self.input_edit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.input_edit.setToolTip("Type and send message with prompt")
         self.input_edit.textChanged.connect(self._on_input_text_changed)
@@ -353,7 +353,7 @@ class MessageShareDialog(QDialog):
         section_layout.addWidget(self.output_header)
 
         # Text edit area
-        self.output_edit = create_text_edit(placeholder="Output will appear here...", min_height=0)
+        self.output_edit = create_text_edit(placeholder="Output will appear here...")
         self.output_edit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.output_edit.textChanged.connect(self._on_output_text_changed)
         section_layout.addWidget(self.output_edit)
@@ -716,8 +716,8 @@ class MessageShareDialog(QDialog):
         new_wrapped = not is_wrapped
         self.context_header.set_wrap_state(new_wrapped)
         if new_wrapped:
-            self.context_text_edit.setMinimumHeight(0)
-            self.context_text_edit.setMaximumHeight(300)
+            self.context_text_edit.setMinimumHeight(100)
+            self.context_text_edit.setMaximumHeight(TEXT_EDIT_MIN_HEIGHT)
         else:
             content_height = self._get_text_edit_content_height(self.context_text_edit)
             self.context_text_edit.setMinimumHeight(content_height)
@@ -730,7 +730,7 @@ class MessageShareDialog(QDialog):
         new_wrapped = not is_wrapped
         self.input_header.set_wrap_state(new_wrapped)
         if new_wrapped:
-            self.input_edit.setMinimumHeight(0)
+            self.input_edit.setMinimumHeight(TEXT_EDIT_MIN_HEIGHT)
         else:
             content_height = self._get_text_edit_content_height(self.input_edit)
             self.input_edit.setMinimumHeight(content_height)
@@ -742,7 +742,7 @@ class MessageShareDialog(QDialog):
         new_wrapped = not is_wrapped
         self.output_header.set_wrap_state(new_wrapped)
         if new_wrapped:
-            self.output_edit.setMinimumHeight(0)
+            self.output_edit.setMinimumHeight(TEXT_EDIT_MIN_HEIGHT)
         else:
             content_height = self._get_text_edit_content_height(self.output_edit)
             self.output_edit.setMinimumHeight(content_height)
@@ -1580,7 +1580,7 @@ class MessageShareDialog(QDialog):
         images_container.hide()
         layout.addWidget(images_container)
 
-        text_edit = create_text_edit(placeholder="Type your message...", min_height=0)
+        text_edit = create_text_edit(placeholder="Type your message...")
         text_edit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         text_edit.textChanged.connect(self._update_send_buttons_state)
         layout.addWidget(text_edit)
@@ -1620,7 +1620,7 @@ class MessageShareDialog(QDialog):
             new_wrapped = not is_wrapped
             h.set_wrap_state(new_wrapped)
             if new_wrapped:
-                te.setMinimumHeight(0)
+                te.setMinimumHeight(TEXT_EDIT_MIN_HEIGHT)
             else:
                 content_height = self._get_text_edit_content_height(te)
                 te.setMinimumHeight(content_height)
@@ -1661,7 +1661,7 @@ class MessageShareDialog(QDialog):
         )
         layout.addWidget(header)
 
-        text_edit = create_text_edit(placeholder="Output will appear here...", min_height=0)
+        text_edit = create_text_edit(placeholder="Output will appear here...")
         text_edit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         layout.addWidget(text_edit)
 
@@ -1696,7 +1696,7 @@ class MessageShareDialog(QDialog):
             new_wrapped = not is_wrapped
             h.set_wrap_state(new_wrapped)
             if new_wrapped:
-                te.setMinimumHeight(0)
+                te.setMinimumHeight(TEXT_EDIT_MIN_HEIGHT)
             else:
                 content_height = self._get_text_edit_content_height(te)
                 te.setMinimumHeight(content_height)
