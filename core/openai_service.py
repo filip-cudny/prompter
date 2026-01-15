@@ -1,7 +1,7 @@
 """OpenAI service for managing multiple OpenAI client instances."""
 
 import os
-from typing import Dict, Optional, List, BinaryIO, Any
+from typing import Dict, Optional, List, BinaryIO, Any, Generator, Tuple
 from openai import OpenAI
 from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
 from core.exceptions import ConfigurationError
@@ -117,6 +117,65 @@ class OpenAiService:
             return response.choices[0].message.content.strip()
         except Exception as e:
             raise Exception(f"Failed to generate completion: {e}") from e
+
+    def complete_stream(
+        self,
+        model_key: str,
+        messages: List[ChatCompletionMessageParam],
+        **kwargs: Any,
+    ) -> Generator[Tuple[str, str], None, None]:
+        """
+        Generate streaming text completion using specified model.
+
+        Args:
+            model_key: Key of the model configuration to use
+            messages: List of message dictionaries with 'role' and 'content' keys
+            **kwargs: Additional parameters for the API call
+
+        Yields:
+            Tuples of (chunk_text, accumulated_text) for each streamed token
+
+        Raises:
+            ConfigurationError: If model_key is not found
+            Exception: If completion fails
+        """
+        if model_key not in self._clients:
+            raise ConfigurationError(f"Model '{model_key}' not found in configuration")
+
+        if model_key not in self._models_config:
+            raise ConfigurationError(f"Model configuration for '{model_key}' not found")
+
+        client = self._clients[model_key]
+        model_config = self._models_config[model_key]
+
+        try:
+            completion_params = {
+                "model": model_config["model"],
+                "messages": messages,
+                "stream": True,
+                **kwargs,
+            }
+
+            if "temperature" in model_config:
+                completion_params["temperature"] = model_config["temperature"]
+
+            if "max_tokens" in model_config:
+                completion_params["max_tokens"] = model_config["max_tokens"]
+
+            if "reasoning_effort" in model_config:
+                completion_params["reasoning_effort"] = model_config["reasoning_effort"]
+
+            accumulated = ""
+            response = client.chat.completions.create(**completion_params)
+
+            for chunk in response:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    chunk_text = chunk.choices[0].delta.content
+                    accumulated += chunk_text
+                    yield (chunk_text, accumulated)
+
+        except Exception as e:
+            raise Exception(f"Failed to generate streaming completion: {e}") from e
 
     def transcribe_audio(
         self,

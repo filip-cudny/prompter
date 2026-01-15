@@ -176,7 +176,9 @@ class SystemClipboardManager(ClipboardManager):
         """Check if clipboard contains an image on Linux."""
         logger.debug("Checking Linux clipboard for images")
 
-        # Try Qt's clipboard first (handles Qt-set images)
+        # Try Qt's clipboard first - trust it if available
+        # This avoids X11 clipboard deadlock when Qt owns the clipboard
+        # (calling xclip from Qt's event loop while Qt owns clipboard causes timeout)
         try:
             from PyQt5.QtWidgets import QApplication
 
@@ -184,9 +186,11 @@ class SystemClipboardManager(ClipboardManager):
             if app:
                 clipboard = app.clipboard()
                 mime_data = clipboard.mimeData()
-                if mime_data.hasImage():
-                    logger.debug("Qt clipboard has image")
-                    return True
+                if mime_data:
+                    # Qt has valid clipboard access - trust its result
+                    has_image = mime_data.hasImage()
+                    logger.debug(f"Qt clipboard hasImage: {has_image}")
+                    return has_image
         except Exception as e:
             logger.debug(f"Qt clipboard check failed: {e}")
 

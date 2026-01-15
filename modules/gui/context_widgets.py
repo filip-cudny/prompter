@@ -27,6 +27,16 @@ from modules.gui.icons import (
     ICON_COLOR_DISABLED,
 )
 
+# Tooltip style (matches shared_widgets.TOOLTIP_STYLE - kept separate to avoid circular import)
+_TOOLTIP_STYLE = """
+    QToolTip {
+        background-color: #0d0d0d;
+        color: #f0f0f0;
+        border: 1px solid #444444;
+        border-radius: 0px;
+    }
+"""
+
 
 class IconButton(QPushButton):
     """QPushButton with SVG icon that changes color on hover."""
@@ -72,6 +82,7 @@ class IconButton(QPushButton):
             effect.setOpacity(0.6)
             self.setGraphicsEffect(effect)
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -108,7 +119,8 @@ class ContextChipBase(QWidget):
         }
     """
 
-    _icon_btn_style = """
+    _icon_btn_style = (
+        """
         QPushButton {
             background: transparent;
             border: none;
@@ -119,6 +131,8 @@ class ContextChipBase(QWidget):
             max-height: 20px;
         }
     """
+        + _TOOLTIP_STYLE
+    )
 
     def __init__(self, index: int, parent: Optional[QWidget] = None):
         super().__init__(parent)
@@ -328,7 +342,8 @@ class ContextHeaderWidget(QWidget):
         }
     """
 
-    _btn_style = """
+    _btn_style = (
+        """
         QPushButton {
             background: transparent;
             border: none;
@@ -339,6 +354,8 @@ class ContextHeaderWidget(QWidget):
             max-height: 22px;
         }
     """
+        + _TOOLTIP_STYLE
+    )
 
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
@@ -602,8 +619,16 @@ class ContextSectionWidget(QWidget):
             return
 
         # Separate images and text items, preserving original indices
-        image_items = [(idx, item) for idx, item in enumerate(items) if item.item_type == ContextItemType.IMAGE]
-        text_items = [(idx, item) for idx, item in enumerate(items) if item.item_type == ContextItemType.TEXT]
+        image_items = [
+            (idx, item)
+            for idx, item in enumerate(items)
+            if item.item_type == ContextItemType.IMAGE
+        ]
+        text_items = [
+            (idx, item)
+            for idx, item in enumerate(items)
+            if item.item_type == ContextItemType.TEXT
+        ]
 
         # Display images first (with ascending numbering), then text
         image_number = 0
@@ -670,7 +695,9 @@ class ContextSectionWidget(QWidget):
     def _on_edit_context(self):
         """Handle edit context request - open the context editor dialog."""
         if self.clipboard_manager is None:
-            logger.warning("Cannot open context editor: clipboard_manager not available")
+            logger.warning(
+                "Cannot open context editor: clipboard_manager not available"
+            )
             return
 
         from modules.gui.context_editor_dialog import show_context_editor
@@ -827,7 +854,8 @@ class LastInteractionChip(QWidget):
         }
     """
 
-    _icon_btn_style = """
+    _icon_btn_style = (
+        """
         QPushButton {
             background: transparent;
             border: none;
@@ -838,6 +866,8 @@ class LastInteractionChip(QWidget):
             max-height: 20px;
         }
     """
+        + _TOOLTIP_STYLE
+    )
 
     def __init__(
         self,
@@ -869,7 +899,9 @@ class LastInteractionChip(QWidget):
         # Copy icon at the beginning
         self.copy_btn = IconButton("copy", size=16)
         self.copy_btn.setStyleSheet(self._icon_btn_style)
-        self.copy_btn.setCursor(Qt.PointingHandCursor if self._enabled else Qt.ArrowCursor)
+        self.copy_btn.setCursor(
+            Qt.PointingHandCursor if self._enabled else Qt.ArrowCursor
+        )
         self.copy_btn.setToolTip("Copy to clipboard")
         self.copy_btn.setEnabled(self._enabled)
         self.copy_btn.clicked.connect(self._on_copy_clicked)
@@ -877,14 +909,18 @@ class LastInteractionChip(QWidget):
 
         # Label with type name
         self.label = QLabel()
-        self.label.setStyleSheet(self._label_style if self._enabled else self._label_disabled_style)
+        self.label.setStyleSheet(
+            self._label_style if self._enabled else self._label_disabled_style
+        )
         self._set_display_text()
         layout.addWidget(self.label)
 
         # Details button (info icon) at the end
         self.details_btn = IconButton("info", size=16)
         self.details_btn.setStyleSheet(self._icon_btn_style)
-        self.details_btn.setCursor(Qt.PointingHandCursor if self._enabled else Qt.ArrowCursor)
+        self.details_btn.setCursor(
+            Qt.PointingHandCursor if self._enabled else Qt.ArrowCursor
+        )
         self.details_btn.setToolTip("Show details")
         self.details_btn.setEnabled(self._enabled)
         self.details_btn.clicked.connect(self._on_details_clicked)
@@ -1128,7 +1164,9 @@ class LastInteractionSectionWidget(QWidget):
         if content:
             from modules.gui.text_preview_dialog import show_preview_dialog
 
-            show_preview_dialog(title, content, clipboard_manager=self.clipboard_manager)
+            show_preview_dialog(
+                title, content, clipboard_manager=self.clipboard_manager
+            )
 
 
 class SettingsSelectorChip(QWidget):
@@ -1164,7 +1202,8 @@ class SettingsSelectorChip(QWidget):
         }
     """
 
-    _icon_btn_style = """
+    _icon_btn_style = (
+        """
         QPushButton {
             background: transparent;
             border: none;
@@ -1175,6 +1214,8 @@ class SettingsSelectorChip(QWidget):
             max-height: 20px;
         }
     """
+        + _TOOLTIP_STYLE
+    )
 
     def __init__(
         self,
@@ -1239,21 +1280,23 @@ class SettingsSelectorChip(QWidget):
         max_length = 20
         display_value = self.current_value
         if len(display_value) > max_length:
-            display_value = display_value[:max_length - 3] + "..."
+            display_value = display_value[: max_length - 3] + "..."
             self.setToolTip(f"{self.prefix}: {self.current_value}")
         else:
             self.setToolTip("")
-        self.label.setText(f'{prefix_html} {display_value}')
+        self.label.setText(f"{prefix_html} {display_value}")
 
     def update_value(self, new_value: str):
         """Update the displayed value."""
         self.current_value = new_value
         self._update_label()
         # Update clear button state if it exists
-        if self.clearable and hasattr(self, 'clear_btn'):
+        if self.clearable and hasattr(self, "clear_btn"):
             has_value = new_value and new_value != "None"
             self.clear_btn.setEnabled(has_value)
-            self.clear_btn.setCursor(Qt.PointingHandCursor if has_value else Qt.ArrowCursor)
+            self.clear_btn.setCursor(
+                Qt.PointingHandCursor if has_value else Qt.ArrowCursor
+            )
 
     def update_options(self, options: list):
         """Update the available options."""
@@ -1324,7 +1367,7 @@ class SettingsSelectorChip(QWidget):
 
     def mousePressEvent(self, event):
         """Handle mouse press - show menu on click (except on buttons)."""
-        if self.clearable and hasattr(self, 'clear_btn'):
+        if self.clearable and hasattr(self, "clear_btn"):
             clear_btn_rect = self.clear_btn.geometry()
             if clear_btn_rect.contains(event.pos()):
                 super().mousePressEvent(event)

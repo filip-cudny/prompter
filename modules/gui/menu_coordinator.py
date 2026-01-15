@@ -19,6 +19,7 @@ class PyQtMenuCoordinator(QObject):
     # Qt signals for thread-safe communication
     execution_completed = pyqtSignal(object)  # ExecutionResult
     execution_error = pyqtSignal(str)
+    streaming_chunk = pyqtSignal(str, str, bool)  # chunk, accumulated, is_final
 
     def __init__(self, prompt_store_service, parent=None):
         super().__init__(parent)
@@ -39,6 +40,9 @@ class PyQtMenuCoordinator(QObject):
 
         # Context manager for cache invalidation
         self.context_manager = None
+
+        # Notification manager for UI notifications
+        self.notification_manager = None
 
         # Menu state
         self.last_menu_items: List[MenuItem] = []

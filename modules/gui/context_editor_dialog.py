@@ -14,14 +14,15 @@ from PyQt5.QtWidgets import (
     QLabel,
     QPushButton,
     QApplication,
-    QSplitter,
+    QScrollArea,
+    QFrame,
     QSizePolicy,
 )
 from PyQt5.QtCore import Qt, QTimer, QEvent, pyqtSignal, QByteArray, QBuffer
-from PyQt5.QtGui import QFont, QImage
+from PyQt5.QtGui import QImage
 
 from core.context_manager import ContextManager, ContextItem, ContextItemType
-from modules.gui.shared_widgets import CollapsibleSectionHeader, ImageChipWidget
+from modules.gui.shared_widgets import CollapsibleSectionHeader, ImageChipWidget, create_text_edit, TOOLTIP_STYLE
 from modules.utils.ui_state import UIStateManager
 
 logger = logging.getLogger(__name__)
@@ -132,27 +133,36 @@ class ContextEditorDialog(QDialog):
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(8)
 
-        # Images section (collapsible, not in splitter - fixed height)
+        # Images section (not in scroll area - fixed height at top)
         self.images_section = self._create_images_section()
         layout.addWidget(self.images_section)
 
-        # Main splitter for resizable sections
-        self.main_splitter = QSplitter(Qt.Vertical)
-        self.main_splitter.setHandleWidth(3)
-        self.main_splitter.setChildrenCollapsible(False)
+        # Scroll area for sections
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.scroll_area.setFrameShape(QFrame.NoFrame)
 
-        # Context section (collapsible, resizable)
+        # Container for sections
+        self.sections_container = QWidget()
+        self.sections_layout = QVBoxLayout(self.sections_container)
+        self.sections_layout.setContentsMargins(0, 0, 0, 0)
+        self.sections_layout.setSpacing(8)
+
+        # Context section
         self.context_section = self._create_context_section()
-        self.main_splitter.addWidget(self.context_section)
+        self.sections_layout.addWidget(self.context_section)
 
-        # Clipboard section (collapsible, resizable)
+        # Clipboard section
         self.clipboard_section = self._create_clipboard_section()
-        self.main_splitter.addWidget(self.clipboard_section)
+        self.sections_layout.addWidget(self.clipboard_section)
 
-        # Connect splitter movement to save state
-        self.main_splitter.splitterMoved.connect(self._on_splitter_moved)
+        # Spacer at bottom - expands to fill remaining space
+        self.sections_layout.addStretch()
 
-        layout.addWidget(self.main_splitter)
+        self.scroll_area.setWidget(self.sections_container)
+        layout.addWidget(self.scroll_area, 1)  # Stretch to fill
 
         # Button bar (wrapped in QWidget for consistent positioning)
         button_widget = QWidget()
@@ -198,25 +208,25 @@ class ContextEditorDialog(QDialog):
         section_layout.setContentsMargins(0, 0, 0, 0)
         section_layout.setSpacing(4)
 
-        # Header with collapse toggle, hint, undo/redo, and save button
+        # Header with collapse toggle, wrap button, hint, undo/redo, and save button
         self.context_header = CollapsibleSectionHeader(
             "Context",
             show_undo_redo=True,
+            show_wrap_button=True,
             hint_text="(Paste image: Ctrl+V)",
         )
         self.context_header.toggle_requested.connect(self._toggle_context_section)
+        self.context_header.wrap_requested.connect(self._toggle_context_wrap)
         self.context_header.save_requested.connect(self._save_context_only)
         self.context_header.undo_requested.connect(self._undo_context)
         self.context_header.redo_requested.connect(self._redo_context)
         section_layout.addWidget(self.context_header)
 
         # Text edit area
-        self.text_edit = QTextEdit()
-        self.text_edit.setFont(QFont("Menlo, Monaco, Consolas, monospace", 12))
-        self.text_edit.setLineWrapMode(QTextEdit.WidgetWidth)
-        self.text_edit.setMinimumHeight(0)  # Allow section to be resized very small
+        self.text_edit = create_text_edit(min_height=0)
         self.text_edit.textChanged.connect(self._on_text_changed)
-        section_layout.addWidget(self.text_edit, 1)  # stretch factor 1 to fill space
+        self.text_edit.setMaximumHeight(300)  # Default wrapped height
+        section_layout.addWidget(self.text_edit)
 
         return container
 
@@ -227,12 +237,14 @@ class ContextEditorDialog(QDialog):
         section_layout.setContentsMargins(0, 0, 0, 0)
         section_layout.setSpacing(4)
 
-        # Header with collapse toggle, undo/redo, and save button
+        # Header with collapse toggle, wrap button, undo/redo, and save button
         self.clipboard_header = CollapsibleSectionHeader(
             "Clipboard",
             show_undo_redo=True,
+            show_wrap_button=True,
         )
         self.clipboard_header.toggle_requested.connect(self._toggle_clipboard_section)
+        self.clipboard_header.wrap_requested.connect(self._toggle_clipboard_wrap)
         self.clipboard_header.save_requested.connect(self._save_clipboard_only)
         self.clipboard_header.undo_requested.connect(self._undo_clipboard)
         self.clipboard_header.redo_requested.connect(self._redo_clipboard)
@@ -249,136 +261,69 @@ class ContextEditorDialog(QDialog):
         self.clipboard_image_container.hide()  # Hidden by default
 
         # Text edit area (shown when clipboard has text)
-        self.clipboard_edit = QTextEdit()
-        self.clipboard_edit.setFont(QFont("Menlo, Monaco, Consolas, monospace", 12))
-        self.clipboard_edit.setLineWrapMode(QTextEdit.WidgetWidth)
-        self.clipboard_edit.setMinimumHeight(0)  # Allow section to be resized very small
+        self.clipboard_edit = create_text_edit(min_height=0)
         self.clipboard_edit.textChanged.connect(self._on_clipboard_text_changed)
-        section_layout.addWidget(self.clipboard_edit, 1)  # stretch factor 1 to fill space
-
-        # Stretch widget for when image is shown (pushes content to top)
-        self.clipboard_stretch = QWidget()
-        self.clipboard_stretch.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
-        section_layout.addWidget(self.clipboard_stretch)
-        self.clipboard_stretch.hide()  # Hidden by default (shown when image is displayed)
+        self.clipboard_edit.setMaximumHeight(300)  # Default wrapped height
+        section_layout.addWidget(self.clipboard_edit)
 
         return container
 
     def _toggle_context_section(self):
         """Toggle context section visibility."""
         is_visible = self.text_edit.isVisible()
-        will_collapse = is_visible
-
-        if will_collapse:
-            # Save current height before collapsing
-            sizes = self.main_splitter.sizes()
-            if sizes[0] > 50:  # Only save if it's a meaningful size
-                self._ui_state.set(
-                    "context_editor_dialog.sections.context.height", sizes[0]
-                )
-
         self.text_edit.setVisible(not is_visible)
         self.context_header.set_collapsed(is_visible)
         self._save_section_state("context", collapsed=is_visible)
-        self._adjust_splitter_for_collapse()
 
     def _toggle_clipboard_section(self):
         """Toggle clipboard section visibility."""
         # Content is visible if either text edit or image container is shown
         content_visible = self.clipboard_edit.isVisible() or self.clipboard_image_container.isVisible()
-        will_collapse = content_visible
 
-        if will_collapse:
-            # Save current height before collapsing
-            sizes = self.main_splitter.sizes()
-            if sizes[1] > 50:  # Only save if it's a meaningful size
-                self._ui_state.set(
-                    "context_editor_dialog.sections.clipboard.height", sizes[1]
-                )
-            # Hide both (one is already hidden)
+        if content_visible:
+            # Collapsing - hide both (one is already hidden)
             self.clipboard_edit.hide()
             self.clipboard_image_container.hide()
-            self.clipboard_stretch.hide()
         else:
-            # Show the appropriate content
+            # Expanding - show the appropriate content
             if self._clipboard_image:
                 self.clipboard_image_container.show()
-                self.clipboard_stretch.show()  # Show stretch to push content to top
             else:
                 self.clipboard_edit.show()
-                self.clipboard_stretch.hide()
 
-        self.clipboard_header.set_collapsed(will_collapse)
-        self._save_section_state("clipboard", collapsed=will_collapse)
-        self._adjust_splitter_for_collapse()
+        self.clipboard_header.set_collapsed(content_visible)
+        self._save_section_state("clipboard", collapsed=content_visible)
 
-    def _adjust_splitter_for_collapse(self):
-        """Adjust splitter sizes based on collapsed states."""
-        context_collapsed = not self.text_edit.isVisible()
-        clipboard_collapsed = not (self.clipboard_edit.isVisible() or self.clipboard_image_container.isVisible())
-
-        header_height = 30  # Height of collapsed section (just header)
-
-        # Reset size constraints first
-        self.context_section.setMinimumHeight(0)
-        self.context_section.setMaximumHeight(16777215)  # QWIDGETSIZE_MAX
-        self.clipboard_section.setMinimumHeight(0)
-        self.clipboard_section.setMaximumHeight(16777215)
-
-        if context_collapsed and clipboard_collapsed:
-            # Both collapsed - lock both to header height, hide splitter handle
-            self.context_section.setFixedHeight(header_height)
-            self.clipboard_section.setFixedHeight(header_height)
-            self.main_splitter.setHandleWidth(0)
-        elif context_collapsed:
-            # Context collapsed and locked, clipboard takes rest
-            self.context_section.setFixedHeight(header_height)
-            self.main_splitter.setHandleWidth(0)  # Hide handle - can't resize
-        elif clipboard_collapsed:
-            # Clipboard collapsed and locked, context takes rest
-            self.clipboard_section.setFixedHeight(header_height)
-            self.main_splitter.setHandleWidth(0)  # Hide handle - can't resize
+    def _toggle_context_wrap(self):
+        """Toggle context section wrap state."""
+        is_wrapped = self.context_header.is_wrapped()
+        new_wrapped = not is_wrapped
+        self.context_header.set_wrap_state(new_wrapped)
+        if new_wrapped:
+            self.text_edit.setMaximumHeight(300)
         else:
-            # Both expanded - restore saved sizes, show splitter handle
-            self.main_splitter.setHandleWidth(3)
-            saved_context_height = self._ui_state.get(
-                "context_editor_dialog.sections.context.height", 200
-            )
-            saved_clipboard_height = self._ui_state.get(
-                "context_editor_dialog.sections.clipboard.height", 150
-            )
-            self.main_splitter.setSizes([saved_context_height, saved_clipboard_height])
+            self.text_edit.setMaximumHeight(16777215)  # QWIDGETSIZE_MAX
+        self._save_section_state("context_wrapped", collapsed=new_wrapped)
+
+    def _toggle_clipboard_wrap(self):
+        """Toggle clipboard section wrap state."""
+        is_wrapped = self.clipboard_header.is_wrapped()
+        new_wrapped = not is_wrapped
+        self.clipboard_header.set_wrap_state(new_wrapped)
+        if new_wrapped:
+            self.clipboard_edit.setMaximumHeight(300)
+        else:
+            self.clipboard_edit.setMaximumHeight(16777215)  # QWIDGETSIZE_MAX
+        self._save_section_state("clipboard_wrapped", collapsed=new_wrapped)
 
     def _save_section_state(self, section: str, collapsed: bool):
-        """Save section collapsed state."""
-        key = f"context_editor_dialog.sections.{section}.collapsed"
+        """Save section state (collapsed or wrapped)."""
+        key = f"context_editor_dialog.sections.{section}"
         self._ui_state.set(key, collapsed)
 
-    def _save_splitter_state(self):
-        """Save splitter sizes (only when both sections are expanded)."""
-        # Only save sizes when both sections are expanded
-        context_expanded = self.text_edit.isVisible()
-        clipboard_expanded = self.clipboard_edit.isVisible() or self.clipboard_image_container.isVisible()
-
-        if not (context_expanded and clipboard_expanded):
-            return
-
-        sizes = self.main_splitter.sizes()
-        if len(sizes) >= 2:
-            self._ui_state.set(
-                "context_editor_dialog.sections.context.height", sizes[0]
-            )
-            self._ui_state.set(
-                "context_editor_dialog.sections.clipboard.height", sizes[1]
-            )
-
-    def _on_splitter_moved(self, pos: int, index: int):
-        """Handle splitter movement - save new sizes."""
-        self._save_splitter_state()
-
     def _restore_ui_state(self):
-        """Restore splitter sizes and collapsed states from saved state."""
-        # FIRST: Restore geometry before adjusting splitter
+        """Restore collapsed and wrap states from saved state."""
+        # Restore geometry
         geometry = self._ui_state.get("context_editor_dialog.geometry")
         if geometry:
             self._restore_geometry(geometry)
@@ -397,11 +342,23 @@ class ContextEditorDialog(QDialog):
         if clipboard_collapsed:
             self.clipboard_edit.hide()
             self.clipboard_image_container.hide()
-            self.clipboard_stretch.hide()
             self.clipboard_header.set_collapsed(True)
 
-        # Defer splitter adjustment until Qt has processed the layout
-        QTimer.singleShot(0, self._adjust_splitter_for_collapse)
+        # Restore wrap states
+        context_wrapped = self._ui_state.get(
+            "context_editor_dialog.sections.context_wrapped", True
+        )
+        clipboard_wrapped = self._ui_state.get(
+            "context_editor_dialog.sections.clipboard_wrapped", True
+        )
+
+        self.context_header.set_wrap_state(context_wrapped)
+        if not context_wrapped:
+            self.text_edit.setMaximumHeight(16777215)
+
+        self.clipboard_header.set_wrap_state(clipboard_wrapped)
+        if not clipboard_wrapped:
+            self.clipboard_edit.setMaximumHeight(16777215)
 
     def _restore_geometry(self, geometry: dict):
         """Restore window geometry."""
@@ -533,13 +490,11 @@ class ContextEditorDialog(QDialog):
             QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
                 width: 0px;
             }
-            QSplitter::handle {
-                background-color: transparent;
-            }
-            QSplitter::handle:vertical {
-                height: 6px;
+            QScrollArea > QWidget > QWidget {
+                background-color: #2b2b2b;
             }
         """
+            + TOOLTIP_STYLE
         )
 
     def _load_context(self):
@@ -576,7 +531,6 @@ class ContextEditorDialog(QDialog):
                     self._clipboard_image = image_data
                     self._rebuild_clipboard_image_chip()
                     self.clipboard_image_container.show()
-                    self.clipboard_stretch.show()  # Push content to top
                     self.clipboard_edit.hide()
                     self._last_clipboard_text = ""
                 else:
@@ -637,7 +591,6 @@ class ContextEditorDialog(QDialog):
             self._last_clipboard_text = ""
         self._clipboard_image = None
         self.clipboard_image_container.hide()
-        self.clipboard_stretch.hide()
         self.clipboard_edit.show()
 
     def _rebuild_clipboard_image_chip(self):
@@ -673,7 +626,6 @@ class ContextEditorDialog(QDialog):
         self._clipboard_image = None
         self._rebuild_clipboard_image_chip()
         self.clipboard_image_container.hide()
-        self.clipboard_stretch.hide()
         self.clipboard_edit.show()
         self.clipboard_edit.setPlainText("")
         self._last_clipboard_text = ""
@@ -773,11 +725,9 @@ class ContextEditorDialog(QDialog):
         self._rebuild_clipboard_image_chip()
         if self._clipboard_image:
             self.clipboard_image_container.show()
-            self.clipboard_stretch.show()
             self.clipboard_edit.hide()
         else:
             self.clipboard_image_container.hide()
-            self.clipboard_stretch.hide()
             self.clipboard_edit.show()
 
     def _save_clipboard_state(self):

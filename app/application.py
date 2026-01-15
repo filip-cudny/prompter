@@ -3,8 +3,9 @@
 import sys
 import signal
 from typing import Optional, List
-from PyQt5.QtWidgets import QApplication
+from PyQt5.QtWidgets import QApplication, QToolTip
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QObject
+from PyQt5.QtGui import QPalette, QColor, QFont
 
 from modules.prompts.prompt_service import PromptStoreService
 from core.exceptions import ConfigurationError
@@ -30,6 +31,7 @@ from modules.utils.system import check_macos_permissions, show_macos_permissions
 from modules.utils.notifications import PyQtNotificationManager
 from core.openai_service import OpenAiService
 from core.context_manager import ContextManager
+from modules.gui.shared_widgets import TOOLTIP_STYLE
 from modules.utils.keymap_actions import (
     initialize_global_action_registry,
     get_global_action_registry,
@@ -51,6 +53,15 @@ class PrompterApp(QObject):
         # Create QApplication
         self.app = QApplication(sys.argv)
         self.app.setQuitOnLastWindowClosed(False)
+
+        # Apply global tooltip styling (affects all tooltips in the app)
+        self.app.setStyleSheet(TOOLTIP_STYLE)
+
+        # Also set tooltip palette to ensure consistent colors across all widgets
+        tooltip_palette = QPalette()
+        tooltip_palette.setColor(QPalette.ToolTipBase, QColor("#0d0d0d"))
+        tooltip_palette.setColor(QPalette.ToolTipText, QColor("#f0f0f0"))
+        QToolTip.setPalette(tooltip_palette)
 
         # Initialize variables
         self.config = None
@@ -312,6 +323,7 @@ class PrompterApp(QObject):
         self.menu_coordinator.set_number_input_debounce_ms(
             self.config.number_input_debounce_ms
         )
+        self.menu_coordinator.notification_manager = self.notification_manager
 
         # Initialize event handler
         self.event_handler = PyQtMenuEventHandler(self.menu_coordinator)
