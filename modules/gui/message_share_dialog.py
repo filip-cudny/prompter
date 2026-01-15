@@ -1,5 +1,6 @@
 """Message share dialog for sending custom messages to prompts."""
 
+import time
 from dataclasses import dataclass
 from typing import Optional, Callable, List, Dict
 
@@ -14,16 +15,13 @@ from PyQt5.QtWidgets import (
     QSizePolicy,
     QScrollArea,
     QFrame,
-    QSplitter,
 )
 from PyQt5.QtCore import Qt, QTimer, QEvent
-from PyQt5.QtGui import QFont
 
 from core.models import MenuItem, ExecutionResult
 from core.context_manager import ContextManager, ContextItem, ContextItemType
-from modules.gui.context_widgets import IconButton
 from modules.gui.icons import create_icon
-from modules.gui.shared_widgets import CollapsibleSectionHeader, ImageChipWidget
+from modules.gui.shared_widgets import CollapsibleSectionHeader, ImageChipWidget, create_text_edit, TOOLTIP_STYLE
 from modules.utils.ui_state import UIStateManager
 
 _open_dialogs: Dict[str, "MessageShareDialog"] = {}
@@ -32,6 +30,7 @@ _open_dialogs: Dict[str, "MessageShareDialog"] = {}
 @dataclass
 class ContextSectionState:
     """Snapshot of context section state for undo/redo."""
+
     images: List[ContextItem]
     text: str
 
@@ -39,18 +38,21 @@ class ContextSectionState:
 @dataclass
 class PromptInputState:
     """Snapshot of prompt input section state for undo/redo."""
+
     text: str
 
 
 @dataclass
 class OutputState:
     """Snapshot of output section state for undo/redo."""
+
     text: str
 
 
 @dataclass
 class ConversationTurn:
     """Single turn in multi-turn conversation."""
+
     turn_number: int
     message_text: str
     message_images: List[ContextItem]
@@ -64,6 +66,7 @@ def show_message_share_dialog(
     prompt_store_service=None,
     context_manager: Optional[ContextManager] = None,
     clipboard_manager=None,
+    notification_manager=None,
 ):
     """Show the message share dialog.
 
@@ -72,6 +75,7 @@ def show_message_share_dialog(
         execution_callback: Callback to execute the prompt
         prompt_store_service: The prompt store service for execution
         context_manager: The context manager for loading/saving context
+        notification_manager: The notification manager for UI notifications
     """
     # Get unique key for this prompt window
     prompt_id = menu_item.data.get("prompt_id", "") if menu_item.data else ""
@@ -97,11 +101,10 @@ def show_message_share_dialog(
             prompt_store_service,
             context_manager,
             clipboard_manager,
+            notification_manager,
         )
         _open_dialogs[window_key] = dialog
-        dialog.finished.connect(
-            lambda: _open_dialogs.pop(window_key, None)
-        )
+        dialog.finished.connect(lambda: _open_dialogs.pop(window_key, None))
         dialog.show()
         dialog.raise_()
         dialog.activateWindow()
@@ -119,6 +122,7 @@ class MessageShareDialog(QDialog):
         prompt_store_service=None,
         context_manager: Optional[ContextManager] = None,
         clipboard_manager=None,
+        notification_manager=None,
         parent=None,
     ):
         super().__init__(parent)
@@ -129,6 +133,7 @@ class MessageShareDialog(QDialog):
         self._prompt_store_service = prompt_store_service
         self.context_manager = context_manager
         self.clipboard_manager = clipboard_manager
+        self.notification_manager = notification_manager
 
         # Working state for context section
         self._current_images: List[ContextItem] = []
@@ -166,6 +171,21 @@ class MessageShareDialog(QDialog):
         self._text_change_timer.setInterval(500)
         self._text_change_timer.timeout.connect(self._save_text_states)
 
+        # Streaming state
+        self._is_streaming = False
+        self._streaming_accumulated = ""
+
+        # Throttling for UI updates during streaming (60fps max)
+        self._streaming_throttle_timer = QTimer()
+        self._streaming_throttle_timer.setSingleShot(True)
+        self._streaming_throttle_timer.setInterval(16)
+        self._streaming_throttle_timer.timeout.connect(self._flush_streaming_update)
+        self._last_ui_update_time = 0
+
+        # Signal connection tracking to prevent duplicate connections
+        self._execution_signal_connected = False
+        self._streaming_signal_connected = False
+
         # Extract prompt name for title
         prompt_name = (
             menu_item.data.get("prompt_name", "Prompt") if menu_item.data else "Prompt"
@@ -196,39 +216,23 @@ class MessageShareDialog(QDialog):
         self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.scroll_area.setFrameShape(QFrame.NoFrame)
 
-        # Container widget with splitter layout for all sections
+        # Container widget with layout for all sections
         self.sections_container = QWidget()
-        container_layout = QVBoxLayout(self.sections_container)
-        container_layout.setContentsMargins(0, 0, 0, 0)
-        container_layout.setSpacing(0)
-
-        # Splitter for resizable sections
-        self.sections_splitter = QSplitter(Qt.Vertical)
-        self.sections_splitter.setHandleWidth(4)
-        self.sections_splitter.setChildrenCollapsible(False)
-        # Allow splitter to grow beyond viewport for scrolling
-        self.sections_splitter.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
+        self.sections_layout = QVBoxLayout(self.sections_container)
+        self.sections_layout.setContentsMargins(0, 0, 0, 0)
+        self.sections_layout.setSpacing(8)
 
         # Section 1: Context (with save button)
         self.context_section = self._create_context_section()
-        self.sections_splitter.addWidget(self.context_section)
+        self.sections_layout.addWidget(self.context_section)
 
         # Section 2: Prompt Input (no save button)
         self.input_section = self._create_input_section()
-        self.sections_splitter.addWidget(self.input_section)
+        self.sections_layout.addWidget(self.input_section)
 
         # Section 3: Output (no save button) - NOT added initially
         self.output_section = self._create_output_section()
         # Output section is hidden until user clicks Alt+Enter
-
-        # Spacer widget at the end to absorb extra space and push sections to top
-        self._splitter_spacer = QWidget()
-        self._splitter_spacer.setMinimumHeight(0)
-        self._splitter_spacer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.sections_splitter.addWidget(self._splitter_spacer)
-        self.sections_splitter.setStretchFactor(self.sections_splitter.count() - 1, 1)
-
-        container_layout.addWidget(self.sections_splitter)
 
         self.scroll_area.setWidget(self.sections_container)
         layout.addWidget(self.scroll_area)
@@ -244,19 +248,21 @@ class MessageShareDialog(QDialog):
     def _create_context_section(self) -> QWidget:
         """Create the collapsible context section with save button."""
         container = QWidget()
-        container.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
+        container.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
         section_layout = QVBoxLayout(container)
         section_layout.setContentsMargins(0, 0, 0, 0)
         section_layout.setSpacing(4)
 
-        # Header with collapse toggle, undo/redo, and save button
+        # Header with collapse toggle, wrap button, undo/redo, and save button
         self.context_header = CollapsibleSectionHeader(
             "Context",
             show_save_button=True,
             show_undo_redo=True,
+            show_wrap_button=True,
             hint_text="",
         )
         self.context_header.toggle_requested.connect(self._toggle_context_section)
+        self.context_header.wrap_requested.connect(self._toggle_context_wrap)
         self.context_header.save_requested.connect(self._save_context)
         self.context_header.undo_requested.connect(self._undo_context)
         self.context_header.redo_requested.connect(self._redo_context)
@@ -273,11 +279,11 @@ class MessageShareDialog(QDialog):
         self.context_images_container.hide()  # Hidden if no images
 
         # Text edit area
-        self.context_text_edit = QTextEdit()
-        self.context_text_edit.setFont(QFont("Menlo, Monaco, Consolas, monospace", 12))
-        self.context_text_edit.setLineWrapMode(QTextEdit.WidgetWidth)
-        self.context_text_edit.setPlaceholderText("Context content...")
-        self.context_text_edit.setMinimumHeight(80)
+        self.context_text_edit = create_text_edit(
+            placeholder="Context content...",
+            min_height=0,
+        )
+        self.context_text_edit.setMaximumHeight(300)  # Default wrapped height
         self.context_text_edit.textChanged.connect(self._on_context_text_changed)
         section_layout.addWidget(self.context_text_edit)
 
@@ -286,19 +292,21 @@ class MessageShareDialog(QDialog):
     def _create_input_section(self) -> QWidget:
         """Create the collapsible prompt input section (no save button)."""
         container = QWidget()
-        container.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
+        container.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         section_layout = QVBoxLayout(container)
         section_layout.setContentsMargins(0, 0, 0, 0)
         section_layout.setSpacing(4)
 
-        # Header with collapse toggle and undo/redo (NO save button)
+        # Header with collapse toggle, wrap button, and undo/redo (NO save button)
         self.input_header = CollapsibleSectionHeader(
             "Message",
             show_save_button=False,
             show_undo_redo=True,
+            show_wrap_button=True,
             hint_text="",
         )
         self.input_header.toggle_requested.connect(self._toggle_input_section)
+        self.input_header.wrap_requested.connect(self._toggle_input_wrap)
         self.input_header.undo_requested.connect(self._undo_input)
         self.input_header.redo_requested.connect(self._redo_input)
         section_layout.addWidget(self.input_header)
@@ -314,12 +322,9 @@ class MessageShareDialog(QDialog):
         self.message_images_container.hide()  # Hidden if no images
 
         # Text edit area
-        self.input_edit = QTextEdit()
-        self.input_edit.setFont(QFont("Menlo, Monaco, Consolas, monospace", 12))
-        self.input_edit.setLineWrapMode(QTextEdit.WidgetWidth)
-        self.input_edit.setPlaceholderText("Type your message here...")
+        self.input_edit = create_text_edit(placeholder="Type your message here...", min_height=0)
+        self.input_edit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.input_edit.setToolTip("Type and send message with prompt")
-        self.input_edit.setMinimumHeight(100)
         self.input_edit.textChanged.connect(self._on_input_text_changed)
         section_layout.addWidget(self.input_edit)
 
@@ -328,29 +333,28 @@ class MessageShareDialog(QDialog):
     def _create_output_section(self) -> QWidget:
         """Create the collapsible output section (no save button)."""
         container = QWidget()
-        container.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
+        container.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         section_layout = QVBoxLayout(container)
         section_layout.setContentsMargins(0, 0, 0, 0)
         section_layout.setSpacing(4)
 
-        # Header with collapse toggle and undo/redo (NO save button)
+        # Header with collapse toggle, wrap button, and undo/redo (NO save button)
         self.output_header = CollapsibleSectionHeader(
             "Output",
             show_save_button=False,
             show_undo_redo=True,
+            show_wrap_button=True,
             hint_text="",
         )
         self.output_header.toggle_requested.connect(self._toggle_output_section)
+        self.output_header.wrap_requested.connect(self._toggle_output_wrap)
         self.output_header.undo_requested.connect(self._undo_output)
         self.output_header.redo_requested.connect(self._redo_output)
         section_layout.addWidget(self.output_header)
 
         # Text edit area
-        self.output_edit = QTextEdit()
-        self.output_edit.setFont(QFont("Menlo, Monaco, Consolas, monospace", 12))
-        self.output_edit.setLineWrapMode(QTextEdit.WidgetWidth)
-        self.output_edit.setPlaceholderText("Output will appear here...")
-        self.output_edit.setMinimumHeight(100)
+        self.output_edit = create_text_edit(placeholder="Output will appear here...", min_height=0)
+        self.output_edit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.output_edit.textChanged.connect(self._on_output_text_changed)
         section_layout.addWidget(self.output_edit)
 
@@ -471,20 +475,8 @@ class MessageShareDialog(QDialog):
             QScrollArea > QWidget > QWidget {
                 background-color: #2b2b2b;
             }
-            QSplitter {
-                background-color: #2b2b2b;
-            }
-            QSplitter::handle {
-                background-color: transparent;
-            }
-            QSplitter::handle:vertical {
-                height: 4px;
-                background-color: transparent;
-            }
-            QSplitter::handle:vertical:hover {
-                background-color: transparent;
-            }
         """
+            + TOOLTIP_STYLE
         )
 
     # --- Context loading/saving ---
@@ -498,7 +490,9 @@ class MessageShareDialog(QDialog):
 
         # Separate images and text
         self._current_images = [
-            ContextItem(item_type=item.item_type, data=item.data, media_type=item.media_type)
+            ContextItem(
+                item_type=item.item_type, data=item.data, media_type=item.media_type
+            )
             for item in items
             if item.item_type == ContextItemType.IMAGE
         ]
@@ -536,6 +530,10 @@ class MessageShareDialog(QDialog):
         text_content = self.context_text_edit.toPlainText().strip()
         if text_content:
             self.context_manager.append_context(text_content)
+
+        # Show success notification
+        if self.notification_manager:
+            self.notification_manager.show_success_notification("Context Saved")
 
     def _rebuild_image_chips(self):
         """Rebuild image chips from current state."""
@@ -664,32 +662,28 @@ class MessageShareDialog(QDialog):
         """Toggle context section visibility."""
         is_visible = self.context_text_edit.isVisible()
         self.context_text_edit.setVisible(not is_visible)
-        self.context_images_container.setVisible(not is_visible and len(self._current_images) > 0)
+        self.context_images_container.setVisible(
+            not is_visible and len(self._current_images) > 0
+        )
         self.context_header.set_collapsed(is_visible)
+        # When collapsed, use Fixed policy to take minimal space
+        if is_visible:  # Will be collapsed
+            self.context_section.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        else:  # Will be expanded
+            self.context_section.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
         self._save_section_state("context", collapsed=is_visible)
-        # Adjust section sizing for splitter
-        collapsed_height = self.context_header.sizeHint().height() + 8
-        if is_visible:
-            # Collapsing - fix height to header only
-            self.context_section.setMaximumHeight(collapsed_height)
-            self._set_splitter_section_height(0, collapsed_height)
-        else:
-            # Expanding - restore flexible sizing
-            self.context_section.setMaximumHeight(16777215)  # QWIDGETSIZE_MAX
 
     def _toggle_input_section(self):
         """Toggle input section visibility."""
         is_visible = self.input_edit.isVisible()
         self.input_edit.setVisible(not is_visible)
         self.input_header.set_collapsed(is_visible)
+        # When collapsed, use Fixed policy to take minimal space
+        if is_visible:  # Will be collapsed
+            self.input_section.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        else:  # Will be expanded
+            self.input_section.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         self._save_section_state("input", collapsed=is_visible)
-        # Adjust section sizing for splitter
-        collapsed_height = self.input_header.sizeHint().height() + 8
-        if is_visible:
-            self.input_section.setMaximumHeight(collapsed_height)
-            self._set_splitter_section_height(1, collapsed_height)
-        else:
-            self.input_section.setMaximumHeight(16777215)
 
     def _toggle_output_section(self):
         """Toggle output section visibility."""
@@ -701,43 +695,63 @@ class MessageShareDialog(QDialog):
         is_visible = self.output_edit.isVisible()
         self.output_edit.setVisible(not is_visible)
         self.output_header.set_collapsed(is_visible)
+        # When collapsed, use Fixed policy to take minimal space
+        if is_visible:  # Will be collapsed
+            self.output_section.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        else:  # Will be expanded
+            self.output_section.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         self._save_section_state("output", collapsed=is_visible)
-        # Adjust section sizing for splitter
-        collapsed_height = self.output_header.sizeHint().height() + 8
-        if is_visible:
-            self.output_section.setMaximumHeight(collapsed_height)
-            # Output section index is 2 when shown
-            self._set_splitter_section_height(2, collapsed_height)
+
+    def _get_text_edit_content_height(self, text_edit: QTextEdit) -> int:
+        """Calculate the height needed to display all content without scrolling."""
+        doc = text_edit.document()
+        doc.setTextWidth(text_edit.viewport().width())
+        margins = text_edit.contentsMargins()
+        height = int(doc.size().height()) + margins.top() + margins.bottom() + 20
+        return max(height, 100)
+
+    def _toggle_context_wrap(self):
+        """Toggle context section wrap state."""
+        is_wrapped = self.context_header.is_wrapped()
+        new_wrapped = not is_wrapped
+        self.context_header.set_wrap_state(new_wrapped)
+        if new_wrapped:
+            self.context_text_edit.setMinimumHeight(0)
+            self.context_text_edit.setMaximumHeight(300)
         else:
-            self.output_section.setMaximumHeight(16777215)
+            content_height = self._get_text_edit_content_height(self.context_text_edit)
+            self.context_text_edit.setMinimumHeight(content_height)
+            self.context_text_edit.setMaximumHeight(16777215)
+        self._save_section_state("context_wrapped", collapsed=new_wrapped)
+
+    def _toggle_input_wrap(self):
+        """Toggle input section wrap state."""
+        is_wrapped = self.input_header.is_wrapped()
+        new_wrapped = not is_wrapped
+        self.input_header.set_wrap_state(new_wrapped)
+        if new_wrapped:
+            self.input_edit.setMinimumHeight(0)
+        else:
+            content_height = self._get_text_edit_content_height(self.input_edit)
+            self.input_edit.setMinimumHeight(content_height)
+        self._save_section_state("input_wrapped", collapsed=new_wrapped)
+
+    def _toggle_output_wrap(self):
+        """Toggle output section wrap state."""
+        is_wrapped = self.output_header.is_wrapped()
+        new_wrapped = not is_wrapped
+        self.output_header.set_wrap_state(new_wrapped)
+        if new_wrapped:
+            self.output_edit.setMinimumHeight(0)
+        else:
+            content_height = self._get_text_edit_content_height(self.output_edit)
+            self.output_edit.setMinimumHeight(content_height)
+        self._save_section_state("output_wrapped", collapsed=new_wrapped)
 
     def _save_section_state(self, section: str, collapsed: bool):
-        """Save section collapsed state."""
-        key = f"message_share_dialog.sections.{section}.collapsed"
+        """Save section state (collapsed or wrapped)."""
+        key = f"message_share_dialog.sections.{section}"
         self._ui_state.set(key, collapsed)
-
-    def _set_splitter_section_height(self, index: int, height: int):
-        """Set a specific section's height in the splitter."""
-        sizes = self.sections_splitter.sizes()
-        if index < len(sizes):
-            # Calculate difference and redistribute to other sections
-            diff = sizes[index] - height
-            sizes[index] = height
-            # Give extra space to the last non-spacer section or spacer
-            if diff > 0 and len(sizes) > 1:
-                # Find a section to give the extra space to
-                for i in range(len(sizes) - 1, -1, -1):
-                    if i != index:
-                        sizes[i] += diff
-                        break
-            self.sections_splitter.setSizes(sizes)
-
-    def _set_splitter_section_height_for_widget(self, widget: QWidget, height: int):
-        """Set a widget's height in the splitter by finding its index."""
-        for i in range(self.sections_splitter.count()):
-            if self.sections_splitter.widget(i) == widget:
-                self._set_splitter_section_height(i, height)
-                break
 
     def _scroll_to_bottom(self):
         """Scroll the scroll area to the bottom."""
@@ -753,48 +767,56 @@ class MessageShareDialog(QDialog):
     # --- UI state persistence ---
 
     def _restore_ui_state(self):
-        """Restore collapsed states from saved state. Splitter sizes are restored in showEvent."""
+        """Restore collapsed and wrap states from saved state."""
         # Restore geometry
         geometry = self._ui_state.get("message_share_dialog.geometry")
         if geometry:
             self._restore_geometry(geometry)
 
-        # Get collapsed states
-        context_collapsed = self._ui_state.get("message_share_dialog.sections.context.collapsed", False)
-        input_collapsed = self._ui_state.get("message_share_dialog.sections.input.collapsed", False)
+        # Restore collapsed states
+        context_collapsed = self._ui_state.get(
+            "message_share_dialog.sections.context.collapsed", False
+        )
+        input_collapsed = self._ui_state.get(
+            "message_share_dialog.sections.input.collapsed", False
+        )
 
-        # Store splitter sizes for restoration in showEvent (after dialog is visible)
-        self._pending_splitter_sizes = self._ui_state.get("message_share_dialog.splitter_sizes")
-
-        # Apply collapsed states (visual state only, sizes applied in showEvent)
         if context_collapsed:
-            collapsed_height = self.context_header.sizeHint().height() + 8
             self.context_text_edit.hide()
             self.context_images_container.hide()
             self.context_header.set_collapsed(True)
-            self.context_section.setMaximumHeight(collapsed_height)
+            self.context_section.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         if input_collapsed:
-            collapsed_height = self.input_header.sizeHint().height() + 8
             self.input_edit.hide()
             self.input_header.set_collapsed(True)
-            self.input_section.setMaximumHeight(collapsed_height)
+            self.input_section.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
 
-    def showEvent(self, event):
-        """Handle show event - restore splitter sizes after dialog is visible."""
-        super().showEvent(event)
-        # Restore splitter sizes after dialog is shown (Qt needs geometry to be finalized)
-        if hasattr(self, '_pending_splitter_sizes') and self._pending_splitter_sizes:
-            if len(self._pending_splitter_sizes) == self.sections_splitter.count():
-                # Use timer to ensure layout is complete
-                QTimer.singleShot(0, self._apply_pending_splitter_sizes)
+        # Restore wrap states
+        context_wrapped = self._ui_state.get(
+            "message_share_dialog.sections.context_wrapped", True
+        )
+        input_wrapped = self._ui_state.get(
+            "message_share_dialog.sections.input_wrapped", True
+        )
+        output_wrapped = self._ui_state.get(
+            "message_share_dialog.sections.output_wrapped", True
+        )
 
-    def _apply_pending_splitter_sizes(self):
-        """Apply pending splitter sizes after layout is complete."""
-        if not hasattr(self, '_pending_splitter_sizes') or not self._pending_splitter_sizes:
-            return
-        if len(self._pending_splitter_sizes) == self.sections_splitter.count():
-            self.sections_splitter.setSizes(self._pending_splitter_sizes)
-        self._pending_splitter_sizes = None
+        self.context_header.set_wrap_state(context_wrapped)
+        if not context_wrapped:
+            content_height = self._get_text_edit_content_height(self.context_text_edit)
+            self.context_text_edit.setMinimumHeight(content_height)
+            self.context_text_edit.setMaximumHeight(16777215)
+
+        self.input_header.set_wrap_state(input_wrapped)
+        if not input_wrapped:
+            content_height = self._get_text_edit_content_height(self.input_edit)
+            self.input_edit.setMinimumHeight(content_height)
+
+        self.output_header.set_wrap_state(output_wrapped)
+        if not output_wrapped:
+            content_height = self._get_text_edit_content_height(self.output_edit)
+            self.output_edit.setMinimumHeight(content_height)
 
     def _restore_geometry(self, geometry: dict):
         """Restore window geometry."""
@@ -809,7 +831,7 @@ class MessageShareDialog(QDialog):
             self.move(x, y)
 
     def closeEvent(self, event):
-        """Save geometry and splitter sizes on close and disconnect signals."""
+        """Save geometry on close and disconnect signals."""
         geom = self.geometry()
         self._ui_state.set(
             "message_share_dialog.geometry",
@@ -820,13 +842,15 @@ class MessageShareDialog(QDialog):
                 "height": geom.height(),
             },
         )
-        # Save splitter sizes
-        self._ui_state.set(
-            "message_share_dialog.splitter_sizes",
-            self.sections_splitter.sizes(),
-        )
-        # Disconnect from execution signal if connected
+        # Disconnect from signals if connected
         self._disconnect_execution_signal()
+        self._disconnect_streaming_signal()
+
+        # Stop streaming if active
+        if self._is_streaming:
+            self._streaming_throttle_timer.stop()
+            self._is_streaming = False
+
         super().closeEvent(event)
 
     # --- Undo/Redo: Context Section ---
@@ -835,7 +859,9 @@ class MessageShareDialog(QDialog):
         """Get current context state."""
         return ContextSectionState(
             images=[
-                ContextItem(item_type=img.item_type, data=img.data, media_type=img.media_type)
+                ContextItem(
+                    item_type=img.item_type, data=img.data, media_type=img.media_type
+                )
                 for img in self._current_images
             ],
             text=self.context_text_edit.toPlainText(),
@@ -844,7 +870,9 @@ class MessageShareDialog(QDialog):
     def _restore_context_state(self, state: ContextSectionState):
         """Restore context state."""
         self._current_images = [
-            ContextItem(item_type=img.item_type, data=img.data, media_type=img.media_type)
+            ContextItem(
+                item_type=img.item_type, data=img.data, media_type=img.media_type
+            )
             for img in state.images
         ]
         self._rebuild_image_chips()
@@ -987,11 +1015,13 @@ class MessageShareDialog(QDialog):
 
     def _schedule_dynamic_state_save(self, section: QWidget):
         """Schedule state save for dynamic section (debounced)."""
-        if not hasattr(section, '_save_timer'):
+        if not hasattr(section, "_save_timer"):
             section._save_timer = QTimer()
             section._save_timer.setSingleShot(True)
             section._save_timer.setInterval(500)
-            section._save_timer.timeout.connect(lambda s=section: self._save_dynamic_state(s))
+            section._save_timer.timeout.connect(
+                lambda s=section: self._save_dynamic_state(s)
+            )
         section._save_timer.start()
 
     def _save_dynamic_state(self, section: QWidget):
@@ -1006,9 +1036,14 @@ class MessageShareDialog(QDialog):
     def _update_dynamic_section_buttons(self, section: QWidget):
         """Update undo/redo buttons for a dynamic section."""
         section.header.set_undo_redo_enabled(
-            len(section.undo_stack) > 0,
-            len(section.redo_stack) > 0
+            len(section.undo_stack) > 0, len(section.redo_stack) > 0
         )
+
+    def _update_dynamic_section_height(self, section: QWidget):
+        """Update height for dynamic section when unwrapped."""
+        if not section.header.is_wrapped():
+            content_height = self._get_text_edit_content_height(section.text_edit)
+            section.text_edit.setMinimumHeight(content_height)
 
     # --- Section deletion ---
 
@@ -1098,15 +1133,24 @@ class MessageShareDialog(QDialog):
     def _on_context_text_changed(self):
         """Handle context text changes - debounce state saving."""
         self._text_change_timer.start()
+        if not self.context_header.is_wrapped():
+            content_height = self._get_text_edit_content_height(self.context_text_edit)
+            self.context_text_edit.setMinimumHeight(content_height)
 
     def _on_input_text_changed(self):
         """Handle input text changes - debounce state saving and update buttons."""
         self._text_change_timer.start()
         self._update_send_buttons_state()
+        if not self.input_header.is_wrapped():
+            content_height = self._get_text_edit_content_height(self.input_edit)
+            self.input_edit.setMinimumHeight(content_height)
 
     def _on_output_text_changed(self):
         """Handle output text changes - debounce state saving."""
         self._text_change_timer.start()
+        if not self.output_header.is_wrapped():
+            content_height = self._get_text_edit_content_height(self.output_edit)
+            self.output_edit.setMinimumHeight(content_height)
 
     def _save_text_states(self):
         """Save state if text has significantly changed in any section."""
@@ -1115,7 +1159,11 @@ class MessageShareDialog(QDialog):
         if current_context != self._last_context_text:
             state = ContextSectionState(
                 images=[
-                    ContextItem(item_type=img.item_type, data=img.data, media_type=img.media_type)
+                    ContextItem(
+                        item_type=img.item_type,
+                        data=img.data,
+                        media_type=img.media_type,
+                    )
                     for img in self._current_images
                 ],
                 text=self._last_context_text,
@@ -1150,17 +1198,22 @@ class MessageShareDialog(QDialog):
 
     def _connect_execution_signal(self):
         """Connect to execution completed signal."""
+        if self._execution_signal_connected:
+            return
         service = self._get_prompt_store_service()
         if service and hasattr(service, "_menu_coordinator"):
             try:
                 service._menu_coordinator.execution_completed.connect(
                     self._on_execution_result
                 )
+                self._execution_signal_connected = True
             except Exception:
                 pass
 
     def _disconnect_execution_signal(self):
         """Disconnect from execution completed signal."""
+        if not self._execution_signal_connected:
+            return
         service = self._get_prompt_store_service()
         if service and hasattr(service, "_menu_coordinator"):
             try:
@@ -1169,6 +1222,83 @@ class MessageShareDialog(QDialog):
                 )
             except Exception:
                 pass
+        self._execution_signal_connected = False
+
+    def _connect_streaming_signal(self):
+        """Connect to streaming chunk signal for live updates."""
+        if self._streaming_signal_connected:
+            return
+        service = self._get_prompt_store_service()
+        if service and hasattr(service, "_menu_coordinator"):
+            try:
+                service._menu_coordinator.streaming_chunk.connect(
+                    self._on_streaming_chunk
+                )
+                self._streaming_signal_connected = True
+            except Exception:
+                pass
+
+    def _disconnect_streaming_signal(self):
+        """Disconnect from streaming chunk signal."""
+        if not self._streaming_signal_connected:
+            return
+        service = self._get_prompt_store_service()
+        if service and hasattr(service, "_menu_coordinator"):
+            try:
+                service._menu_coordinator.streaming_chunk.disconnect(
+                    self._on_streaming_chunk
+                )
+            except Exception:
+                pass
+        self._streaming_signal_connected = False
+
+    def _on_streaming_chunk(self, chunk: str, accumulated: str, is_final: bool):
+        """Handle streaming chunk with adaptive throttling."""
+        if not self._waiting_for_result:
+            return
+
+        if not self._is_streaming and not is_final:
+            self._is_streaming = True
+            self._streaming_accumulated = ""
+
+        self._streaming_accumulated = accumulated
+
+        if is_final:
+            self._flush_streaming_update()
+            self._is_streaming = False
+            self._streaming_throttle_timer.stop()
+            return
+
+        # Adaptive throttling
+        current_time = time.time() * 1000
+        time_since_update = current_time - self._last_ui_update_time
+
+        # Small chunks or enough time passed - update immediately
+        if len(chunk) < 10 or time_since_update >= 16:
+            self._flush_streaming_update()
+        elif not self._streaming_throttle_timer.isActive():
+            self._streaming_throttle_timer.start()
+
+    def _flush_streaming_update(self):
+        """Update UI with accumulated streaming text."""
+        if not self._streaming_accumulated:
+            return
+
+        self._last_ui_update_time = time.time() * 1000
+
+        # Get correct output text edit based on turn number
+        if self._current_turn_number == 1 or not self._output_sections:
+            output_edit = self.output_edit
+        else:
+            output_edit = self._output_sections[-1].text_edit
+
+        # Update text without triggering undo stack
+        output_edit.blockSignals(True)
+        output_edit.setPlainText(self._streaming_accumulated)
+        cursor = output_edit.textCursor()
+        cursor.movePosition(cursor.End)
+        output_edit.setTextCursor(cursor)
+        output_edit.blockSignals(False)
 
     def _execute_with_message(self, message: str, keep_open: bool = False):
         """Execute the prompt with conversation history.
@@ -1215,11 +1345,17 @@ class MessageShareDialog(QDialog):
         # Build conversation data for API
         conv_data = self._build_conversation_data()
 
+        # Enable streaming for "Send & Show" mode
+        if keep_open:
+            conv_data["use_streaming"] = True
+
         # For backward compatibility, also build full_message for single-turn case
         working_context_text = self.context_text_edit.toPlainText().strip()
         full_message = msg_text
         if len(self._conversation_turns) == 1 and working_context_text:
-            full_message = f"<context>\n{working_context_text}\n</context>\n\n{msg_text}"
+            full_message = (
+                f"<context>\n{working_context_text}\n</context>\n\n{msg_text}"
+            )
 
         # Create a modified menu item with conversation data
         modified_item = MenuItem(
@@ -1236,23 +1372,33 @@ class MessageShareDialog(QDialog):
         )
 
         if keep_open:
-            # Connect to receive result
+            # Connect to receive result and streaming chunks
             self._waiting_for_result = True
             self._connect_execution_signal()
+            self._connect_streaming_signal()
 
             # Create output section for this turn
             if self._current_turn_number == 1:
                 # First turn uses existing output section
                 self._expand_output_section()
                 self.output_edit.setPlainText("Executing...")
+                # Set expanded mode and update height after text is set
+                self.output_header.set_wrap_state(False)
+                content_height = self._get_text_edit_content_height(self.output_edit)
+                self.output_edit.setMinimumHeight(content_height)
             else:
                 # Subsequent turns create new output section
-                output_section = self._create_dynamic_output_section(self._current_turn_number)
+                output_section = self._create_dynamic_output_section(
+                    self._current_turn_number
+                )
                 self._output_sections.append(output_section)
-                # Insert before spacer
-                self.sections_splitter.insertWidget(self.sections_splitter.count() - 1, output_section)
+                self.sections_layout.addWidget(output_section)
                 output_section.text_edit.installEventFilter(self)
                 output_section.text_edit.setPlainText("Executing...")
+                # Set expanded mode and update height after text is set
+                output_section.header.set_wrap_state(False)
+                content_height = self._get_text_edit_content_height(output_section.text_edit)
+                output_section.text_edit.setMinimumHeight(content_height)
                 self._update_delete_button_visibility()
                 self._scroll_to_bottom()
 
@@ -1307,17 +1453,17 @@ class MessageShareDialog(QDialog):
         return {"turns": turns}
 
     def _expand_output_section(self):
-        """Expand output section - add to splitter if first time."""
+        """Expand output section - add to layout if first time."""
         if not self._output_section_shown:
-            # First time showing output - insert before spacer
-            self.sections_splitter.insertWidget(self.sections_splitter.count() - 1, self.output_section)
+            # First time showing output
+            self.sections_layout.addWidget(self.output_section)
             self.output_edit.installEventFilter(self)
             self._output_section_shown = True
             self.output_edit.setVisible(True)
             self.output_header.set_collapsed(False)
             self._scroll_to_bottom()
         elif not self.output_edit.isVisible():
-            # Already in splitter, just expand
+            # Already in layout, just expand
             self.output_edit.setVisible(True)
             self.output_header.set_collapsed(False)
             self._save_section_state("output", collapsed=False)
@@ -1330,10 +1476,16 @@ class MessageShareDialog(QDialog):
 
         self._waiting_for_result = False
         self._disconnect_execution_signal()
+        self._disconnect_streaming_signal()
+
+        # Check if streaming already updated the UI
+        is_streaming = result.metadata and result.metadata.get("streaming", False)
 
         # Mark the current turn as complete and store output
         if self._conversation_turns:
-            self._conversation_turns[-1].output_text = result.content if result.success else None
+            self._conversation_turns[-1].output_text = (
+                result.content if result.success else None
+            )
             self._conversation_turns[-1].is_complete = True
 
         # Show Reply button now that we have output
@@ -1349,13 +1501,25 @@ class MessageShareDialog(QDialog):
         else:
             output_edit = self._output_sections[-1].text_edit
 
-        # Display result
-        if result.success and result.content:
-            output_edit.setPlainText(result.content)
-        elif result.error:
-            output_edit.setPlainText(f"Error: {result.error}")
+        # Only update text if NOT streaming (streaming already did it) or on error
+        if not is_streaming or not result.success:
+            if result.success and result.content:
+                output_edit.setPlainText(result.content)
+            elif result.error:
+                output_edit.setPlainText(f"Error: {result.error}")
+            else:
+                output_edit.setPlainText("No output received")
+
+        # Update height for expanded output sections (streaming blocks signals)
+        if self._current_turn_number == 1 or not self._output_sections:
+            if not self.output_header.is_wrapped():
+                content_height = self._get_text_edit_content_height(self.output_edit)
+                self.output_edit.setMinimumHeight(content_height)
         else:
-            output_edit.setPlainText("No output received")
+            section = self._output_sections[-1]
+            if not section.header.is_wrapped():
+                content_height = self._get_text_edit_content_height(section.text_edit)
+                section.text_edit.setMinimumHeight(content_height)
 
         self._scroll_to_bottom()
 
@@ -1381,8 +1545,7 @@ class MessageShareDialog(QDialog):
         self._current_turn_number += 1
         section = self._create_reply_section(self._current_turn_number)
         self._dynamic_sections.append(section)
-        # Insert before spacer
-        self.sections_splitter.insertWidget(self.sections_splitter.count() - 1, section)
+        self.sections_layout.addWidget(section)
         section.text_edit.installEventFilter(self)
         self.reply_btn.setVisible(False)
         section.text_edit.setFocus()
@@ -1393,16 +1556,17 @@ class MessageShareDialog(QDialog):
     def _create_reply_section(self, turn_number: int) -> QWidget:
         """Create input section for a reply turn (displayed as Message)."""
         container = QWidget()
-        container.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
+        container.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         layout = QVBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(4)
 
         header = CollapsibleSectionHeader(
-            f"Message #{turn_number - 1}",
+            f"Message #{turn_number}",
             show_save_button=False,
             show_undo_redo=True,
             show_delete_button=True,
+            show_wrap_button=True,
         )
         layout.addWidget(header)
 
@@ -1416,10 +1580,8 @@ class MessageShareDialog(QDialog):
         images_container.hide()
         layout.addWidget(images_container)
 
-        text_edit = QTextEdit()
-        text_edit.setFont(QFont("Menlo, Monaco, Consolas, monospace", 12))
-        text_edit.setPlaceholderText("Type your message...")
-        text_edit.setMinimumHeight(100)
+        text_edit = create_text_edit(placeholder="Type your message...", min_height=0)
+        text_edit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         text_edit.textChanged.connect(self._update_send_buttons_state)
         layout.addWidget(text_edit)
 
@@ -1444,21 +1606,38 @@ class MessageShareDialog(QDialog):
         # Connect delete signal
         header.delete_requested.connect(lambda s=container: self._delete_section(s))
 
-        # Connect text changes for debounced state saving
-        text_edit.textChanged.connect(lambda s=container: self._schedule_dynamic_state_save(s))
+        # Connect text changes for debounced state saving and height update
+        text_edit.textChanged.connect(
+            lambda s=container: self._schedule_dynamic_state_save(s)
+        )
+        text_edit.textChanged.connect(
+            lambda s=container: self._update_dynamic_section_height(s)
+        )
 
-        # Toggle function for collapse/expand with fixed height
+        # Wrap toggle function
+        def toggle_wrap(c=container, h=header, te=text_edit):
+            is_wrapped = h.is_wrapped()
+            new_wrapped = not is_wrapped
+            h.set_wrap_state(new_wrapped)
+            if new_wrapped:
+                te.setMinimumHeight(0)
+            else:
+                content_height = self._get_text_edit_content_height(te)
+                te.setMinimumHeight(content_height)
+
+        header.wrap_requested.connect(toggle_wrap)
+
+        # Toggle function for collapse/expand
         def toggle_section(c=container, h=header, te=text_edit, ic=images_container):
             is_visible = te.isVisible()
             te.setVisible(not is_visible)
             ic.setVisible(not is_visible and bool(c.turn_images))
             h.set_collapsed(is_visible)
-            collapsed_height = h.sizeHint().height() + 8
-            if is_visible:
-                c.setMaximumHeight(collapsed_height)
-                self._set_splitter_section_height_for_widget(c, collapsed_height)
-            else:
-                c.setMaximumHeight(16777215)
+            # Update size policy based on collapsed state
+            if is_visible:  # Will be collapsed
+                c.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+            else:  # Will be expanded
+                c.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
 
         header.toggle_requested.connect(toggle_section)
         container.toggle_fn = toggle_section
@@ -1468,7 +1647,7 @@ class MessageShareDialog(QDialog):
     def _create_dynamic_output_section(self, turn_number: int) -> QWidget:
         """Create output section for a conversation turn."""
         container = QWidget()
-        container.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
+        container.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         layout = QVBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(4)
@@ -1478,13 +1657,12 @@ class MessageShareDialog(QDialog):
             show_save_button=False,
             show_undo_redo=True,
             show_delete_button=True,
+            show_wrap_button=True,
         )
         layout.addWidget(header)
 
-        text_edit = QTextEdit()
-        text_edit.setFont(QFont("Menlo, Monaco, Consolas, monospace", 12))
-        text_edit.setPlaceholderText("Output will appear here...")
-        text_edit.setMinimumHeight(100)
+        text_edit = create_text_edit(placeholder="Output will appear here...", min_height=0)
+        text_edit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         layout.addWidget(text_edit)
 
         # Store references
@@ -1504,20 +1682,37 @@ class MessageShareDialog(QDialog):
         # Connect delete signal
         header.delete_requested.connect(lambda s=container: self._delete_section(s))
 
-        # Connect text changes for debounced state saving
-        text_edit.textChanged.connect(lambda s=container: self._schedule_dynamic_state_save(s))
+        # Connect text changes for debounced state saving and height update
+        text_edit.textChanged.connect(
+            lambda s=container: self._schedule_dynamic_state_save(s)
+        )
+        text_edit.textChanged.connect(
+            lambda s=container: self._update_dynamic_section_height(s)
+        )
 
-        # Toggle function for collapse/expand with fixed height
+        # Wrap toggle function
+        def toggle_wrap(c=container, h=header, te=text_edit):
+            is_wrapped = h.is_wrapped()
+            new_wrapped = not is_wrapped
+            h.set_wrap_state(new_wrapped)
+            if new_wrapped:
+                te.setMinimumHeight(0)
+            else:
+                content_height = self._get_text_edit_content_height(te)
+                te.setMinimumHeight(content_height)
+
+        header.wrap_requested.connect(toggle_wrap)
+
+        # Toggle function for collapse/expand
         def toggle_section(c=container, h=header, te=text_edit):
             is_visible = te.isVisible()
             te.setVisible(not is_visible)
             h.set_collapsed(is_visible)
-            collapsed_height = h.sizeHint().height() + 8
-            if is_visible:
-                c.setMaximumHeight(collapsed_height)
-                self._set_splitter_section_height_for_widget(c, collapsed_height)
-            else:
-                c.setMaximumHeight(16777215)
+            # Update size policy based on collapsed state
+            if is_visible:  # Will be collapsed
+                c.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+            else:  # Will be expanded
+                c.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
 
         header.toggle_requested.connect(toggle_section)
         container.toggle_fn = toggle_section
@@ -1597,7 +1792,9 @@ class MessageShareDialog(QDialog):
         modifiers = event.modifiers()
 
         # Check if message has content (text or images)
-        has_content = bool(self.input_edit.toPlainText().strip()) or bool(self._message_images)
+        has_content = bool(self.input_edit.toPlainText().strip()) or bool(
+            self._message_images
+        )
 
         # Ctrl+Enter: Send, copy result to clipboard, close window
         if key in (Qt.Key_Return, Qt.Key_Enter) and (modifiers & Qt.ControlModifier):

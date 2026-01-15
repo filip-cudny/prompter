@@ -5,6 +5,7 @@ from PyQt5.QtWidgets import QMenu, QAction, QApplication, QWidgetAction, QLabel,
 from PyQt5.QtCore import Qt, QPoint, QTimer, QObject, QEvent
 from PyQt5.QtGui import QCursor
 from core.models import MenuItem, MenuItemType
+from modules.gui.shared_widgets import TOOLTIP_STYLE
 import sip
 import platform
 import subprocess
@@ -246,7 +247,7 @@ class PyQtContextMenu(QObject):
                 height: 16px;
                 margin-left: 4px;
             }
-        """
+        """ + TOOLTIP_STYLE
 
     def set_execution_callback(self, callback: Callable):
         """Set callback for menu item execution."""
@@ -750,13 +751,15 @@ class PyQtContextMenu(QObject):
                 if self._context_menu.focus_window:
                     self._context_menu.focus_window.hide()
 
-                # Get prompt store service, context manager, and clipboard manager from menu coordinator
+                # Get prompt store service, context manager, clipboard manager, and notification manager from menu coordinator
                 prompt_store_service = None
                 context_manager = None
                 clipboard_manager = None
+                notification_manager = None
                 if hasattr(self._context_menu, 'menu_coordinator') and self._context_menu.menu_coordinator:
                     prompt_store_service = self._context_menu.menu_coordinator.prompt_store_service
                     context_manager = self._context_menu.menu_coordinator.context_manager
+                    notification_manager = self._context_menu.menu_coordinator.notification_manager
                     if prompt_store_service and hasattr(prompt_store_service, 'clipboard_manager'):
                         clipboard_manager = prompt_store_service.clipboard_manager
 
@@ -768,6 +771,7 @@ class PyQtContextMenu(QObject):
                     prompt_store_service=prompt_store_service,
                     context_manager=context_manager,
                     clipboard_manager=clipboard_manager,
+                    notification_manager=notification_manager,
                 )
 
             def _on_mic_clicked(self):

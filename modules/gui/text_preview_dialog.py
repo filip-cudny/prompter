@@ -2,11 +2,11 @@
 
 from typing import List, Optional
 
-from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QTextEdit, QApplication
+from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QApplication
 from PyQt5.QtCore import Qt, QTimer, QEvent
-from PyQt5.QtGui import QFont
 
 from modules.gui.context_widgets import IconButton
+from modules.gui.shared_widgets import create_text_edit, TOOLTIP_STYLE
 from modules.utils.ui_state import UIStateManager
 from core.interfaces import ClipboardManager
 
@@ -18,7 +18,7 @@ _icon_btn_style = """
         border: none;
         padding: 2px;
     }
-"""
+""" + TOOLTIP_STYLE
 
 
 def show_preview_dialog(
@@ -74,6 +74,7 @@ class TextPreviewDialog(QDialog):
         self._undo_stack: List[str] = []
         self._redo_stack: List[str] = []
         self._last_text: str = content or ""
+        self._wrapped: bool = True  # Default wrapped state
 
         # Debounce timer for text changes
         self._text_change_timer = QTimer()
@@ -94,6 +95,13 @@ class TextPreviewDialog(QDialog):
         toolbar = QHBoxLayout()
         toolbar.setSpacing(2)
         toolbar.addStretch()
+
+        # Wrap toggle button (before undo/redo)
+        self.wrap_btn = IconButton("chevrons-down-up", size=18)
+        self.wrap_btn.setToolTip("Toggle wrap/expand")
+        self.wrap_btn.setStyleSheet(_icon_btn_style)
+        self.wrap_btn.clicked.connect(self._toggle_wrap)
+        toolbar.addWidget(self.wrap_btn)
 
         self.undo_btn = IconButton("undo", size=18)
         self.undo_btn.setToolTip("Undo (Ctrl+Z)")
@@ -118,11 +126,10 @@ class TextPreviewDialog(QDialog):
         layout.addLayout(toolbar)
 
         # Editable text area
-        self.text_edit = QTextEdit()
+        self.text_edit = create_text_edit(min_height=0)
         self.text_edit.setPlainText(content or "")
-        self.text_edit.setFont(QFont("Menlo, Monaco, Consolas, monospace", 12))
-        self.text_edit.setLineWrapMode(QTextEdit.WidgetWidth)
         self.text_edit.textChanged.connect(self._on_text_changed)
+        self.text_edit.setMaximumHeight(300)  # Default wrapped height
 
         layout.addWidget(self.text_edit)
 
@@ -174,25 +181,32 @@ class TextPreviewDialog(QDialog):
             QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
                 width: 0px;
             }
-        """)
+        """
+            + TOOLTIP_STYLE
+        )
 
     def _restore_geometry(self):
-        """Restore window geometry."""
+        """Restore window geometry and wrap state."""
         geometry = self._ui_state.get("text_preview_dialog.geometry")
-        if not geometry:
-            return
+        if geometry:
+            width = geometry.get("width", 600)
+            height = geometry.get("height", 400)
+            x = geometry.get("x")
+            y = geometry.get("y")
 
-        width = geometry.get("width", 600)
-        height = geometry.get("height", 400)
-        x = geometry.get("x")
-        y = geometry.get("y")
+            # Apply size (respect minimums)
+            self.resize(max(width, 400), max(height, 300))
 
-        # Apply size (respect minimums)
-        self.resize(max(width, 400), max(height, 300))
+            # Apply position if saved (Qt/WM handles off-screen)
+            if x is not None and y is not None:
+                self.move(x, y)
 
-        # Apply position if saved (Qt/WM handles off-screen)
-        if x is not None and y is not None:
-            self.move(x, y)
+        # Restore wrap state
+        wrapped = self._ui_state.get("text_preview_dialog.wrapped", True)
+        self._wrapped = wrapped
+        if not wrapped:
+            self.text_edit.setMaximumHeight(16777215)
+            self.wrap_btn.set_icon("chevrons-up-down")
 
     def closeEvent(self, event):
         """Save geometry on close."""
@@ -257,6 +271,17 @@ class TextPreviewDialog(QDialog):
         """Update undo/redo button states."""
         self.undo_btn.setEnabled(len(self._undo_stack) > 0)
         self.redo_btn.setEnabled(len(self._redo_stack) > 0)
+
+    def _toggle_wrap(self):
+        """Toggle wrap/expand state."""
+        self._wrapped = not self._wrapped
+        if self._wrapped:
+            self.text_edit.setMaximumHeight(300)
+            self.wrap_btn.set_icon("chevrons-down-up")
+        else:
+            self.text_edit.setMaximumHeight(16777215)  # QWIDGETSIZE_MAX
+            self.wrap_btn.set_icon("chevrons-up-down")
+        self._ui_state.set("text_preview_dialog.wrapped", self._wrapped)
 
     def _copy_all(self):
         """Copy all text content to clipboard."""

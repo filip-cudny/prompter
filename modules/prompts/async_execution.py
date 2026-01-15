@@ -64,6 +64,9 @@ class PromptExecutionWorker(QThread):
     Worker thread for executing prompts asynchronously to prevent UI blocking.
     """
 
+    # Signal for streaming chunks: (chunk, accumulated, is_final)
+    chunk_received = pyqtSignal(str, str, bool)
+
     # Callbacks for cross-thread communication
     def set_callbacks(self, started_callback, finished_callback, error_callback):
         """Set callbacks for execution events."""
@@ -123,8 +126,17 @@ class PromptExecutionWorker(QThread):
             if self.started_callback:
                 self.started_callback(prompt_name)
 
-            # Execute the prompt
-            result = self._execute_prompt_sync()
+            # Check if streaming is enabled via conversation_data
+            use_streaming = False
+            if self.item and self.item.data:
+                conv_data = self.item.data.get("conversation_data", {})
+                use_streaming = conv_data.get("use_streaming", False)
+
+            # Execute the prompt (streaming or sync)
+            if use_streaming:
+                result = self._execute_prompt_streaming()
+            else:
+                result = self._execute_prompt_sync()
             execution_time = time.time() - self.start_time
 
             if result.success:
@@ -353,6 +365,106 @@ class PromptExecutionWorker(QThread):
 
         return processed
 
+    def _execute_prompt_streaming(self) -> ExecutionResult:
+        """Execute the prompt with streaming (runs in worker thread)."""
+        start_time = time.time()
+
+        try:
+            if not self.item or not self.item.data:
+                return ExecutionResult(
+                    success=False,
+                    error="Invalid menu item",
+                    execution_time=time.time() - start_time,
+                    metadata={"action": "execute_prompt", "streaming": True},
+                )
+
+            prompt_id = self.item.data.get("prompt_id")
+            if not prompt_id:
+                return ExecutionResult(
+                    success=False,
+                    error="Missing prompt ID",
+                    execution_time=time.time() - start_time,
+                    metadata={"action": "execute_prompt", "streaming": True},
+                )
+
+            # Get model from MenuItem.data.model
+            model_name = self.item.data.get("model")
+            if not model_name:
+                model_name = self.config.default_model
+
+            if not model_name or not isinstance(model_name, str):
+                return ExecutionResult(
+                    success=False,
+                    error="No valid model specified",
+                    execution_time=time.time() - start_time,
+                    metadata={"action": "execute_prompt", "streaming": True},
+                )
+
+            if not self.openai_service.has_model(model_name):
+                return ExecutionResult(
+                    success=False,
+                    error=f"Model '{model_name}' not found in configuration",
+                    execution_time=time.time() - start_time,
+                    metadata={"action": "execute_prompt", "streaming": True},
+                )
+
+            messages = self.settings_prompt_provider.get_prompt_messages(prompt_id)
+            if not messages:
+                return ExecutionResult(
+                    success=False,
+                    error=f"Prompt '{prompt_id}' not found",
+                    execution_time=time.time() - start_time,
+                    metadata={"action": "execute_prompt", "streaming": True},
+                )
+
+            # Check for multi-turn conversation data
+            conversation_data = self.item.data.get("conversation_data")
+
+            if conversation_data:
+                processed_messages = self._build_conversation_messages(
+                    prompt_id, messages, conversation_data
+                )
+            else:
+                processed_messages: List[ChatCompletionMessageParam] = []
+                processed_messages = self.placeholder_service.process_messages(
+                    messages, self.context
+                )
+
+            if not processed_messages:
+                return ExecutionResult(
+                    success=False,
+                    error="No valid messages found after processing",
+                    execution_time=time.time() - start_time,
+                    metadata={"action": "execute_prompt", "streaming": True},
+                )
+
+            # Stream response using complete_stream
+            accumulated = ""
+            for chunk_text, accumulated in self.openai_service.complete_stream(
+                model_key=model_name,
+                messages=processed_messages,
+            ):
+                # Emit chunk signal (Qt handles thread safety)
+                self.chunk_received.emit(chunk_text, accumulated, False)
+
+            # Emit final signal
+            self.chunk_received.emit("", accumulated, True)
+
+            return ExecutionResult(
+                success=True,
+                content=accumulated,
+                execution_time=time.time() - start_time,
+                metadata={"action": "execute_prompt", "streaming": True},
+            )
+
+        except Exception as e:
+            return ExecutionResult(
+                success=False,
+                error=f"Streaming execution failed: {str(e)}",
+                execution_time=time.time() - start_time,
+                metadata={"action": "execute_prompt", "streaming": True},
+            )
+
 
 class AsyncPromptExecutionManager:
     """
@@ -433,6 +545,13 @@ class AsyncPromptExecutionManager:
             self._on_execution_error,
         )
 
+        # Connect streaming chunk signal to route through menu coordinator
+        if self.prompt_store_service and hasattr(self.prompt_store_service, '_menu_coordinator'):
+            self.worker.chunk_received.connect(
+                self._on_chunk_received,
+                Qt.QueuedConnection
+            )
+
         # Store current execution info for history tracking
         self.current_item = item
         self.current_context = context
@@ -465,6 +584,13 @@ class AsyncPromptExecutionManager:
     def _on_execution_started(self, prompt_name: str):
         """Handle execution started signal."""
         self.is_executing = True
+
+    def _on_chunk_received(self, chunk: str, accumulated: str, is_final: bool):
+        """Route streaming chunk signal to menu coordinator."""
+        if self.prompt_store_service and hasattr(self.prompt_store_service, '_menu_coordinator'):
+            self.prompt_store_service._menu_coordinator.streaming_chunk.emit(
+                chunk, accumulated, is_final
+            )
 
     def _on_execution_finished(
         self, result: ExecutionResult, prompt_name: str, execution_time: float
