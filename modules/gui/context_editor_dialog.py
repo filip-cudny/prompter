@@ -6,29 +6,35 @@ from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
 from PyQt5.QtWidgets import (
-    QDialog,
     QVBoxLayout,
     QHBoxLayout,
-    QTextEdit,
     QWidget,
-    QLabel,
     QPushButton,
-    QApplication,
     QScrollArea,
     QFrame,
-    QSizePolicy,
 )
 from PyQt5.QtCore import Qt, QTimer, QEvent, pyqtSignal, QByteArray, QBuffer
 from PyQt5.QtGui import QImage
 
 from core.context_manager import ContextManager, ContextItem, ContextItemType
-from modules.gui.shared_widgets import CollapsibleSectionHeader, ImageChipWidget, create_text_edit, TOOLTIP_STYLE
-from modules.utils.ui_state import UIStateManager
+from modules.gui.base_dialog import BaseDialog
+from modules.gui.dialog_styles import (
+    DEFAULT_WRAPPED_HEIGHT,
+    QWIDGETSIZE_MAX,
+    apply_wrap_state,
+    create_singleton_dialog_manager,
+)
+from modules.gui.shared_widgets import (
+    CollapsibleSectionHeader,
+    ImageChipWidget,
+    create_text_edit,
+    TOOLTIP_STYLE,
+)
 
 logger = logging.getLogger(__name__)
 
-# Module-level list to keep dialog references alive
-_open_dialogs = []
+# Singleton dialog manager
+_show_dialog = create_singleton_dialog_manager()
 
 
 @dataclass
@@ -53,39 +59,20 @@ def show_context_editor(
     notification_manager=None,
 ):
     """Show the context editor dialog. If already open, bring to front."""
-    # If dialog already open, just raise it
-    if _open_dialogs:
-        dialog = _open_dialogs[0]
-        dialog.raise_()
-        dialog.activateWindow()
-        return
-
-    def create_and_show():
-        # Double-check in case dialog was opened during timer delay
-        if _open_dialogs:
-            _open_dialogs[0].raise_()
-            _open_dialogs[0].activateWindow()
-            return
-        dialog = ContextEditorDialog(
+    _show_dialog(
+        "context_editor",
+        lambda: ContextEditorDialog(
             context_manager,
             clipboard_manager,
             notification_manager,
-        )
-        _open_dialogs.append(dialog)
-        dialog.finished.connect(
-            lambda: _open_dialogs.remove(dialog) if dialog in _open_dialogs else None
-        )
-        dialog.show()
-        dialog.raise_()
-        dialog.activateWindow()
-
-    # Delay to let context menu cleanup finish
-    QTimer.singleShot(75, create_and_show)
+        ),
+    )
 
 
-class ContextEditorDialog(QDialog):
+class ContextEditorDialog(BaseDialog):
     """Dialog for editing context (text and images) and clipboard."""
 
+    STATE_KEY = "context_editor_dialog"
     context_saved = pyqtSignal()
 
     def __init__(
@@ -99,7 +86,6 @@ class ContextEditorDialog(QDialog):
         self.context_manager = context_manager
         self.clipboard_manager = clipboard_manager
         self.notification_manager = notification_manager
-        self._ui_state = UIStateManager()
 
         # Working state
         self._current_images: List[ContextItem] = []
@@ -114,12 +100,9 @@ class ContextEditorDialog(QDialog):
         self._clipboard_redo_stack: List[ClipboardState] = []
 
         self.setWindowTitle("Context Editor")
-        self.setMinimumSize(500, 400)
-        self.resize(600, 500)
-        self.setWindowFlags(Qt.Window)
 
         self._setup_ui()
-        self._apply_styles()
+        self.apply_dialog_styles()
         self._load_context()
         self._restore_ui_state()
 
@@ -225,7 +208,7 @@ class ContextEditorDialog(QDialog):
         # Text edit area
         self.text_edit = create_text_edit(min_height=0)
         self.text_edit.textChanged.connect(self._on_text_changed)
-        self.text_edit.setMaximumHeight(300)  # Default wrapped height
+        self.text_edit.setMaximumHeight(DEFAULT_WRAPPED_HEIGHT)  # Default wrapped height
         section_layout.addWidget(self.text_edit)
 
         return container
@@ -257,13 +240,13 @@ class ContextEditorDialog(QDialog):
         self.clipboard_image_layout.setContentsMargins(0, 4, 0, 4)
         self.clipboard_image_layout.setSpacing(6)
         self.clipboard_image_layout.addStretch()
-        section_layout.addWidget(self.clipboard_image_container, 0, Qt.AlignTop)  # No stretch, align top
+        section_layout.addWidget(self.clipboard_image_container, 0, Qt.AlignTop)
         self.clipboard_image_container.hide()  # Hidden by default
 
         # Text edit area (shown when clipboard has text)
         self.clipboard_edit = create_text_edit(min_height=0)
         self.clipboard_edit.textChanged.connect(self._on_clipboard_text_changed)
-        self.clipboard_edit.setMaximumHeight(300)  # Default wrapped height
+        self.clipboard_edit.setMaximumHeight(DEFAULT_WRAPPED_HEIGHT)
         section_layout.addWidget(self.clipboard_edit)
 
         return container
@@ -273,7 +256,7 @@ class ContextEditorDialog(QDialog):
         is_visible = self.text_edit.isVisible()
         self.text_edit.setVisible(not is_visible)
         self.context_header.set_collapsed(is_visible)
-        self._save_section_state("context", collapsed=is_visible)
+        self.save_section_state("context", is_visible)
 
     def _toggle_clipboard_section(self):
         """Toggle clipboard section visibility."""
@@ -292,49 +275,32 @@ class ContextEditorDialog(QDialog):
                 self.clipboard_edit.show()
 
         self.clipboard_header.set_collapsed(content_visible)
-        self._save_section_state("clipboard", collapsed=content_visible)
+        self.save_section_state("clipboard", content_visible)
 
     def _toggle_context_wrap(self):
         """Toggle context section wrap state."""
         is_wrapped = self.context_header.is_wrapped()
         new_wrapped = not is_wrapped
         self.context_header.set_wrap_state(new_wrapped)
-        if new_wrapped:
-            self.text_edit.setMaximumHeight(300)
-        else:
-            self.text_edit.setMaximumHeight(16777215)  # QWIDGETSIZE_MAX
-        self._save_section_state("context_wrapped", collapsed=new_wrapped)
+        apply_wrap_state(self.text_edit, new_wrapped)
+        self.save_section_state("context_wrapped", new_wrapped)
 
     def _toggle_clipboard_wrap(self):
         """Toggle clipboard section wrap state."""
         is_wrapped = self.clipboard_header.is_wrapped()
         new_wrapped = not is_wrapped
         self.clipboard_header.set_wrap_state(new_wrapped)
-        if new_wrapped:
-            self.clipboard_edit.setMaximumHeight(300)
-        else:
-            self.clipboard_edit.setMaximumHeight(16777215)  # QWIDGETSIZE_MAX
-        self._save_section_state("clipboard_wrapped", collapsed=new_wrapped)
-
-    def _save_section_state(self, section: str, collapsed: bool):
-        """Save section state (collapsed or wrapped)."""
-        key = f"context_editor_dialog.sections.{section}"
-        self._ui_state.set(key, collapsed)
+        apply_wrap_state(self.clipboard_edit, new_wrapped)
+        self.save_section_state("clipboard_wrapped", new_wrapped)
 
     def _restore_ui_state(self):
         """Restore collapsed and wrap states from saved state."""
         # Restore geometry
-        geometry = self._ui_state.get("context_editor_dialog.geometry")
-        if geometry:
-            self._restore_geometry(geometry)
+        self.restore_geometry_from_state()
 
         # Restore collapsed states
-        context_collapsed = self._ui_state.get(
-            "context_editor_dialog.sections.context.collapsed", False
-        )
-        clipboard_collapsed = self._ui_state.get(
-            "context_editor_dialog.sections.clipboard.collapsed", False
-        )
+        context_collapsed = self.get_section_state("context.collapsed", False)
+        clipboard_collapsed = self.get_section_state("clipboard.collapsed", False)
 
         if context_collapsed:
             self.text_edit.hide()
@@ -345,47 +311,14 @@ class ContextEditorDialog(QDialog):
             self.clipboard_header.set_collapsed(True)
 
         # Restore wrap states
-        context_wrapped = self._ui_state.get(
-            "context_editor_dialog.sections.context_wrapped", True
-        )
-        clipboard_wrapped = self._ui_state.get(
-            "context_editor_dialog.sections.clipboard_wrapped", True
-        )
+        context_wrapped = self.get_section_state("context_wrapped", True)
+        clipboard_wrapped = self.get_section_state("clipboard_wrapped", True)
 
         self.context_header.set_wrap_state(context_wrapped)
-        if not context_wrapped:
-            self.text_edit.setMaximumHeight(16777215)
+        apply_wrap_state(self.text_edit, context_wrapped)
 
         self.clipboard_header.set_wrap_state(clipboard_wrapped)
-        if not clipboard_wrapped:
-            self.clipboard_edit.setMaximumHeight(16777215)
-
-    def _restore_geometry(self, geometry: dict):
-        """Restore window geometry."""
-        width = geometry.get("width", 600)
-        height = geometry.get("height", 500)
-        x = geometry.get("x")
-        y = geometry.get("y")
-
-        self.resize(max(width, 500), max(height, 400))
-
-        if x is not None and y is not None:
-            self.move(x, y)
-
-    def _save_window_geometry(self):
-        """Save window geometry to UI state."""
-        geom = self.geometry()
-        self._ui_state.set("context_editor_dialog.geometry", {
-            "x": geom.x(),
-            "y": geom.y(),
-            "width": geom.width(),
-            "height": geom.height()
-        })
-
-    def closeEvent(self, event):
-        """Save geometry on close."""
-        self._save_window_geometry()
-        super().closeEvent(event)
+        apply_wrap_state(self.clipboard_edit, clipboard_wrapped)
 
     def _save_context_only(self):
         """Save only the context changes."""
@@ -419,83 +352,6 @@ class ContextEditorDialog(QDialog):
 
         if self.notification_manager:
             self.notification_manager.show_success_notification("Clipboard saved")
-
-    def _apply_styles(self):
-        """Apply dark theme styling."""
-        self.setStyleSheet(
-            """
-            QDialog {
-                background-color: #2b2b2b;
-                color: #f0f0f0;
-            }
-            QTextEdit {
-                background-color: #1e1e1e;
-                color: #f0f0f0;
-                border: 1px solid #555555;
-                border-radius: 4px;
-                padding: 12px;
-                selection-background-color: #3d6a99;
-            }
-            QPushButton {
-                background-color: #3a3a3a;
-                color: #f0f0f0;
-                border: 1px solid #555555;
-                border-radius: 4px;
-                padding: 6px 12px;
-                min-width: 60px;
-            }
-            QPushButton:hover {
-                background-color: #454545;
-            }
-            QPushButton:pressed {
-                background-color: #505050;
-            }
-            QPushButton:disabled {
-                background-color: #2a2a2a;
-                color: #666666;
-            }
-            QScrollArea {
-                background: transparent;
-                border: none;
-            }
-            QScrollBar:vertical {
-                background-color: #2b2b2b;
-                width: 12px;
-                border-radius: 6px;
-            }
-            QScrollBar::handle:vertical {
-                background-color: #555555;
-                border-radius: 6px;
-                min-height: 20px;
-            }
-            QScrollBar::handle:vertical:hover {
-                background-color: #666666;
-            }
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-                height: 0px;
-            }
-            QScrollBar:horizontal {
-                background-color: #2b2b2b;
-                height: 12px;
-                border-radius: 6px;
-            }
-            QScrollBar::handle:horizontal {
-                background-color: #555555;
-                border-radius: 6px;
-                min-width: 20px;
-            }
-            QScrollBar::handle:horizontal:hover {
-                background-color: #666666;
-            }
-            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
-                width: 0px;
-            }
-            QScrollArea > QWidget > QWidget {
-                background-color: #2b2b2b;
-            }
-        """
-            + TOOLTIP_STYLE
-        )
 
     def _load_context(self):
         """Load current context and clipboard into the dialog."""
@@ -938,23 +794,10 @@ class ContextEditorDialog(QDialog):
                 return
 
         # Escape to close
-        if event.key() == Qt.Key_Escape:
-            self.close()
+        if self.handle_escape_key(event):
             return
 
         super().keyPressEvent(event)
-
-    def event(self, event):
-        """Handle events to ensure proper focus behavior."""
-        if event.type() in (
-            QEvent.WindowActivate,
-            QEvent.FocusIn,
-            QEvent.MouseButtonPress,
-        ):
-            self.raise_()
-            self.activateWindow()
-            QTimer.singleShot(75, self._ensure_focus)
-        return super().event(event)
 
     def eventFilter(self, obj, event):
         """Filter events to intercept Ctrl+Z, Ctrl+C, and Ctrl+V on text edits."""
@@ -999,9 +842,3 @@ class ContextEditorDialog(QDialog):
                     self._paste_image_from_clipboard()
                     return True  # Event handled, don't pass to text_edit
         return super().eventFilter(obj, event)
-
-    def _ensure_focus(self):
-        """Ensure dialog stays focused after context menu cleanup."""
-        if self.isVisible():
-            self.raise_()
-            self.activateWindow()

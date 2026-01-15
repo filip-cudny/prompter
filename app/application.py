@@ -7,6 +7,7 @@ from PyQt5.QtWidgets import QApplication, QToolTip
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QObject
 from PyQt5.QtGui import QPalette, QColor, QFont
 
+
 from modules.prompts.prompt_service import PromptStoreService
 from core.exceptions import ConfigurationError
 

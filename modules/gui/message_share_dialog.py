@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from typing import Optional, Callable, List, Dict
 
 from PyQt5.QtWidgets import (
-    QDialog,
     QVBoxLayout,
     QHBoxLayout,
     QTextEdit,
@@ -20,9 +19,23 @@ from PyQt5.QtCore import Qt, QTimer, QEvent
 
 from core.models import MenuItem, ExecutionResult
 from core.context_manager import ContextManager, ContextItem, ContextItemType
+from modules.gui.base_dialog import BaseDialog
+from modules.gui.dialog_styles import (
+    DEFAULT_WRAPPED_HEIGHT,
+    DIALOG_SHOW_DELAY_MS,
+    QWIDGETSIZE_MAX,
+    TEXT_CHANGE_DEBOUNCE_MS,
+    apply_wrap_state,
+    get_text_edit_content_height,
+)
 from modules.gui.icons import create_icon
-from modules.gui.shared_widgets import CollapsibleSectionHeader, ImageChipWidget, create_text_edit, TOOLTIP_STYLE, TEXT_EDIT_MIN_HEIGHT
-from modules.utils.ui_state import UIStateManager
+from modules.gui.shared_widgets import (
+    CollapsibleSectionHeader,
+    ImageChipWidget,
+    create_text_edit,
+    TOOLTIP_STYLE,
+    TEXT_EDIT_MIN_HEIGHT,
+)
 
 _open_dialogs: Dict[str, "MessageShareDialog"] = {}
 
@@ -109,11 +122,13 @@ def show_message_share_dialog(
         dialog.raise_()
         dialog.activateWindow()
 
-    QTimer.singleShot(75, create_and_show)
+    QTimer.singleShot(DIALOG_SHOW_DELAY_MS, create_and_show)
 
 
-class MessageShareDialog(QDialog):
+class MessageShareDialog(BaseDialog):
     """Dialog for typing a message to send to a prompt."""
+
+    STATE_KEY = "message_share_dialog"
 
     def __init__(
         self,
@@ -128,7 +143,6 @@ class MessageShareDialog(QDialog):
         super().__init__(parent)
         self.menu_item = menu_item
         self.execution_callback = execution_callback
-        self._ui_state = UIStateManager()
         self._waiting_for_result = False
         self._prompt_store_service = prompt_store_service
         self.context_manager = context_manager
@@ -168,7 +182,7 @@ class MessageShareDialog(QDialog):
         # Text change debounce timer (created early to avoid timing issues)
         self._text_change_timer = QTimer()
         self._text_change_timer.setSingleShot(True)
-        self._text_change_timer.setInterval(500)
+        self._text_change_timer.setInterval(TEXT_CHANGE_DEBOUNCE_MS)
         self._text_change_timer.timeout.connect(self._save_text_states)
 
         # Streaming state
@@ -191,12 +205,9 @@ class MessageShareDialog(QDialog):
             menu_item.data.get("prompt_name", "Prompt") if menu_item.data else "Prompt"
         )
         self.setWindowTitle(f"Message to: {prompt_name}")
-        self.setMinimumSize(500, 400)
-        self.resize(600, 500)
-        self.setWindowFlags(Qt.Window)
 
         self._setup_ui()
-        self._apply_styles()
+        self.apply_dialog_styles()
         self._load_context()
         self._restore_ui_state()
 
@@ -399,85 +410,6 @@ class MessageShareDialog(QDialog):
         button_bar.addWidget(self.send_copy_btn)
 
         layout.addWidget(button_widget)
-
-    def _apply_styles(self):
-        """Apply dark theme styling."""
-        self.setStyleSheet(
-            """
-            QDialog {
-                background-color: #2b2b2b;
-                color: #f0f0f0;
-            }
-            QTextEdit {
-                background-color: #1e1e1e;
-                color: #f0f0f0;
-                border: 1px solid #555555;
-                border-radius: 4px;
-                padding: 8px;
-                selection-background-color: #3d6a99;
-            }
-            QPushButton {
-                background-color: #3a3a3a;
-                color: #f0f0f0;
-                border: 1px solid #555555;
-                border-radius: 4px;
-                padding: 6px 12px;
-                min-width: 32px;
-                min-height: 24px;
-            }
-            QPushButton:hover {
-                background-color: #454545;
-            }
-            QPushButton:pressed {
-                background-color: #505050;
-            }
-            QPushButton:disabled {
-                background-color: #2a2a2a;
-                color: #444444;
-                border: 1px solid #3a3a3a;
-            }
-            QScrollBar:vertical {
-                background-color: #2b2b2b;
-                width: 12px;
-                border-radius: 6px;
-            }
-            QScrollBar::handle:vertical {
-                background-color: #555555;
-                border-radius: 6px;
-                min-height: 20px;
-            }
-            QScrollBar::handle:vertical:hover {
-                background-color: #666666;
-            }
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-                height: 0;
-            }
-            QScrollBar:horizontal {
-                background-color: #2b2b2b;
-                height: 12px;
-                border-radius: 6px;
-            }
-            QScrollBar::handle:horizontal {
-                background-color: #555555;
-                border-radius: 6px;
-                min-width: 20px;
-            }
-            QScrollBar::handle:horizontal:hover {
-                background-color: #666666;
-            }
-            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
-                width: 0;
-            }
-            QScrollArea {
-                background-color: #2b2b2b;
-                border: none;
-            }
-            QScrollArea > QWidget > QWidget {
-                background-color: #2b2b2b;
-            }
-        """
-            + TOOLTIP_STYLE
-        )
 
     # --- Context loading/saving ---
 
@@ -702,14 +634,6 @@ class MessageShareDialog(QDialog):
             self.output_section.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         self._save_section_state("output", collapsed=is_visible)
 
-    def _get_text_edit_content_height(self, text_edit: QTextEdit) -> int:
-        """Calculate the height needed to display all content without scrolling."""
-        doc = text_edit.document()
-        doc.setTextWidth(text_edit.viewport().width())
-        margins = text_edit.contentsMargins()
-        height = int(doc.size().height()) + margins.top() + margins.bottom() + 20
-        return max(height, 100)
-
     def _toggle_context_wrap(self):
         """Toggle context section wrap state."""
         is_wrapped = self.context_header.is_wrapped()
@@ -719,9 +643,9 @@ class MessageShareDialog(QDialog):
             self.context_text_edit.setMinimumHeight(100)
             self.context_text_edit.setMaximumHeight(TEXT_EDIT_MIN_HEIGHT)
         else:
-            content_height = self._get_text_edit_content_height(self.context_text_edit)
+            content_height = get_text_edit_content_height(self.context_text_edit)
             self.context_text_edit.setMinimumHeight(content_height)
-            self.context_text_edit.setMaximumHeight(16777215)
+            self.context_text_edit.setMaximumHeight(QWIDGETSIZE_MAX)
         self._save_section_state("context_wrapped", collapsed=new_wrapped)
 
     def _toggle_input_wrap(self):
@@ -732,7 +656,7 @@ class MessageShareDialog(QDialog):
         if new_wrapped:
             self.input_edit.setMinimumHeight(TEXT_EDIT_MIN_HEIGHT)
         else:
-            content_height = self._get_text_edit_content_height(self.input_edit)
+            content_height = get_text_edit_content_height(self.input_edit)
             self.input_edit.setMinimumHeight(content_height)
         self._save_section_state("input_wrapped", collapsed=new_wrapped)
 
@@ -744,14 +668,13 @@ class MessageShareDialog(QDialog):
         if new_wrapped:
             self.output_edit.setMinimumHeight(TEXT_EDIT_MIN_HEIGHT)
         else:
-            content_height = self._get_text_edit_content_height(self.output_edit)
+            content_height = get_text_edit_content_height(self.output_edit)
             self.output_edit.setMinimumHeight(content_height)
         self._save_section_state("output_wrapped", collapsed=new_wrapped)
 
     def _save_section_state(self, section: str, collapsed: bool):
         """Save section state (collapsed or wrapped)."""
-        key = f"message_share_dialog.sections.{section}"
-        self._ui_state.set(key, collapsed)
+        self.save_section_state(section, collapsed)
 
     def _scroll_to_bottom(self):
         """Scroll the scroll area to the bottom."""
@@ -768,18 +691,12 @@ class MessageShareDialog(QDialog):
 
     def _restore_ui_state(self):
         """Restore collapsed and wrap states from saved state."""
-        # Restore geometry
-        geometry = self._ui_state.get("message_share_dialog.geometry")
-        if geometry:
-            self._restore_geometry(geometry)
+        # Restore geometry (uses BaseDialog method)
+        self.restore_geometry_from_state()
 
         # Restore collapsed states
-        context_collapsed = self._ui_state.get(
-            "message_share_dialog.sections.context.collapsed", False
-        )
-        input_collapsed = self._ui_state.get(
-            "message_share_dialog.sections.input.collapsed", False
-        )
+        context_collapsed = self.get_section_state("context.collapsed", False)
+        input_collapsed = self.get_section_state("input.collapsed", False)
 
         if context_collapsed:
             self.context_text_edit.hide()
@@ -792,56 +709,28 @@ class MessageShareDialog(QDialog):
             self.input_section.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
 
         # Restore wrap states
-        context_wrapped = self._ui_state.get(
-            "message_share_dialog.sections.context_wrapped", True
-        )
-        input_wrapped = self._ui_state.get(
-            "message_share_dialog.sections.input_wrapped", True
-        )
-        output_wrapped = self._ui_state.get(
-            "message_share_dialog.sections.output_wrapped", True
-        )
+        context_wrapped = self.get_section_state("context_wrapped", True)
+        input_wrapped = self.get_section_state("input_wrapped", True)
+        output_wrapped = self.get_section_state("output_wrapped", True)
 
         self.context_header.set_wrap_state(context_wrapped)
         if not context_wrapped:
-            content_height = self._get_text_edit_content_height(self.context_text_edit)
+            content_height = get_text_edit_content_height(self.context_text_edit)
             self.context_text_edit.setMinimumHeight(content_height)
-            self.context_text_edit.setMaximumHeight(16777215)
+            self.context_text_edit.setMaximumHeight(QWIDGETSIZE_MAX)
 
         self.input_header.set_wrap_state(input_wrapped)
         if not input_wrapped:
-            content_height = self._get_text_edit_content_height(self.input_edit)
+            content_height = get_text_edit_content_height(self.input_edit)
             self.input_edit.setMinimumHeight(content_height)
 
         self.output_header.set_wrap_state(output_wrapped)
         if not output_wrapped:
-            content_height = self._get_text_edit_content_height(self.output_edit)
+            content_height = get_text_edit_content_height(self.output_edit)
             self.output_edit.setMinimumHeight(content_height)
-
-    def _restore_geometry(self, geometry: dict):
-        """Restore window geometry."""
-        width = geometry.get("width", 600)
-        height = geometry.get("height", 500)
-        x = geometry.get("x")
-        y = geometry.get("y")
-
-        self.resize(max(width, 500), max(height, 400))
-
-        if x is not None and y is not None:
-            self.move(x, y)
 
     def closeEvent(self, event):
         """Save geometry on close and disconnect signals."""
-        geom = self.geometry()
-        self._ui_state.set(
-            "message_share_dialog.geometry",
-            {
-                "x": geom.x(),
-                "y": geom.y(),
-                "width": geom.width(),
-                "height": geom.height(),
-            },
-        )
         # Disconnect from signals if connected
         self._disconnect_execution_signal()
         self._disconnect_streaming_signal()
@@ -851,6 +740,7 @@ class MessageShareDialog(QDialog):
             self._streaming_throttle_timer.stop()
             self._is_streaming = False
 
+        # BaseDialog handles geometry save
         super().closeEvent(event)
 
     # --- Undo/Redo: Context Section ---
@@ -1042,7 +932,7 @@ class MessageShareDialog(QDialog):
     def _update_dynamic_section_height(self, section: QWidget):
         """Update height for dynamic section when unwrapped."""
         if not section.header.is_wrapped():
-            content_height = self._get_text_edit_content_height(section.text_edit)
+            content_height = get_text_edit_content_height(section.text_edit)
             section.text_edit.setMinimumHeight(content_height)
 
     # --- Section deletion ---
@@ -1134,7 +1024,7 @@ class MessageShareDialog(QDialog):
         """Handle context text changes - debounce state saving."""
         self._text_change_timer.start()
         if not self.context_header.is_wrapped():
-            content_height = self._get_text_edit_content_height(self.context_text_edit)
+            content_height = get_text_edit_content_height(self.context_text_edit)
             self.context_text_edit.setMinimumHeight(content_height)
 
     def _on_input_text_changed(self):
@@ -1142,14 +1032,14 @@ class MessageShareDialog(QDialog):
         self._text_change_timer.start()
         self._update_send_buttons_state()
         if not self.input_header.is_wrapped():
-            content_height = self._get_text_edit_content_height(self.input_edit)
+            content_height = get_text_edit_content_height(self.input_edit)
             self.input_edit.setMinimumHeight(content_height)
 
     def _on_output_text_changed(self):
         """Handle output text changes - debounce state saving."""
         self._text_change_timer.start()
         if not self.output_header.is_wrapped():
-            content_height = self._get_text_edit_content_height(self.output_edit)
+            content_height = get_text_edit_content_height(self.output_edit)
             self.output_edit.setMinimumHeight(content_height)
 
     def _save_text_states(self):
@@ -1384,7 +1274,7 @@ class MessageShareDialog(QDialog):
                 self.output_edit.setPlainText("Executing...")
                 # Set expanded mode and update height after text is set
                 self.output_header.set_wrap_state(False)
-                content_height = self._get_text_edit_content_height(self.output_edit)
+                content_height = get_text_edit_content_height(self.output_edit)
                 self.output_edit.setMinimumHeight(content_height)
             else:
                 # Subsequent turns create new output section
@@ -1397,7 +1287,7 @@ class MessageShareDialog(QDialog):
                 output_section.text_edit.setPlainText("Executing...")
                 # Set expanded mode and update height after text is set
                 output_section.header.set_wrap_state(False)
-                content_height = self._get_text_edit_content_height(output_section.text_edit)
+                content_height = get_text_edit_content_height(output_section.text_edit)
                 output_section.text_edit.setMinimumHeight(content_height)
                 self._update_delete_button_visibility()
                 self._scroll_to_bottom()
@@ -1513,12 +1403,12 @@ class MessageShareDialog(QDialog):
         # Update height for expanded output sections (streaming blocks signals)
         if self._current_turn_number == 1 or not self._output_sections:
             if not self.output_header.is_wrapped():
-                content_height = self._get_text_edit_content_height(self.output_edit)
+                content_height = get_text_edit_content_height(self.output_edit)
                 self.output_edit.setMinimumHeight(content_height)
         else:
             section = self._output_sections[-1]
             if not section.header.is_wrapped():
-                content_height = self._get_text_edit_content_height(section.text_edit)
+                content_height = get_text_edit_content_height(section.text_edit)
                 section.text_edit.setMinimumHeight(content_height)
 
         self._scroll_to_bottom()
@@ -1622,7 +1512,7 @@ class MessageShareDialog(QDialog):
             if new_wrapped:
                 te.setMinimumHeight(TEXT_EDIT_MIN_HEIGHT)
             else:
-                content_height = self._get_text_edit_content_height(te)
+                content_height = get_text_edit_content_height(te)
                 te.setMinimumHeight(content_height)
 
         header.wrap_requested.connect(toggle_wrap)
@@ -1698,7 +1588,7 @@ class MessageShareDialog(QDialog):
             if new_wrapped:
                 te.setMinimumHeight(TEXT_EDIT_MIN_HEIGHT)
             else:
-                content_height = self._get_text_edit_content_height(te)
+                content_height = get_text_edit_content_height(te)
                 te.setMinimumHeight(content_height)
 
         header.wrap_requested.connect(toggle_wrap)
