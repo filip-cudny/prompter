@@ -206,7 +206,7 @@ class MessageShareDialog(QDialog):
     def _setup_ui(self):
         """Set up the dialog UI with three collapsible sections."""
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setContentsMargins(10, 10, 0, 10)  # No right margin - scrollbar sticks to edge
         layout.setSpacing(8)
 
         # Scroll area for scrolling when many sections
@@ -219,7 +219,7 @@ class MessageShareDialog(QDialog):
         # Container widget with layout for all sections
         self.sections_container = QWidget()
         self.sections_layout = QVBoxLayout(self.sections_container)
-        self.sections_layout.setContentsMargins(0, 0, 0, 0)
+        self.sections_layout.setContentsMargins(0, 0, 14, 0)  # Right margin for scrollbar + 2px gap
         self.sections_layout.setSpacing(8)
 
         # Section 1: Context (with save button)
