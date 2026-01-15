@@ -2,7 +2,7 @@
 
 import base64
 import logging
-from typing import Optional
+from typing import Callable, Generic, List, Optional, TypeVar
 
 from PyQt5.QtWidgets import (
     QWidget,
@@ -18,20 +18,13 @@ from PyQt5.QtCore import Qt, pyqtSignal, QByteArray, QBuffer, QTimer
 from PyQt5.QtGui import QFont, QImage
 
 from modules.gui.context_widgets import IconButton
+from modules.gui.dialog_styles import TOOLTIP_STYLE
 from modules.gui.icons import ICON_COLOR_NORMAL
 
 logger = logging.getLogger(__name__)
 
-# Dark theme tooltip style - single source of truth for all tooltips
-TOOLTIP_STYLE = """
-    QToolTip {
-        background-color: #0d0d0d;
-        color: #f0f0f0;
-        border: 1px solid #444444;
-        border-radius: 0px;
-        padding: 6px 8px;
-    }
-"""
+# Type variable for generic undo/redo manager
+T = TypeVar("T")
 
 # Transparent button style (no border, no background)
 ICON_BTN_STYLE = """
@@ -620,3 +613,295 @@ class ExpandableTextSection(QWidget):
         self._undo_stack.clear()
         self._redo_stack.clear()
         self._update_undo_redo_buttons()
+
+
+class UndoRedoManager(Generic[T]):
+    """Generic undo/redo state manager with debounced state saving.
+
+    This class provides a reusable undo/redo implementation that can work with
+    any state type. It includes automatic debouncing of state saves to avoid
+    creating too many undo points during rapid changes.
+
+    Usage:
+        # Define state getter and restorer
+        def get_state() -> MyState:
+            return MyState(text=self.text_edit.toPlainText())
+
+        def restore_state(state: MyState):
+            self.text_edit.setPlainText(state.text)
+
+        def on_stack_changed(can_undo: bool, can_redo: bool):
+            self.undo_btn.setEnabled(can_undo)
+            self.redo_btn.setEnabled(can_redo)
+
+        # Create manager
+        self._undo_manager = UndoRedoManager(
+            get_state=get_state,
+            restore_state=restore_state,
+            on_stack_changed=on_stack_changed,
+        )
+
+        # Connect to text changes
+        self.text_edit.textChanged.connect(self._undo_manager.schedule_save)
+
+        # Connect undo/redo buttons
+        self.undo_btn.clicked.connect(self._undo_manager.undo)
+        self.redo_btn.clicked.connect(self._undo_manager.redo)
+    """
+
+    def __init__(
+        self,
+        get_state: Callable[[], T],
+        restore_state: Callable[[T], None],
+        on_stack_changed: Callable[[bool, bool], None],
+        debounce_ms: int = 500,
+    ):
+        """Create an undo/redo manager.
+
+        Args:
+            get_state: Function that returns the current state
+            restore_state: Function that restores a previous state
+            on_stack_changed: Callback when undo/redo availability changes.
+                              Called with (can_undo, can_redo) booleans.
+            debounce_ms: Milliseconds to wait before saving state (default: 500)
+        """
+        self._get_state = get_state
+        self._restore_state = restore_state
+        self._on_stack_changed = on_stack_changed
+
+        self._undo_stack: List[T] = []
+        self._redo_stack: List[T] = []
+        self._last_state: Optional[T] = None
+
+        self._timer = QTimer()
+        self._timer.setSingleShot(True)
+        self._timer.setInterval(debounce_ms)
+        self._timer.timeout.connect(self._save_if_changed)
+
+    def initialize(self):
+        """Initialize with current state. Call after UI setup."""
+        self._last_state = self._get_state()
+
+    def schedule_save(self):
+        """Schedule a debounced state save. Call on every change."""
+        self._timer.start()
+
+    def save_now(self):
+        """Save current state immediately if changed."""
+        if self._last_state is None:
+            self._last_state = self._get_state()
+            return
+
+        current = self._get_state()
+        if current != self._last_state:
+            self._undo_stack.append(self._last_state)
+            self._redo_stack.clear()
+            self._last_state = current
+            self._notify_changed()
+
+    def _save_if_changed(self):
+        """Internal: Save state if changed (called by timer)."""
+        self.save_now()
+
+    def undo(self) -> bool:
+        """Undo last change.
+
+        Returns:
+            True if undo was performed, False if nothing to undo
+        """
+        if not self._undo_stack:
+            return False
+        self._redo_stack.append(self._get_state())
+        state = self._undo_stack.pop()
+        self._restore_state(state)
+        self._last_state = state
+        self._notify_changed()
+        return True
+
+    def redo(self) -> bool:
+        """Redo last undone change.
+
+        Returns:
+            True if redo was performed, False if nothing to redo
+        """
+        if not self._redo_stack:
+            return False
+        self._undo_stack.append(self._get_state())
+        state = self._redo_stack.pop()
+        self._restore_state(state)
+        self._last_state = state
+        self._notify_changed()
+        return True
+
+    def clear(self):
+        """Clear all undo/redo history and reinitialize."""
+        self._undo_stack.clear()
+        self._redo_stack.clear()
+        self._last_state = self._get_state()
+        self._notify_changed()
+
+    def _notify_changed(self):
+        """Notify listener of stack state change."""
+        self._on_stack_changed(bool(self._undo_stack), bool(self._redo_stack))
+
+    @property
+    def can_undo(self) -> bool:
+        """Whether there are changes to undo."""
+        return bool(self._undo_stack)
+
+    @property
+    def can_redo(self) -> bool:
+        """Whether there are changes to redo."""
+        return bool(self._redo_stack)
+
+
+class ImageChipContainer(QWidget):
+    """Container widget for managing a list of image chips.
+
+    This widget handles displaying, adding, and removing images as chips.
+    It provides a reusable component for dialogs that need to manage
+    multiple images with paste-from-clipboard support.
+
+    Signals:
+        images_changed: Emitted when images are added or removed
+
+    Usage:
+        self.images_container = ImageChipContainer(
+            clipboard_manager=self.clipboard_manager,
+            notification_manager=self.notification_manager,
+        )
+        layout.addWidget(self.images_container)
+
+        # Set initial images
+        self.images_container.set_images(image_list)
+
+        # Paste from clipboard (e.g., in Ctrl+V handler)
+        if self.images_container.paste_from_clipboard():
+            return  # Image was pasted
+    """
+
+    images_changed = pyqtSignal()
+
+    def __init__(
+        self,
+        clipboard_manager=None,
+        notification_manager=None,
+        parent: Optional[QWidget] = None,
+    ):
+        """Create an image chip container.
+
+        Args:
+            clipboard_manager: Manager for clipboard operations (optional)
+            notification_manager: Manager for notifications (optional)
+            parent: Parent widget
+        """
+        super().__init__(parent)
+        self._clipboard_manager = clipboard_manager
+        self._notification_manager = notification_manager
+        self._images: List["ContextItem"] = []
+        self._chips: List[ImageChipWidget] = []
+
+        self.setStyleSheet("background: transparent;")
+        self._layout = QHBoxLayout(self)
+        self._layout.setContentsMargins(0, 0, 0, 4)
+        self._layout.setSpacing(6)
+        self._layout.addStretch()
+        self.hide()
+
+    @property
+    def images(self) -> List["ContextItem"]:
+        """Get a copy of the current images list."""
+        return list(self._images)
+
+    def set_images(self, images: List["ContextItem"]):
+        """Set images and rebuild chips.
+
+        Args:
+            images: List of ContextItem objects with image data
+        """
+        self._images = list(images)
+        self._rebuild_chips()
+
+    def add_image(self, image: "ContextItem"):
+        """Add a single image to the container.
+
+        Args:
+            image: ContextItem with image data
+        """
+        self._images.append(image)
+        self._rebuild_chips()
+
+    def clear(self):
+        """Remove all images from the container."""
+        self._images.clear()
+        self._rebuild_chips()
+
+    def paste_from_clipboard(self) -> bool:
+        """Paste image from clipboard if available.
+
+        Returns:
+            True if an image was pasted, False otherwise
+        """
+        if not self._clipboard_manager or not self._clipboard_manager.has_image():
+            return False
+
+        image_data = self._clipboard_manager.get_image_data()
+        if image_data:
+            base64_data, media_type = image_data
+            # Import here to avoid circular imports
+            from core.context_manager import ContextItem, ContextItemType
+
+            self.add_image(
+                ContextItem(
+                    item_type=ContextItemType.IMAGE,
+                    data=base64_data,
+                    media_type=media_type,
+                )
+            )
+            return True
+        return False
+
+    def _rebuild_chips(self):
+        """Rebuild all image chips from current state."""
+        # Clear existing chips
+        for chip in self._chips:
+            chip.deleteLater()
+        self._chips.clear()
+
+        # Remove all items from layout
+        while self._layout.count():
+            self._layout.takeAt(0)
+
+        if not self._images:
+            self.hide()
+            self.images_changed.emit()
+            return
+
+        self.show()
+        for idx, item in enumerate(self._images):
+            chip = ImageChipWidget(
+                index=idx,
+                image_number=idx + 1,
+                image_data=item.data or "",
+                media_type=item.media_type or "image/png",
+            )
+            chip.delete_requested.connect(self._on_delete)
+            chip.copy_requested.connect(self._on_copy)
+            self._chips.append(chip)
+            self._layout.addWidget(chip)
+
+        self._layout.addStretch()
+        self.images_changed.emit()
+
+    def _on_delete(self, index: int):
+        """Handle image deletion request."""
+        if 0 <= index < len(self._images):
+            del self._images[index]
+            self._rebuild_chips()
+
+    def _on_copy(self, index: int):
+        """Handle image copy request."""
+        if 0 <= index < len(self._chips):
+            self._chips[index].copy_to_clipboard()
+            if self._notification_manager:
+                self._notification_manager.show_success_notification("Copied")

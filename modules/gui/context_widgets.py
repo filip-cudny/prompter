@@ -20,22 +20,13 @@ from PyQt5.QtCore import Qt, pyqtSignal, QByteArray, QBuffer, QSize, QPoint, QMi
 from PyQt5.QtGui import QPixmap, QImage, QCursor
 
 from core.context_manager import ContextManager, ContextItem, ContextItemType
+from modules.gui.dialog_styles import TOOLTIP_STYLE
 from modules.gui.icons import (
     create_icon,
     ICON_COLOR_NORMAL,
     ICON_COLOR_HOVER,
     ICON_COLOR_DISABLED,
 )
-
-# Tooltip style (matches shared_widgets.TOOLTIP_STYLE - kept separate to avoid circular import)
-_TOOLTIP_STYLE = """
-    QToolTip {
-        background-color: #0d0d0d;
-        color: #f0f0f0;
-        border: 1px solid #444444;
-        border-radius: 0px;
-    }
-"""
 
 
 class IconButton(QPushButton):
@@ -81,6 +72,15 @@ class IconButton(QPushButton):
             effect = QGraphicsOpacityEffect(self)
             effect.setOpacity(0.6)
             self.setGraphicsEffect(effect)
+
+    def set_icon(self, icon_name: str):
+        """Change the button's icon.
+
+        Args:
+            icon_name: Name of the new icon to display
+        """
+        self._icon_name = icon_name
+        self._update_icon(ICON_COLOR_NORMAL)
 
 
 logger = logging.getLogger(__name__)
@@ -131,7 +131,7 @@ class ContextChipBase(QWidget):
             max-height: 20px;
         }
     """
-        + _TOOLTIP_STYLE
+        + TOOLTIP_STYLE
     )
 
     def __init__(self, index: int, parent: Optional[QWidget] = None):
@@ -354,7 +354,7 @@ class ContextHeaderWidget(QWidget):
             max-height: 22px;
         }
     """
-        + _TOOLTIP_STYLE
+        + TOOLTIP_STYLE
     )
 
     def __init__(self, parent: Optional[QWidget] = None):
@@ -866,7 +866,7 @@ class LastInteractionChip(QWidget):
             max-height: 20px;
         }
     """
-        + _TOOLTIP_STYLE
+        + TOOLTIP_STYLE
     )
 
     def __init__(
@@ -1214,7 +1214,7 @@ class SettingsSelectorChip(QWidget):
             max-height: 20px;
         }
     """
-        + _TOOLTIP_STYLE
+        + TOOLTIP_STYLE
     )
 
     def __init__(
