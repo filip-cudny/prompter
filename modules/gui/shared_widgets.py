@@ -74,7 +74,7 @@ class CollapsibleSectionHeader(QWidget):
         self.setStyleSheet("background: transparent;")
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 4, 12, 4)  # 12px right margin for alignment
+        layout.setContentsMargins(0, 0, 12, 0)  # Minimal vertical margins for compact collapsed headers
         layout.setSpacing(4)
 
         # Collapse toggle button FIRST (left side)
