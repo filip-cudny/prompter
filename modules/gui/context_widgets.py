@@ -544,6 +544,9 @@ class ContextSectionWidget(QWidget):
         # Subscribe to context changes
         self.context_manager.add_change_callback(self._on_context_changed)
 
+        # Safety net: clean up on destruction
+        self.destroyed.connect(self._safe_cleanup)
+
     def _setup_ui(self):
         """Set up the widget UI."""
         self.main_layout = QVBoxLayout(self)
@@ -797,6 +800,13 @@ class ContextSectionWidget(QWidget):
 
     def cleanup(self):
         """Clean up resources."""
+        try:
+            self.context_manager.remove_change_callback(self._on_context_changed)
+        except Exception:
+            pass
+
+    def _safe_cleanup(self):
+        """Safety cleanup on widget destruction."""
         try:
             self.context_manager.remove_change_callback(self._on_context_changed)
         except Exception:
@@ -1057,6 +1067,9 @@ class LastInteractionSectionWidget(QWidget):
         if self.history_service:
             self.history_service.add_change_callback(self._on_history_changed)
 
+        # Safety net: clean up on destruction
+        self.destroyed.connect(self._safe_cleanup)
+
     def _setup_ui(self):
         """Set up the widget UI structure."""
         self.main_layout = QVBoxLayout(self)
@@ -1167,6 +1180,22 @@ class LastInteractionSectionWidget(QWidget):
             show_preview_dialog(
                 title, content, clipboard_manager=self.clipboard_manager
             )
+
+    def cleanup(self):
+        """Clean up resources."""
+        try:
+            if self.history_service:
+                self.history_service.remove_change_callback(self._on_history_changed)
+        except Exception:
+            pass
+
+    def _safe_cleanup(self):
+        """Safety cleanup on widget destruction."""
+        try:
+            if self.history_service:
+                self.history_service.remove_change_callback(self._on_history_changed)
+        except Exception:
+            pass
 
 
 class SettingsSelectorChip(QWidget):

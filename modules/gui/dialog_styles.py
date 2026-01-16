@@ -3,7 +3,7 @@
 from typing import Callable, Dict, Optional, TypeVar
 
 from PyQt5.QtCore import QTimer
-from PyQt5.QtWidgets import QDialog
+from PyQt5.QtWidgets import QDialog, QSizePolicy, QWidget
 
 # Timing constants
 DIALOG_SHOW_DELAY_MS = 75
@@ -168,6 +168,24 @@ def apply_wrap_state(
         content_height = get_text_edit_content_height(text_edit)
         text_edit.setMinimumHeight(content_height)
         text_edit.setMaximumHeight(QWIDGETSIZE_MAX)
+
+
+def apply_section_size_policy(
+    container: QWidget, expanding: bool = False, widget: QWidget = None
+):
+    """Apply size policy to a dialog section container.
+
+    Args:
+        container: The section container widget
+        expanding: If True, section expands to fill space. If False, section takes minimum needed.
+        widget: Optional inner widget (e.g., text edit) to also set expanding policy on
+    """
+    if expanding:
+        container.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+        if widget:
+            widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+    else:
+        container.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
 
 
 # Dialog singleton management

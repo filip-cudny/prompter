@@ -21,6 +21,7 @@ from modules.gui.base_dialog import BaseDialog
 from modules.gui.dialog_styles import (
     DEFAULT_WRAPPED_HEIGHT,
     QWIDGETSIZE_MAX,
+    apply_section_size_policy,
     apply_wrap_state,
     create_singleton_dialog_manager,
 )
@@ -141,9 +142,6 @@ class ContextEditorDialog(BaseDialog):
         self.clipboard_section = self._create_clipboard_section()
         self.sections_layout.addWidget(self.clipboard_section)
 
-        # Spacer at bottom - expands to fill remaining space
-        self.sections_layout.addStretch()
-
         self.scroll_area.setWidget(self.sections_container)
         layout.addWidget(self.scroll_area, 1)  # Stretch to fill
 
@@ -187,6 +185,7 @@ class ContextEditorDialog(BaseDialog):
     def _create_context_section(self) -> QWidget:
         """Create the collapsible context text section."""
         container = QWidget()
+        apply_section_size_policy(container, expanding=False)
         section_layout = QVBoxLayout(container)
         section_layout.setContentsMargins(0, 0, 0, 0)
         section_layout.setSpacing(4)
@@ -248,6 +247,8 @@ class ContextEditorDialog(BaseDialog):
         self.clipboard_edit.textChanged.connect(self._on_clipboard_text_changed)
         self.clipboard_edit.setMaximumHeight(DEFAULT_WRAPPED_HEIGHT)
         section_layout.addWidget(self.clipboard_edit)
+
+        apply_section_size_policy(container, expanding=True, widget=self.clipboard_edit)
 
         return container
 
