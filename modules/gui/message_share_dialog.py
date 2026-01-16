@@ -25,6 +25,7 @@ from modules.gui.dialog_styles import (
     DIALOG_SHOW_DELAY_MS,
     QWIDGETSIZE_MAX,
     TEXT_CHANGE_DEBOUNCE_MS,
+    apply_section_size_policy,
     apply_wrap_state,
     get_text_edit_content_height,
 )
@@ -259,7 +260,7 @@ class MessageShareDialog(BaseDialog):
     def _create_context_section(self) -> QWidget:
         """Create the collapsible context section with save button."""
         container = QWidget()
-        container.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+        apply_section_size_policy(container, expanding=False)
         section_layout = QVBoxLayout(container)
         section_layout.setContentsMargins(0, 0, 0, 0)
         section_layout.setSpacing(4)
@@ -303,7 +304,6 @@ class MessageShareDialog(BaseDialog):
     def _create_input_section(self) -> QWidget:
         """Create the collapsible prompt input section (no save button)."""
         container = QWidget()
-        container.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         section_layout = QVBoxLayout(container)
         section_layout.setContentsMargins(0, 0, 0, 0)
         section_layout.setSpacing(4)
@@ -334,17 +334,17 @@ class MessageShareDialog(BaseDialog):
 
         # Text edit area
         self.input_edit = create_text_edit(placeholder="Type your message here...")
-        self.input_edit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.input_edit.setToolTip("Type and send message with prompt")
         self.input_edit.textChanged.connect(self._on_input_text_changed)
         section_layout.addWidget(self.input_edit)
+
+        apply_section_size_policy(container, expanding=True, widget=self.input_edit)
 
         return container
 
     def _create_output_section(self) -> QWidget:
         """Create the collapsible output section (no save button)."""
         container = QWidget()
-        container.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         section_layout = QVBoxLayout(container)
         section_layout.setContentsMargins(0, 0, 0, 0)
         section_layout.setSpacing(4)
@@ -365,9 +365,10 @@ class MessageShareDialog(BaseDialog):
 
         # Text edit area
         self.output_edit = create_text_edit(placeholder="Output will appear here...")
-        self.output_edit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.output_edit.textChanged.connect(self._on_output_text_changed)
         section_layout.addWidget(self.output_edit)
+
+        apply_section_size_policy(container, expanding=True, widget=self.output_edit)
 
         return container
 
@@ -1446,7 +1447,6 @@ class MessageShareDialog(BaseDialog):
     def _create_reply_section(self, turn_number: int) -> QWidget:
         """Create input section for a reply turn (displayed as Message)."""
         container = QWidget()
-        container.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         layout = QVBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(4)
@@ -1471,9 +1471,10 @@ class MessageShareDialog(BaseDialog):
         layout.addWidget(images_container)
 
         text_edit = create_text_edit(placeholder="Type your message...")
-        text_edit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         text_edit.textChanged.connect(self._update_send_buttons_state)
         layout.addWidget(text_edit)
+
+        apply_section_size_policy(container, expanding=True, widget=text_edit)
 
         # Store references as attributes on container
         container.header = header
@@ -1537,7 +1538,6 @@ class MessageShareDialog(BaseDialog):
     def _create_dynamic_output_section(self, turn_number: int) -> QWidget:
         """Create output section for a conversation turn."""
         container = QWidget()
-        container.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         layout = QVBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(4)
@@ -1552,8 +1552,9 @@ class MessageShareDialog(BaseDialog):
         layout.addWidget(header)
 
         text_edit = create_text_edit(placeholder="Output will appear here...")
-        text_edit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         layout.addWidget(text_edit)
+
+        apply_section_size_policy(container, expanding=True, widget=text_edit)
 
         # Store references
         container.header = header

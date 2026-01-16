@@ -210,6 +210,7 @@ class PyQtContextMenu(QObject):
         self.number_input_buffer = ""
         self.number_timer = None
         self._focus_restore_pending = False
+        self._cleanable_widgets = []
 
         self._menu_stylesheet = """
             QMenu {
@@ -255,6 +256,16 @@ class PyQtContextMenu(QObject):
 
     def create_menu(self, items: List[MenuItem]) -> QMenu:
         """Create a QMenu from menu items with keyboard navigation support."""
+        # Clean up any existing tracked widgets before creating new menu
+        for widget in self._cleanable_widgets:
+            try:
+                if hasattr(widget, 'cleanup') and callable(widget.cleanup):
+                    if not sip.isdeleted(widget):
+                        widget.cleanup()
+            except Exception:
+                pass
+        self._cleanable_widgets.clear()
+
         menu = QMenu(self.parent)
 
         # Configure window flags for better focus behavior when triggered from external apps
@@ -486,6 +497,16 @@ class PyQtContextMenu(QObject):
 
     def _cleanup_menu(self):
         """Internal cleanup method."""
+        # Clean up tracked widgets FIRST
+        for widget in self._cleanable_widgets:
+            try:
+                if hasattr(widget, 'cleanup') and callable(widget.cleanup):
+                    if not sip.isdeleted(widget):
+                        widget.cleanup()
+            except Exception:
+                pass
+        self._cleanable_widgets.clear()
+
         if self.focus_window:
             self.focus_window.hide()
             self.focus_window.deleteLater()
@@ -563,6 +584,7 @@ class PyQtContextMenu(QObject):
             notification_manager=notification_manager,
             clipboard_manager=clipboard_manager,
         )
+        self._cleanable_widgets.append(widget)
         action = QWidgetAction(menu)
         action.setDefaultWidget(widget)
         return action
@@ -584,6 +606,7 @@ class PyQtContextMenu(QObject):
             notification_manager=notification_manager,
             clipboard_manager=clipboard_manager,
         )
+        self._cleanable_widgets.append(widget)
         action = QWidgetAction(menu)
         action.setDefaultWidget(widget)
         return action
