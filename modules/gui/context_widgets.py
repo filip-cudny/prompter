@@ -11,15 +11,14 @@ from PyQt5.QtWidgets import (
     QLabel,
     QPushButton,
     QSizePolicy,
-    QToolTip,
     QApplication,
     QGraphicsOpacityEffect,
     QScrollArea,
 )
-from PyQt5.QtCore import Qt, pyqtSignal, QByteArray, QBuffer, QSize, QPoint, QMimeData
-from PyQt5.QtGui import QPixmap, QImage, QCursor
+from PyQt5.QtCore import Qt, pyqtSignal, QByteArray, QBuffer, QSize, QPoint
+from PyQt5.QtGui import QImage
 
-from core.context_manager import ContextManager, ContextItem, ContextItemType
+from core.context_manager import ContextManager, ContextItemType
 from modules.gui.dialog_styles import TOOLTIP_STYLE, DISABLED_OPACITY
 from modules.gui.icons import (
     create_icon,

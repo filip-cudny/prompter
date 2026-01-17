@@ -8,9 +8,6 @@ from PyQt5.QtCore import Qt, QTimer
 from modules.gui.base_dialog import BaseDialog
 from modules.gui.context_widgets import IconButton
 from modules.gui.dialog_styles import (
-    DEFAULT_WRAPPED_HEIGHT,
-    DIALOG_SHOW_DELAY_MS,
-    QWIDGETSIZE_MAX,
     SMALL_DIALOG_SIZE,
     SMALL_MIN_DIALOG_SIZE,
     apply_wrap_state,

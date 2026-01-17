@@ -3,7 +3,7 @@
 from typing import List, Optional, Tuple, Callable
 from PyQt5.QtWidgets import QMenu, QAction, QApplication, QWidgetAction, QLabel, QWidget
 from PyQt5.QtCore import Qt, QPoint, QTimer, QObject, QEvent
-from PyQt5.QtGui import QCursor, QTransform
+from PyQt5.QtGui import QCursor
 from core.models import MenuItem, MenuItemType
 from modules.gui.shared_widgets import TOOLTIP_STYLE
 from modules.gui.dialog_styles import DISABLED_OPACITY
@@ -455,7 +455,6 @@ class PyQtContextMenu(QObject):
         """Force application activation on Windows when triggered from another app."""
         try:
             import ctypes
-            from ctypes import wintypes
 
             # Get current process window
             hwnd = int(self.menu.winId()) if self.menu else 0
@@ -730,7 +729,7 @@ class PyQtContextMenu(QObject):
         """Create a custom menu item with hover effects."""
         from PyQt5.QtWidgets import QHBoxLayout, QGraphicsOpacityEffect
         from PyQt5.QtGui import QPixmap, QPainter
-        from modules.gui.icons import create_icon_pixmap, ICON_COLOR_NORMAL, ICON_COLOR_DISABLED, ICON_COLOR_HOVER
+        from modules.gui.icons import create_icon_pixmap, ICON_COLOR_NORMAL, ICON_COLOR_DISABLED
         from modules.gui.context_widgets import IconButton
 
         class ClickableMenuItem(QWidget):

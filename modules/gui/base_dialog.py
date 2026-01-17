@@ -1,7 +1,9 @@
 """Base dialog class with common functionality."""
 
+from typing import List, Union
+
 from PyQt5.QtCore import QEvent, Qt, QTimer
-from PyQt5.QtWidgets import QDialog
+from PyQt5.QtWidgets import QDialog, QSizePolicy, QWidget
 
 from modules.gui.dialog_styles import (
     DEFAULT_DIALOG_SIZE,
@@ -96,6 +98,66 @@ class BaseDialog(QDialog):
         """
         key = f"{self.STATE_KEY}.sections.{section}"
         self._ui_state.set(key, value)
+
+    def toggle_section_collapsed(
+        self,
+        section_key: str,
+        header,
+        content_widgets: Union[QWidget, List[QWidget]],
+        container: QWidget,
+        expanding: bool = True,
+    ):
+        """Toggle a section's collapsed state with size policy management.
+
+        Args:
+            section_key: State key (without _collapsed suffix)
+            header: CollapsibleSectionHeader widget
+            content_widgets: Widget(s) to show/hide
+            container: Section container for size policy
+            expanding: If True, use Expanding policy when visible; else Maximum
+        """
+        widgets = content_widgets if isinstance(content_widgets, list) else [content_widgets]
+        is_visible = any(w.isVisible() for w in widgets)
+
+        for widget in widgets:
+            widget.setVisible(not is_visible)
+
+        header.set_collapsed(is_visible)
+
+        if is_visible:  # Will be collapsed
+            container.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        else:  # Will be expanded
+            policy = QSizePolicy.Expanding if expanding else QSizePolicy.Maximum
+            container.setSizePolicy(QSizePolicy.Preferred, policy)
+
+        self.save_section_state(f"{section_key}_collapsed", is_visible)
+
+    def restore_section_collapsed(
+        self,
+        section_key: str,
+        header,
+        content_widgets: Union[QWidget, List[QWidget]],
+        container: QWidget,
+    ) -> bool:
+        """Restore a section's collapsed state from saved state.
+
+        Args:
+            section_key: State key (without _collapsed suffix)
+            header: CollapsibleSectionHeader widget
+            content_widgets: Widget(s) to hide if collapsed
+            container: Section container for size policy
+
+        Returns:
+            True if section was collapsed, False otherwise
+        """
+        collapsed = self.get_section_state(f"{section_key}_collapsed", False)
+        if collapsed:
+            widgets = content_widgets if isinstance(content_widgets, list) else [content_widgets]
+            for widget in widgets:
+                widget.hide()
+            header.set_collapsed(True)
+            container.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        return collapsed
 
     def closeEvent(self, event):
         """Save geometry on close."""

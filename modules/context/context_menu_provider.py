@@ -1,6 +1,6 @@
 """Context menu provider for displaying and managing context items."""
 
-from typing import List, Callable, Optional
+from typing import List, Callable
 
 from core.models import MenuItem, MenuItemType
 from core.context_manager import ContextManager
