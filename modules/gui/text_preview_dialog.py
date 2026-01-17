@@ -8,6 +8,8 @@ from PyQt5.QtCore import Qt, QTimer
 from modules.gui.base_dialog import BaseDialog
 from modules.gui.context_widgets import IconButton
 from modules.gui.dialog_styles import (
+    SCROLL_CONTENT_MARGINS,
+    SCROLL_CONTENT_SPACING,
     SMALL_DIALOG_SIZE,
     SMALL_MIN_DIALOG_SIZE,
     apply_wrap_state,
@@ -91,8 +93,8 @@ class TextPreviewDialog(BaseDialog):
         # Container for content
         content_container = QWidget()
         content_layout = QVBoxLayout(content_container)
-        content_layout.setContentsMargins(0, 0, 14, 0)  # Right margin for scrollbar
-        content_layout.setSpacing(8)
+        content_layout.setContentsMargins(*SCROLL_CONTENT_MARGINS)
+        content_layout.setSpacing(SCROLL_CONTENT_SPACING)
 
         # Toolbar - compact, right-aligned
         toolbar = QHBoxLayout()

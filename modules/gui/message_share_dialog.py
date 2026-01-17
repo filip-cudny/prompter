@@ -22,6 +22,8 @@ from modules.gui.base_dialog import BaseDialog
 from modules.gui.dialog_styles import (
     DIALOG_SHOW_DELAY_MS,
     QWIDGETSIZE_MAX,
+    SCROLL_CONTENT_MARGINS,
+    SCROLL_CONTENT_SPACING,
     TEXT_CHANGE_DEBOUNCE_MS,
     apply_section_size_policy,
     get_text_edit_content_height,
@@ -411,8 +413,8 @@ class MessageShareDialog(BaseDialog):
         # Container widget with layout for all sections
         self.sections_container = QWidget()
         self.sections_layout = QVBoxLayout(self.sections_container)
-        self.sections_layout.setContentsMargins(0, 0, 14, 0)  # Right margin for scrollbar + 2px gap
-        self.sections_layout.setSpacing(8)
+        self.sections_layout.setContentsMargins(*SCROLL_CONTENT_MARGINS)
+        self.sections_layout.setSpacing(SCROLL_CONTENT_SPACING)
 
         # Section 1: Context (with save button)
         self.context_section = self._create_context_section()
