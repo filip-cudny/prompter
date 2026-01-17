@@ -205,7 +205,7 @@ class ContextEditorDialog(BaseDialog):
         section_layout.addWidget(self.context_header)
 
         # Text edit area
-        self.text_edit = create_text_edit(min_height=0)
+        self.text_edit = create_text_edit(placeholder="Context content...", min_height=0)
         self.text_edit.textChanged.connect(self._on_text_changed)
         self.text_edit.setMaximumHeight(DEFAULT_WRAPPED_HEIGHT)  # Default wrapped height
         section_layout.addWidget(self.text_edit)
@@ -243,7 +243,7 @@ class ContextEditorDialog(BaseDialog):
         self.clipboard_image_container.hide()  # Hidden by default
 
         # Text edit area (shown when clipboard has text)
-        self.clipboard_edit = create_text_edit(min_height=0)
+        self.clipboard_edit = create_text_edit(placeholder="Clipboard content...", min_height=0)
         self.clipboard_edit.textChanged.connect(self._on_clipboard_text_changed)
         self.clipboard_edit.setMaximumHeight(DEFAULT_WRAPPED_HEIGHT)
         section_layout.addWidget(self.clipboard_edit)
