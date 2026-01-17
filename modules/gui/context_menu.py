@@ -3,9 +3,10 @@
 from typing import List, Optional, Tuple, Callable
 from PyQt5.QtWidgets import QMenu, QAction, QApplication, QWidgetAction, QLabel, QWidget
 from PyQt5.QtCore import Qt, QPoint, QTimer, QObject, QEvent
-from PyQt5.QtGui import QCursor
+from PyQt5.QtGui import QCursor, QTransform
 from core.models import MenuItem, MenuItemType
 from modules.gui.shared_widgets import TOOLTIP_STYLE
+from modules.gui.dialog_styles import DISABLED_OPACITY
 import sip
 import platform
 import subprocess
@@ -211,6 +212,8 @@ class PyQtContextMenu(QObject):
         self.number_timer = None
         self._focus_restore_pending = False
         self._cleanable_widgets = []
+        self._execution_signal_connected = False
+        self._last_menu_position = None
 
         self._menu_stylesheet = """
             QMenu {
@@ -349,6 +352,10 @@ class PyQtContextMenu(QObject):
                 adjusted_y = 0
 
             adjusted_pos = QPoint(x + offset_x, adjusted_y)
+            self._last_menu_position = adjusted_pos
+
+            # Connect to execution_completed signal for auto-refresh
+            self._connect_execution_signal()
 
             # Create focus window if needed
             if not self.focus_window:
@@ -495,8 +502,88 @@ class PyQtContextMenu(QObject):
         except Exception as e:
             print(f"Menu cleanup error: {e}")
 
+    def _connect_execution_signal(self):
+        """Connect to execution_completed signal for auto-refresh."""
+        if self._execution_signal_connected:
+            return
+        if hasattr(self, 'menu_coordinator') and self.menu_coordinator:
+            try:
+                self.menu_coordinator.execution_completed.connect(
+                    self._on_execution_completed_while_open
+                )
+                self._execution_signal_connected = True
+            except Exception:
+                pass
+
+    def _disconnect_execution_signal(self):
+        """Disconnect from execution_completed signal."""
+        if not self._execution_signal_connected:
+            return
+        if hasattr(self, 'menu_coordinator') and self.menu_coordinator:
+            try:
+                self.menu_coordinator.execution_completed.disconnect(
+                    self._on_execution_completed_while_open
+                )
+            except Exception:
+                pass
+        self._execution_signal_connected = False
+
+    def _on_execution_completed_while_open(self, result):
+        """Refresh menu when execution completes while open."""
+        if self.menu and self.menu.isVisible() and self._last_menu_position:
+            # Invalidate cache so fresh item states are fetched
+            if hasattr(self, 'menu_coordinator') and self.menu_coordinator:
+                self.menu_coordinator._invalidate_cache()
+            # Use short timer to allow event loop to process
+            QTimer.singleShot(10, self._rebuild_and_show_menu)
+
+    def _rebuild_and_show_menu(self):
+        """Rebuild and show the menu at the stored position."""
+        if not hasattr(self, 'menu_coordinator') or not self.menu_coordinator:
+            return
+
+        pos = self._last_menu_position
+        if not pos:
+            return
+
+        items = self.menu_coordinator._get_all_menu_items()
+        if not items:
+            return
+
+        old_menu = self.menu
+        self.menu = self.create_menu(items)
+
+        # Show new menu FIRST (before closing old) to prevent blink
+        if self.focus_window:
+            self.focus_window.menu = self.menu
+            self.focus_window._show_menu_at_position(pos)
+
+        # Close old menu AFTER showing new one
+        # Disconnect signals first to prevent cleanup from affecting new menu
+        if old_menu:
+            try:
+                if not sip.isdeleted(old_menu):
+                    old_menu.aboutToHide.disconnect()
+                    old_menu.hide()
+                    QTimer.singleShot(50, lambda: self._cleanup_old_menu(old_menu))
+            except Exception:
+                pass
+
+    def _cleanup_old_menu(self, menu):
+        """Clean up old menu after transition."""
+        try:
+            if menu and not sip.isdeleted(menu):
+                menu.close()
+                menu.deleteLater()
+        except Exception:
+            pass
+
     def _cleanup_menu(self):
         """Internal cleanup method."""
+        # Disconnect from execution signal
+        self._disconnect_execution_signal()
+        self._last_menu_position = None
+
         # Clean up tracked widgets FIRST
         for widget in self._cleanable_widgets:
             try:
@@ -642,6 +729,7 @@ class PyQtContextMenu(QObject):
     ) -> Optional[QAction]:
         """Create a custom menu item with hover effects."""
         from PyQt5.QtWidgets import QHBoxLayout, QGraphicsOpacityEffect
+        from PyQt5.QtGui import QPixmap, QPainter
         from modules.gui.icons import create_icon_pixmap, ICON_COLOR_NORMAL, ICON_COLOR_DISABLED, ICON_COLOR_HOVER
         from modules.gui.context_widgets import IconButton
 
@@ -654,6 +742,9 @@ class PyQtContextMenu(QObject):
                 self._is_highlighted = False
                 self._disable_reason = None
                 self._is_recording_action = False
+                self._is_executing_action = False
+                self._rotation_angle = 0
+                self._rotation_timer = None
 
                 self._normal_style = """
                     QWidget {
@@ -714,6 +805,22 @@ class PyQtContextMenu(QObject):
                 self._text_label = QLabel(text)
                 self._text_label.setStyleSheet(self._label_style)
                 layout.addWidget(self._text_label)
+
+                # State indicator icons (hidden by default) - stop first, then loader
+                self._stop_label = QLabel()
+                self._stop_label.setFixedSize(20, 20)
+                self._stop_label.setStyleSheet("background: transparent;")
+                self._stop_label.setAlignment(Qt.AlignCenter)
+                self._stop_label.hide()
+                layout.addWidget(self._stop_label)
+
+                self._loader_label = QLabel()
+                self._loader_label.setFixedSize(20, 20)
+                self._loader_label.setStyleSheet("background: transparent;")
+                self._loader_label.setAlignment(Qt.AlignCenter)
+                self._loader_label.hide()
+                layout.addWidget(self._loader_label)
+
                 layout.addStretch()
 
                 # Mic button for alternative execution (only for PROMPT items)
@@ -773,13 +880,13 @@ class PyQtContextMenu(QObject):
                 if disable_reason:
                     # Apply opacity effect to text label
                     text_effect = QGraphicsOpacityEffect(self._text_label)
-                    text_effect.setOpacity(0.5)
+                    text_effect.setOpacity(DISABLED_OPACITY)
                     self._text_label.setGraphicsEffect(text_effect)
 
                     # Apply opacity to icon if present
                     if self._icon_label:
                         icon_effect = QGraphicsOpacityEffect(self._icon_label)
-                        icon_effect.setOpacity(0.5)
+                        icon_effect.setOpacity(DISABLED_OPACITY)
                         self._icon_label.setGraphicsEffect(icon_effect)
 
                     # Update text style
@@ -792,7 +899,7 @@ class PyQtContextMenu(QObject):
                             self._mic_btn.setCursor(Qt.ArrowCursor)
                             # Apply opacity to disabled mic button
                             mic_effect = QGraphicsOpacityEffect(self._mic_btn)
-                            mic_effect.setOpacity(0.5)
+                            mic_effect.setOpacity(DISABLED_OPACITY)
                             self._mic_btn.setGraphicsEffect(mic_effect)
 
                     # Message buttons stay enabled - no opacity effect (same as normal state)
@@ -841,10 +948,102 @@ class PyQtContextMenu(QObject):
                         self._message_btn.setEnabled(True)
                         self._message_btn.setCursor(Qt.PointingHandCursor)
 
+            def set_executing_action_state(self, is_executing_action: bool):
+                """Set this item as the currently executing action."""
+                self._is_executing_action = is_executing_action
+
+                if is_executing_action:
+                    # Clear any disabled opacity effects
+                    self.setGraphicsEffect(None)
+                    self._text_label.setStyleSheet(self._label_style)
+                    self._text_label.setGraphicsEffect(None)
+                    if self._icon_label:
+                        self._icon_label.setGraphicsEffect(None)
+
+                    # Show stop icon first (in font color), then loader icon
+                    stop_pixmap = create_icon_pixmap("square", "#f0f0f0", 14)
+                    self._stop_label.setPixmap(stop_pixmap)
+                    self._stop_label.show()
+
+                    loader_pixmap = create_icon_pixmap("loader", ICON_COLOR_DISABLED, 14)
+                    self._loader_label.setPixmap(loader_pixmap)
+                    self._loader_label.show()
+
+                    # Apply slight opacity to loader only
+                    loader_effect = QGraphicsOpacityEffect(self._loader_label)
+                    loader_effect.setOpacity(0.85)
+                    self._loader_label.setGraphicsEffect(loader_effect)
+
+                    # Start rotation animation for loader
+                    self._start_loader_animation()
+
+                    # Disable mic button during execution
+                    if self._mic_btn:
+                        self._mic_btn.setEnabled(False)
+                        self._mic_btn.setCursor(Qt.ArrowCursor)
+                        mic_effect = QGraphicsOpacityEffect(self._mic_btn)
+                        mic_effect.setOpacity(DISABLED_OPACITY)
+                        self._mic_btn.setGraphicsEffect(mic_effect)
+
+                    # Message button stays enabled
+                    if self._message_btn:
+                        self._message_btn.setEnabled(True)
+                        self._message_btn.setCursor(Qt.PointingHandCursor)
+                else:
+                    # Hide indicators
+                    if self._loader_label:
+                        self._loader_label.hide()
+                    if self._stop_label:
+                        self._stop_label.hide()
+                    self._stop_loader_animation()
+
+            def _start_loader_animation(self):
+                """Start rotating the loader icon."""
+                self._rotation_angle = 0
+                # Cache the base pixmap at smaller size to leave room for rotation
+                self._loader_base_pixmap = create_icon_pixmap("loader", ICON_COLOR_DISABLED, 12)
+                self._loader_dpr = self._loader_base_pixmap.devicePixelRatio()
+                self._loader_canvas_size = int(20 * self._loader_dpr)
+                self._loader_icon_size = int(12 * self._loader_dpr)
+                self._rotation_timer = QTimer(self)
+                self._rotation_timer.timeout.connect(self._rotate_loader)
+                self._rotation_timer.start(150)
+
+            def _rotate_loader(self):
+                """Rotate the loader icon smoothly on a fixed-size canvas."""
+                self._rotation_angle = (self._rotation_angle + 30) % 360
+                if self._loader_label and hasattr(self, '_loader_base_pixmap'):
+                    # Create fixed-size output pixmap
+                    canvas = self._loader_canvas_size
+                    icon = self._loader_icon_size
+                    offset = (canvas - icon) // 2
+
+                    result = QPixmap(canvas, canvas)
+                    result.fill(Qt.transparent)
+
+                    # Paint rotated icon centered on fixed canvas
+                    painter = QPainter(result)
+                    painter.setRenderHint(QPainter.Antialiasing)
+                    painter.setRenderHint(QPainter.SmoothPixmapTransform)
+                    painter.translate(canvas / 2, canvas / 2)
+                    painter.rotate(self._rotation_angle)
+                    painter.translate(-icon / 2, -icon / 2)
+                    painter.drawPixmap(0, 0, self._loader_base_pixmap)
+                    painter.end()
+
+                    result.setDevicePixelRatio(self._loader_dpr)
+                    self._loader_label.setPixmap(result)
+
+            def _stop_loader_animation(self):
+                """Stop the loader animation."""
+                if self._rotation_timer:
+                    self._rotation_timer.stop()
+                    self._rotation_timer = None
+
             def _update_style(self, highlighted: bool):
                 """Update styles for highlight state."""
                 # Don't update style if disabled (keep disabled appearance)
-                if self._disable_reason and not self._is_recording_action:
+                if self._disable_reason and not self._is_recording_action and not self._is_executing_action:
                     return
 
                 if highlighted:
@@ -917,6 +1116,14 @@ class PyQtContextMenu(QObject):
 
                 # For text area clicks, check if action is enabled
                 if event.button() == Qt.LeftButton:
+                    # If this is the executing action, clicking cancels execution
+                    if self._is_executing_action:
+                        if hasattr(self._context_menu, 'menu_coordinator') and self._context_menu.menu_coordinator:
+                            # Cancel will emit execution_completed signal which triggers auto-refresh
+                            self._context_menu.menu_coordinator.prompt_store_service.cancel_current_execution()
+                        event.accept()
+                        return
+
                     # Block if disabled (but allow if this is the recording action for stopping)
                     if self._disable_reason and not self._is_recording_action:
                         event.ignore()
@@ -942,54 +1149,60 @@ class PyQtContextMenu(QObject):
                             )
 
             def enterEvent(self, event):
-                if self._menu_item.enabled or self._is_recording_action:
+                if self._menu_item.enabled or self._is_recording_action or self._is_executing_action:
                     self._is_highlighted = True
                     self._update_style(True)
                     self._context_menu.hovered_widgets.add(self)
                 super().enterEvent(event)
 
             def leaveEvent(self, event):
-                if (self._menu_item.enabled or self._is_recording_action) and not self.hasFocus():
+                if (self._menu_item.enabled or self._is_recording_action or self._is_executing_action) and not self.hasFocus():
                     self._is_highlighted = False
                     self._update_style(False)
                     self._context_menu.hovered_widgets.discard(self)
                 super().leaveEvent(event)
 
             def focusInEvent(self, event):
-                if self._menu_item.enabled or self._is_recording_action:
+                if self._menu_item.enabled or self._is_recording_action or self._is_executing_action:
                     self._is_highlighted = True
                     self._update_style(True)
                 super().focusInEvent(event)
 
             def focusOutEvent(self, event):
-                if self._menu_item.enabled or self._is_recording_action:
+                if self._menu_item.enabled or self._is_recording_action or self._is_executing_action:
                     self._is_highlighted = False
                     self._update_style(False)
                 super().focusOutEvent(event)
 
             def keyPressEvent(self, event):
-                if (
-                    event.key() in (Qt.Key_Return, Qt.Key_Enter)
-                    and (self._menu_item.enabled or self._is_recording_action)
-                ):
-                    if self._context_menu.execution_callback:
-                        shift_pressed = bool(
-                            QApplication.keyboardModifiers() & Qt.ShiftModifier
-                        )
-                        self._context_menu.execution_callback(
-                            self._menu_item, shift_pressed
-                        )
-                        # Close the menu after execution
-                        if self._context_menu.menu:
-                            self._context_menu.menu.close()
-                        if self._context_menu.focus_window:
-                            self._context_menu.focus_window.hide()
-                        # Restore focus after execution
-                        self._context_menu._focus_restore_pending = True
-                        QTimer.singleShot(
-                            100, self._context_menu._restore_focus_with_cleanup
-                        )
-                    event.accept()
+                if event.key() in (Qt.Key_Return, Qt.Key_Enter):
+                    # If this is the executing action, Enter cancels execution
+                    if self._is_executing_action:
+                        if hasattr(self._context_menu, 'menu_coordinator') and self._context_menu.menu_coordinator:
+                            # Cancel will emit execution_completed signal which triggers auto-refresh
+                            self._context_menu.menu_coordinator.prompt_store_service.cancel_current_execution()
+                        event.accept()
+                        return
+
+                    if self._menu_item.enabled or self._is_recording_action:
+                        if self._context_menu.execution_callback:
+                            shift_pressed = bool(
+                                QApplication.keyboardModifiers() & Qt.ShiftModifier
+                            )
+                            self._context_menu.execution_callback(
+                                self._menu_item, shift_pressed
+                            )
+                            # Close the menu after execution
+                            if self._context_menu.menu:
+                                self._context_menu.menu.close()
+                            if self._context_menu.focus_window:
+                                self._context_menu.focus_window.hide()
+                            # Restore focus after execution
+                            self._context_menu._focus_restore_pending = True
+                            QTimer.singleShot(
+                                100, self._context_menu._restore_focus_with_cleanup
+                            )
+                        event.accept()
                 else:
                     super().keyPressEvent(event)
 
@@ -998,8 +1211,11 @@ class PyQtContextMenu(QObject):
         # Apply disabled state if needed
         disable_reason = item.data.get("disable_reason") if item.data else None
         is_recording_action = item.data.get("is_recording_action", False) if item.data else False
+        is_executing_action = item.data.get("is_executing_action", False) if item.data else False
 
-        if is_recording_action:
+        if is_executing_action:
+            widget.set_executing_action_state(True)
+        elif is_recording_action:
             widget.set_recording_action_state(True)
         elif disable_reason:
             widget.set_disabled_state(disable_reason)
@@ -1150,6 +1366,10 @@ class PyQtContextMenu(QObject):
 
     def _on_menu_about_to_hide(self):
         """Handle menu about to hide - cleanup number timer and restore focus."""
+        # Disconnect from execution signal
+        self._disconnect_execution_signal()
+        self._last_menu_position = None
+
         if self.number_timer:
             self.number_timer.stop()
             self.number_timer.deleteLater()

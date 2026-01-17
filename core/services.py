@@ -58,11 +58,33 @@ class ExecutionService:
                 return True
         return False
 
+    def get_executing_action_id(self) -> Optional[str]:
+        """Get the ID of the action that is currently executing."""
+        for handler in self.handlers:
+            if hasattr(handler, 'async_manager') and handler.async_manager.is_busy():
+                current_item = handler.async_manager.current_item
+                if current_item:
+                    if current_item.data and current_item.data.get('prompt_id'):
+                        return f"prompt_{current_item.data.get('prompt_id')}"
+                    return current_item.id
+        return None
+
+    def cancel_current_execution(self) -> bool:
+        """Cancel any running execution. Returns True if execution was cancelled."""
+        for handler in self.handlers:
+            if hasattr(handler, 'async_manager') and handler.async_manager.is_busy():
+                handler.async_manager.stop_execution()
+                return True
+        return False
+
     def should_disable_action(self, action_id: str) -> bool:
         """Check if action should be disabled due to recording or execution state."""
         if self.is_recording() and self.recording_action_id != action_id:
             return True
-        if self.is_executing():
+        executing_id = self.get_executing_action_id()
+        if executing_id:
+            if executing_id == action_id:
+                return False
             return True
         return False
 
@@ -70,7 +92,10 @@ class ExecutionService:
         """Returns 'recording', 'executing', or None."""
         if self.is_recording() and self.recording_action_id != action_id:
             return 'recording'
-        if self.is_executing():
+        executing_id = self.get_executing_action_id()
+        if executing_id:
+            if executing_id == action_id:
+                return None
             return 'executing'
         return None
 

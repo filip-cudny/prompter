@@ -126,6 +126,14 @@ class PromptStoreService(PromptStoreServiceProtocol):
         """Get the reason for disabling an action ('recording', 'executing', or None)."""
         return self.execution_service.get_disable_reason(action_id)
 
+    def get_executing_action_id(self) -> Optional[str]:
+        """Get the ID of the action that is currently executing."""
+        return self.execution_service.get_executing_action_id()
+
+    def cancel_current_execution(self) -> bool:
+        """Cancel any running execution. Returns True if execution was cancelled."""
+        return self.execution_service.cancel_current_execution()
+
     def set_menu_coordinator(self, menu_coordinator):
         """Set the menu coordinator for GUI updates."""
         self._menu_coordinator = menu_coordinator
