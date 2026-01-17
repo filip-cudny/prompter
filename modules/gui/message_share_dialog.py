@@ -7,7 +7,6 @@ from typing import Optional, Callable, List, Dict
 from PyQt5.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
-    QTextEdit,
     QPushButton,
     QWidget,
     QLabel,
@@ -21,12 +20,10 @@ from core.models import MenuItem, ExecutionResult
 from core.context_manager import ContextManager, ContextItem, ContextItemType
 from modules.gui.base_dialog import BaseDialog
 from modules.gui.dialog_styles import (
-    DEFAULT_WRAPPED_HEIGHT,
     DIALOG_SHOW_DELAY_MS,
     QWIDGETSIZE_MAX,
     TEXT_CHANGE_DEBOUNCE_MS,
     apply_section_size_policy,
-    apply_wrap_state,
     get_text_edit_content_height,
 )
 from modules.gui.icons import create_icon
@@ -34,7 +31,6 @@ from modules.gui.shared_widgets import (
     CollapsibleSectionHeader,
     ImageChipWidget,
     create_text_edit,
-    TOOLTIP_STYLE,
     TEXT_EDIT_MIN_HEIGHT,
 )
 
@@ -832,41 +828,35 @@ class MessageShareDialog(BaseDialog):
             not is_visible and len(self._current_images) > 0
         )
         self.context_header.set_collapsed(is_visible)
-        # When collapsed, use Fixed policy to take minimal space
-        if is_visible:  # Will be collapsed
+        if is_visible:
             self.context_section.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
-        else:  # Will be expanded
+        else:
             self.context_section.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
-        self._save_section_state("context", collapsed=is_visible)
+        self.save_section_state("context_collapsed", is_visible)
 
     def _toggle_input_section(self):
         """Toggle input section visibility."""
-        is_visible = self.input_edit.isVisible()
-        self.input_edit.setVisible(not is_visible)
-        self.input_header.set_collapsed(is_visible)
-        # When collapsed, use Fixed policy to take minimal space
-        if is_visible:  # Will be collapsed
-            self.input_section.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
-        else:  # Will be expanded
-            self.input_section.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
-        self._save_section_state("input", collapsed=is_visible)
+        self.toggle_section_collapsed(
+            "input",
+            self.input_header,
+            self.input_edit,
+            self.input_section,
+            expanding=True,
+        )
 
     def _toggle_output_section(self):
         """Toggle output section visibility."""
         if not self._output_section_shown:
-            # Output not yet in layout - add it now
             self._expand_output_section()
             return
 
-        is_visible = self.output_edit.isVisible()
-        self.output_edit.setVisible(not is_visible)
-        self.output_header.set_collapsed(is_visible)
-        # When collapsed, use Fixed policy to take minimal space
-        if is_visible:  # Will be collapsed
-            self.output_section.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
-        else:  # Will be expanded
-            self.output_section.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
-        self._save_section_state("output", collapsed=is_visible)
+        self.toggle_section_collapsed(
+            "output",
+            self.output_header,
+            self.output_edit,
+            self.output_section,
+            expanding=True,
+        )
 
     def _toggle_context_wrap(self):
         """Toggle context section wrap state."""
@@ -880,7 +870,7 @@ class MessageShareDialog(BaseDialog):
             content_height = get_text_edit_content_height(self.context_text_edit)
             self.context_text_edit.setMinimumHeight(content_height)
             self.context_text_edit.setMaximumHeight(QWIDGETSIZE_MAX)
-        self._save_section_state("context_wrapped", collapsed=new_wrapped)
+        self.save_section_state("context_wrapped", new_wrapped)
 
     def _toggle_input_wrap(self):
         """Toggle input section wrap state."""
@@ -892,7 +882,7 @@ class MessageShareDialog(BaseDialog):
         else:
             content_height = get_text_edit_content_height(self.input_edit)
             self.input_edit.setMinimumHeight(content_height)
-        self._save_section_state("input_wrapped", collapsed=new_wrapped)
+        self.save_section_state("input_wrapped", new_wrapped)
 
     def _toggle_output_wrap(self):
         """Toggle output section wrap state."""
@@ -904,11 +894,7 @@ class MessageShareDialog(BaseDialog):
         else:
             content_height = get_text_edit_content_height(self.output_edit)
             self.output_edit.setMinimumHeight(content_height)
-        self._save_section_state("output_wrapped", collapsed=new_wrapped)
-
-    def _save_section_state(self, section: str, collapsed: bool):
-        """Save section state (collapsed or wrapped)."""
-        self.save_section_state(section, collapsed)
+        self.save_section_state("output_wrapped", new_wrapped)
 
     def _scroll_to_bottom(self):
         """Scroll the scroll area to the bottom."""
@@ -925,24 +911,18 @@ class MessageShareDialog(BaseDialog):
 
     def _restore_ui_state(self):
         """Restore collapsed and wrap states from saved state."""
-        # Restore geometry (uses BaseDialog method)
         self.restore_geometry_from_state()
 
-        # Restore collapsed states
-        context_collapsed = self.get_section_state("context.collapsed", False)
-        input_collapsed = self.get_section_state("input.collapsed", False)
+        self.restore_section_collapsed(
+            "context",
+            self.context_header,
+            [self.context_text_edit, self.context_images_container],
+            self.context_section,
+        )
+        self.restore_section_collapsed(
+            "input", self.input_header, self.input_edit, self.input_section
+        )
 
-        if context_collapsed:
-            self.context_text_edit.hide()
-            self.context_images_container.hide()
-            self.context_header.set_collapsed(True)
-            self.context_section.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
-        if input_collapsed:
-            self.input_edit.hide()
-            self.input_header.set_collapsed(True)
-            self.input_section.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
-
-        # Restore wrap states
         context_wrapped = self.get_section_state("context_wrapped", True)
         input_wrapped = self.get_section_state("input_wrapped", True)
         output_wrapped = self.get_section_state("output_wrapped", True)
@@ -2008,7 +1988,7 @@ class MessageShareDialog(BaseDialog):
             # Already in layout, just expand
             self.output_edit.setVisible(True)
             self.output_header.set_collapsed(False)
-            self._save_section_state("output", collapsed=False)
+            self.save_section_state("output_collapsed", False)
             self._scroll_to_bottom()
 
     def _on_execution_result(self, result: ExecutionResult):

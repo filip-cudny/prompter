@@ -5,7 +5,7 @@ import signal
 from typing import Optional, List
 from PyQt5.QtWidgets import QApplication, QToolTip
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QObject
-from PyQt5.QtGui import QPalette, QColor, QFont
+from PyQt5.QtGui import QPalette, QColor
 
 
 from modules.prompts.prompt_service import PromptStoreService
@@ -33,10 +33,7 @@ from modules.utils.notifications import PyQtNotificationManager
 from core.openai_service import OpenAiService
 from core.context_manager import ContextManager
 from modules.gui.shared_widgets import TOOLTIP_STYLE
-from modules.utils.keymap_actions import (
-    initialize_global_action_registry,
-    get_global_action_registry,
-)
+from modules.utils.keymap_actions import initialize_global_action_registry
 
 
 class PrompterApp(QObject):

@@ -9,10 +9,8 @@ from PyQt5.QtWidgets import (
     QHBoxLayout,
     QVBoxLayout,
     QLabel,
-    QPushButton,
     QApplication,
     QTextEdit,
-    QSizePolicy,
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QByteArray, QBuffer, QTimer
 from PyQt5.QtGui import QFont, QImage

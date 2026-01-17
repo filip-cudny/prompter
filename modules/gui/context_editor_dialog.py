@@ -1,6 +1,5 @@
 """Context editor dialog for editing context (text and images) and clipboard."""
 
-import base64
 import logging
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
@@ -12,15 +11,14 @@ from PyQt5.QtWidgets import (
     QPushButton,
     QScrollArea,
     QFrame,
+    QSizePolicy,
 )
-from PyQt5.QtCore import Qt, QTimer, QEvent, pyqtSignal, QByteArray, QBuffer
-from PyQt5.QtGui import QImage
+from PyQt5.QtCore import Qt, QTimer, QEvent, pyqtSignal
 
 from core.context_manager import ContextManager, ContextItem, ContextItemType
 from modules.gui.base_dialog import BaseDialog
 from modules.gui.dialog_styles import (
     DEFAULT_WRAPPED_HEIGHT,
-    QWIDGETSIZE_MAX,
     apply_section_size_policy,
     apply_wrap_state,
     create_singleton_dialog_manager,
@@ -29,7 +27,6 @@ from modules.gui.shared_widgets import (
     CollapsibleSectionHeader,
     ImageChipWidget,
     create_text_edit,
-    TOOLTIP_STYLE,
 )
 
 logger = logging.getLogger(__name__)
@@ -255,29 +252,33 @@ class ContextEditorDialog(BaseDialog):
 
     def _toggle_context_section(self):
         """Toggle context section visibility."""
-        is_visible = self.text_edit.isVisible()
-        self.text_edit.setVisible(not is_visible)
-        self.context_header.set_collapsed(is_visible)
-        self.save_section_state("context", is_visible)
+        self.toggle_section_collapsed(
+            "context",
+            self.context_header,
+            self.text_edit,
+            self.context_section,
+            expanding=False,
+        )
 
     def _toggle_clipboard_section(self):
         """Toggle clipboard section visibility."""
-        # Content is visible if either text edit or image container is shown
         content_visible = self.clipboard_edit.isVisible() or self.clipboard_image_container.isVisible()
 
         if content_visible:
-            # Collapsing - hide both (one is already hidden)
             self.clipboard_edit.hide()
             self.clipboard_image_container.hide()
         else:
-            # Expanding - show the appropriate content
             if self._clipboard_image:
                 self.clipboard_image_container.show()
             else:
                 self.clipboard_edit.show()
 
         self.clipboard_header.set_collapsed(content_visible)
-        self.save_section_state("clipboard", content_visible)
+        if content_visible:
+            self.clipboard_section.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        else:
+            self.clipboard_section.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+        self.save_section_state("clipboard_collapsed", content_visible)
 
     def _toggle_context_wrap(self):
         """Toggle context section wrap state."""
@@ -297,22 +298,18 @@ class ContextEditorDialog(BaseDialog):
 
     def _restore_ui_state(self):
         """Restore collapsed and wrap states from saved state."""
-        # Restore geometry
         self.restore_geometry_from_state()
 
-        # Restore collapsed states
-        context_collapsed = self.get_section_state("context.collapsed", False)
-        clipboard_collapsed = self.get_section_state("clipboard.collapsed", False)
+        self.restore_section_collapsed(
+            "context", self.context_header, self.text_edit, self.context_section
+        )
+        self.restore_section_collapsed(
+            "clipboard",
+            self.clipboard_header,
+            [self.clipboard_edit, self.clipboard_image_container],
+            self.clipboard_section,
+        )
 
-        if context_collapsed:
-            self.text_edit.hide()
-            self.context_header.set_collapsed(True)
-        if clipboard_collapsed:
-            self.clipboard_edit.hide()
-            self.clipboard_image_container.hide()
-            self.clipboard_header.set_collapsed(True)
-
-        # Restore wrap states
         context_wrapped = self.get_section_state("context_wrapped", True)
         clipboard_wrapped = self.get_section_state("clipboard_wrapped", True)
 
