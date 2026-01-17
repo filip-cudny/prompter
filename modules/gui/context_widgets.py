@@ -761,25 +761,22 @@ class ContextSectionWidget(QWidget):
             logger.warning(f"Failed to get clipboard text: {e}")
 
     def _has_clipboard_content(self) -> bool:
-        """Check if clipboard has any content (text or image)."""
-        if not self.clipboard_manager:
-            return False
+        """Check if clipboard has any content (text or image).
 
-        # Check for image
+        Uses Qt clipboard directly to avoid X11 deadlock that occurs when
+        subprocess calls (xclip/xsel) are made while Qt owns the clipboard.
+        """
         try:
-            if self.clipboard_manager.has_image():
-                return True
+            from PyQt5.QtWidgets import QApplication
+            clipboard = QApplication.clipboard()
+            mime_data = clipboard.mimeData()
+            if mime_data:
+                if mime_data.hasImage():
+                    return True
+                if mime_data.hasText() and mime_data.text().strip():
+                    return True
         except Exception:
             pass
-
-        # Check for text
-        try:
-            text = self.clipboard_manager.get_content()
-            if text and text.strip():
-                return True
-        except Exception:
-            pass
-
         return False
 
     def _update_clipboard_button_state(self):

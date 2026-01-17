@@ -19,6 +19,9 @@ from core.context_manager import ContextManager, ContextItem, ContextItemType
 from modules.gui.base_dialog import BaseDialog
 from modules.gui.dialog_styles import (
     DEFAULT_WRAPPED_HEIGHT,
+    DIALOG_CONTENT_MARGINS,
+    SCROLL_CONTENT_MARGINS,
+    SCROLL_CONTENT_SPACING,
     apply_section_size_policy,
     apply_wrap_state,
     create_singleton_dialog_manager,
@@ -111,8 +114,8 @@ class ContextEditorDialog(BaseDialog):
     def _setup_ui(self):
         """Setup the dialog UI."""
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(8)
+        layout.setContentsMargins(*DIALOG_CONTENT_MARGINS)
+        layout.setSpacing(SCROLL_CONTENT_SPACING)
 
         # Images section (not in scroll area - fixed height at top)
         self.images_section = self._create_images_section()
@@ -128,8 +131,8 @@ class ContextEditorDialog(BaseDialog):
         # Container for sections
         self.sections_container = QWidget()
         self.sections_layout = QVBoxLayout(self.sections_container)
-        self.sections_layout.setContentsMargins(0, 0, 0, 0)
-        self.sections_layout.setSpacing(8)
+        self.sections_layout.setContentsMargins(*SCROLL_CONTENT_MARGINS)
+        self.sections_layout.setSpacing(SCROLL_CONTENT_SPACING)
 
         # Context section
         self.context_section = self._create_context_section()

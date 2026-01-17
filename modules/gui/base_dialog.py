@@ -1,14 +1,17 @@
 """Base dialog class with common functionality."""
 
-from typing import List, Union
+from typing import List, Tuple, Union
 
-from PyQt5.QtCore import QEvent, Qt, QTimer
-from PyQt5.QtWidgets import QDialog, QSizePolicy, QWidget
+from PyQt5.QtCore import Qt, QEvent, QTimer
+from PyQt5.QtWidgets import QDialog, QFrame, QScrollArea, QSizePolicy, QVBoxLayout, QWidget
 
 from modules.gui.dialog_styles import (
     DEFAULT_DIALOG_SIZE,
+    DIALOG_CONTENT_MARGINS,
     DIALOG_SHOW_DELAY_MS,
     MIN_DIALOG_SIZE,
+    SCROLL_CONTENT_MARGINS,
+    SCROLL_CONTENT_SPACING,
     get_dialog_stylesheet,
 )
 from modules.utils.ui_state import UIStateManager
@@ -46,6 +49,26 @@ class BaseDialog(QDialog):
     def apply_dialog_styles(self):
         """Apply standard dark theme dialog styles."""
         self.setStyleSheet(get_dialog_stylesheet())
+
+    def create_scroll_area(self) -> Tuple[QScrollArea, QWidget, QVBoxLayout]:
+        """Create a standardized scroll area with container.
+
+        Returns:
+            Tuple of (scroll_area, container_widget, container_layout)
+        """
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        scroll_area.setFrameShape(QFrame.NoFrame)
+
+        container = QWidget()
+        container_layout = QVBoxLayout(container)
+        container_layout.setContentsMargins(*SCROLL_CONTENT_MARGINS)
+        container_layout.setSpacing(SCROLL_CONTENT_SPACING)
+
+        scroll_area.setWidget(container)
+        return scroll_area, container, container_layout
 
     def restore_geometry_from_state(self):
         """Restore window geometry from saved state."""

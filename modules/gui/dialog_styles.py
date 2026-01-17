@@ -13,6 +13,11 @@ TEXT_CHANGE_DEBOUNCE_MS = 500
 DEFAULT_WRAPPED_HEIGHT = 300
 QWIDGETSIZE_MAX = 16777215
 
+# Scroll area margin constants
+DIALOG_CONTENT_MARGINS = (10, 10, 0, 10)  # No right margin - scrollbar at edge
+SCROLL_CONTENT_MARGINS = (0, 0, 6, 0)  # Right margin for scrollbar gap
+SCROLL_CONTENT_SPACING = 8
+
 # Window size defaults
 DEFAULT_DIALOG_SIZE = (600, 500)
 MIN_DIALOG_SIZE = (500, 400)
