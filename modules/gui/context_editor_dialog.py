@@ -245,8 +245,9 @@ class ContextEditorDialog(BaseDialog):
         # Text edit area (shown when clipboard has text)
         self.clipboard_edit = create_text_edit(placeholder="Clipboard content...", min_height=0)
         self.clipboard_edit.textChanged.connect(self._on_clipboard_text_changed)
-        self.clipboard_edit.setMaximumHeight(DEFAULT_WRAPPED_HEIGHT)
         section_layout.addWidget(self.clipboard_edit)
+
+        section_layout.addStretch()
 
         apply_section_size_policy(container, expanding=True, widget=self.clipboard_edit)
 

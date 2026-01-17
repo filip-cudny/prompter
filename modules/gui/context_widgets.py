@@ -20,7 +20,7 @@ from PyQt5.QtCore import Qt, pyqtSignal, QByteArray, QBuffer, QSize, QPoint, QMi
 from PyQt5.QtGui import QPixmap, QImage, QCursor
 
 from core.context_manager import ContextManager, ContextItem, ContextItemType
-from modules.gui.dialog_styles import TOOLTIP_STYLE
+from modules.gui.dialog_styles import TOOLTIP_STYLE, DISABLED_OPACITY
 from modules.gui.icons import (
     create_icon,
     ICON_COLOR_NORMAL,
@@ -70,7 +70,7 @@ class IconButton(QPushButton):
             self._update_icon(ICON_COLOR_DISABLED)
             # Apply opacity effect for clear visual feedback
             effect = QGraphicsOpacityEffect(self)
-            effect.setOpacity(0.6)
+            effect.setOpacity(DISABLED_OPACITY)
             self.setGraphicsEffect(effect)
 
     def set_icon(self, icon_name: str):

@@ -42,6 +42,8 @@ class PromptMenuProvider:
                 disable_reason = None
                 is_recording_action = False
 
+                is_executing_action = False
+
                 if self.prompt_store_service:
                     enabled = not self.prompt_store_service.should_disable_action(
                         item_id
@@ -52,6 +54,9 @@ class PromptMenuProvider:
                     # Check if this is the currently recording action
                     recording_action_id = self.prompt_store_service.get_recording_action_id()
                     is_recording_action = recording_action_id == item_id
+                    # Check if this is the currently executing action
+                    executing_action_id = self.prompt_store_service.get_executing_action_id()
+                    is_executing_action = executing_action_id == item_id
 
                 model_display_name = prompt.model
                 if prompt.model and model_configs.get(prompt.model):
@@ -92,6 +97,7 @@ class PromptMenuProvider:
                         "menu_index": index,
                         "disable_reason": disable_reason,
                         "is_recording_action": is_recording_action,
+                        "is_executing_action": is_executing_action,
                     },
                     enabled=enabled,
                 )

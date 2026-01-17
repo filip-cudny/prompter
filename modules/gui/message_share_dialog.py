@@ -224,7 +224,9 @@ class ConversationTabBar(QWidget):
             QPushButton {
                 background: transparent;
                 border: none;
-                border-radius: 8px;
+                border-radius: 9px;
+                padding: 0;
+                margin: 0;
             }
             QPushButton:hover {
                 background: #555555;

@@ -724,12 +724,50 @@ class AsyncPromptExecutionManager:
 
     def stop_execution(self):
         """Stop any running execution."""
+        was_executing = self.is_executing
+        cancelled_item = self.current_item
+
+        # Immediately reset state so is_busy() returns False
+        self.is_executing = False
+        self.current_item = None
+        self.current_context = None
+        self.is_alternative_execution = False
+        self.original_input_content = None
+
         if self.worker and self.worker.isRunning():
             self.worker.quit()
-            # Use asynchronous cleanup instead of blocking wait()
-            QTimer.singleShot(100, self._cleanup_worker)
-        else:
-            self._cleanup_worker()
+            # Use asynchronous cleanup for thread resources
+            QTimer.singleShot(100, self._cleanup_worker_resources)
+
+        if was_executing:
+            prompt_name = "Prompt"
+            if cancelled_item and cancelled_item.data:
+                prompt_name = cancelled_item.data.get("prompt_name", "Prompt")
+            self.notification_manager.show_warning_notification(
+                f"{prompt_name} cancelled"
+            )
+            if self.prompt_store_service:
+                cancel_result = ExecutionResult(
+                    success=True,
+                    content="",
+                    metadata={"action": "execution_cancelled"},
+                )
+                self.prompt_store_service.emit_execution_completed(cancel_result)
+
+    def _cleanup_worker_resources(self):
+        """Clean up worker thread resources only (state already reset)."""
+        if self.worker:
+            try:
+                self.worker.set_callbacks(None, None, None)
+            except Exception:
+                pass
+            if self.worker.isRunning():
+                self.worker.quit()
+                if not self.worker.wait(500):
+                    self.worker.terminate()
+                    self.worker.wait(100)
+            self.worker.deleteLater()
+            self.worker = None
 
     def force_reset_state(self):
         """Force reset execution state - use when stuck."""
