@@ -39,10 +39,19 @@ class PromptMenuProvider:
             for index, prompt in enumerate(prompts, 1):
                 item_id = f"prompt_{prompt.id}"
                 enabled = True
+                disable_reason = None
+                is_recording_action = False
+
                 if self.prompt_store_service:
                     enabled = not self.prompt_store_service.should_disable_action(
                         item_id
                     )
+                    disable_reason = self.prompt_store_service.get_disable_reason(
+                        item_id
+                    )
+                    # Check if this is the currently recording action
+                    recording_action_id = self.prompt_store_service.get_recording_action_id()
+                    is_recording_action = recording_action_id == item_id
 
                 model_display_name = prompt.model
                 if prompt.model and model_configs.get(prompt.model):
@@ -81,6 +90,8 @@ class PromptMenuProvider:
                         "source": prompt.source,
                         "model": prompt.model,
                         "menu_index": index,
+                        "disable_reason": disable_reason,
+                        "is_recording_action": is_recording_action,
                     },
                     enabled=enabled,
                 )

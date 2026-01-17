@@ -198,6 +198,10 @@ class CollapsibleSectionHeader(QWidget):
         """Return current wrap state."""
         return self._wrapped
 
+    def is_collapsed(self) -> bool:
+        """Return current collapsed state."""
+        return self._collapsed
+
 
 class ImageChipWidget(QWidget):
     """Chip widget for displaying an image in the editor."""

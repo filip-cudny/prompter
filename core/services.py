@@ -51,9 +51,28 @@ class ExecutionService:
         """Get the ID of the action that started recording."""
         return self.recording_action_id
 
+    def is_executing(self) -> bool:
+        """Check if any handler is executing (LLM request in progress)."""
+        for handler in self.handlers:
+            if hasattr(handler, 'async_manager') and handler.async_manager.is_busy():
+                return True
+        return False
+
     def should_disable_action(self, action_id: str) -> bool:
-        """Check if action should be disabled due to recording state."""
-        return self.is_recording() and self.recording_action_id != action_id
+        """Check if action should be disabled due to recording or execution state."""
+        if self.is_recording() and self.recording_action_id != action_id:
+            return True
+        if self.is_executing():
+            return True
+        return False
+
+    def get_disable_reason(self, action_id: str) -> Optional[str]:
+        """Returns 'recording', 'executing', or None."""
+        if self.is_recording() and self.recording_action_id != action_id:
+            return 'recording'
+        if self.is_executing():
+            return 'executing'
+        return None
 
     def execute_item(
         self,
