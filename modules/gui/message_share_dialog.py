@@ -15,7 +15,7 @@ from PyQt5.QtWidgets import (
     QScrollArea,
     QFrame,
 )
-from PyQt5.QtCore import Qt, QTimer, QEvent
+from PyQt5.QtCore import Qt, QTimer, QEvent, pyqtSignal, QSize
 
 from core.models import MenuItem, ExecutionResult
 from core.context_manager import ContextManager, ContextItem, ContextItemType
@@ -72,6 +72,176 @@ class ConversationTurn:
     message_images: List[ContextItem]
     output_text: Optional[str] = None
     is_complete: bool = False
+
+
+@dataclass
+class TabState:
+    """Complete state of a conversation tab."""
+
+    tab_id: str
+    tab_name: str
+
+    # Context section
+    context_images: List[ContextItem]
+    context_text: str
+    context_undo_stack: List[ContextSectionState]
+    context_redo_stack: List[ContextSectionState]
+    last_context_text: str
+
+    # Message/Input section
+    message_images: List[ContextItem]
+    message_text: str
+    input_undo_stack: List[PromptInputState]
+    input_redo_stack: List[PromptInputState]
+    last_input_text: str
+
+    # Output section
+    output_text: str
+    output_section_shown: bool
+    output_undo_stack: List[OutputState]
+    output_redo_stack: List[OutputState]
+    last_output_text: str
+
+    # Multi-turn conversation
+    conversation_turns: List[ConversationTurn]
+    current_turn_number: int
+    dynamic_sections_data: List[Dict]  # Serialized reply sections
+    output_sections_data: List[Dict]  # Serialized output sections
+
+    # Execution state
+    waiting_for_result: bool
+    is_streaming: bool
+    streaming_accumulated: str
+
+    # UI collapsed/wrapped states
+    context_collapsed: bool
+    input_collapsed: bool
+    output_collapsed: bool
+    context_wrapped: bool
+    input_wrapped: bool
+    output_wrapped: bool
+
+
+class ConversationTabBar(QWidget):
+    """Custom tab bar for conversation tabs."""
+
+    tab_selected = pyqtSignal(str)  # Emits tab_id
+    tab_close_requested = pyqtSignal(str)  # Emits tab_id
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._tabs: Dict[str, QWidget] = {}  # tab_id -> tab button widget
+        self._tab_order: List[str] = []  # Ordered list of tab IDs
+        self._active_tab_id: Optional[str] = None
+
+        self._layout = QHBoxLayout(self)
+        self._layout.setContentsMargins(0, 0, 0, 0)
+        self._layout.setSpacing(4)
+        self._layout.addStretch()
+
+    def add_tab(self, tab_id: str, name: str):
+        """Add a new tab to the bar."""
+        if tab_id in self._tabs:
+            return
+
+        tab_widget = self._create_tab_widget(tab_id, name)
+        self._tabs[tab_id] = tab_widget
+        self._tab_order.append(tab_id)
+
+        # Insert before the stretch
+        self._layout.insertWidget(self._layout.count() - 1, tab_widget)
+
+    def remove_tab(self, tab_id: str):
+        """Remove a tab from the bar."""
+        if tab_id not in self._tabs:
+            return
+
+        tab_widget = self._tabs.pop(tab_id)
+        self._tab_order.remove(tab_id)
+        tab_widget.setParent(None)
+        tab_widget.deleteLater()
+
+    def set_active_tab(self, tab_id: str):
+        """Set the active tab visually."""
+        if tab_id not in self._tabs:
+            return
+
+        self._active_tab_id = tab_id
+
+        for tid, widget in self._tabs.items():
+            is_active = tid == tab_id
+            widget.setProperty("active", is_active)
+            widget.style().unpolish(widget)
+            widget.style().polish(widget)
+
+    def get_tab_count(self) -> int:
+        """Get the number of tabs."""
+        return len(self._tabs)
+
+    def get_tab_ids(self) -> List[str]:
+        """Get ordered list of tab IDs."""
+        return list(self._tab_order)
+
+    def _create_tab_widget(self, tab_id: str, name: str) -> QWidget:
+        """Create a tab button widget."""
+        tab = QWidget()
+        tab.setProperty("active", False)
+        tab.setStyleSheet("""
+            QWidget {
+                background: transparent;
+                border: none;
+                border-bottom: 2px solid transparent;
+                padding: 4px 8px 2px 8px;
+            }
+            QWidget:hover {
+                background: rgba(255, 255, 255, 0.05);
+            }
+            QWidget[active="true"] {
+                border-bottom: 2px solid #888888;
+            }
+        """)
+
+        layout = QHBoxLayout(tab)
+        layout.setContentsMargins(6, 4, 4, 4)
+        layout.setSpacing(6)
+
+        # Tab label
+        label = QLabel(name)
+        label.setStyleSheet("border: none; background: transparent; color: #cccccc;")
+        label.setCursor(Qt.PointingHandCursor)
+        layout.addWidget(label)
+
+        # Close button
+        close_btn = QPushButton()
+        close_btn.setIcon(create_icon("delete", "#888888", 14))
+        close_btn.setIconSize(QSize(14, 14))
+        close_btn.setFixedSize(18, 18)
+        close_btn.setStyleSheet("""
+            QPushButton {
+                background: transparent;
+                border: none;
+                border-radius: 8px;
+            }
+            QPushButton:hover {
+                background: #555555;
+            }
+        """)
+        close_btn.clicked.connect(lambda: self.tab_close_requested.emit(tab_id))
+        layout.addWidget(close_btn)
+
+        # Store tab_id on the widget for click handling
+        tab.tab_id = tab_id
+        tab.label = label
+
+        # Make the tab clickable
+        tab.mousePressEvent = lambda e, tid=tab_id: self._on_tab_clicked(tid)
+        label.mousePressEvent = lambda e, tid=tab_id: self._on_tab_clicked(tid)
+
+        return tab
+
+    def _on_tab_clicked(self, tab_id: str):
+        """Handle tab click."""
+        self.tab_selected.emit(tab_id)
 
 
 def show_message_share_dialog(
@@ -201,6 +371,14 @@ class MessageShareDialog(BaseDialog):
         self._execution_signal_connected = False
         self._streaming_signal_connected = False
 
+        # Tab management
+        self._tabs: Dict[str, TabState] = {}
+        self._active_tab_id: Optional[str] = None
+        self._tab_counter: int = 0
+        self._tab_bar: Optional[ConversationTabBar] = None
+        self._tab_scroll: Optional[QScrollArea] = None
+        self._max_tabs: int = 10
+
         # Extract prompt name for title
         prompt_name = (
             menu_item.data.get("prompt_name", "Prompt") if menu_item.data else "Prompt"
@@ -249,7 +427,7 @@ class MessageShareDialog(BaseDialog):
         self.scroll_area.setWidget(self.sections_container)
         layout.addWidget(self.scroll_area)
 
-        # Button bar (includes hint label)
+        # Button bar (includes tabs inline)
         self._create_button_bar(layout)
 
         # Install event filters for keyboard handling
@@ -333,7 +511,9 @@ class MessageShareDialog(BaseDialog):
         self.message_images_container.hide()  # Hidden if no images
 
         # Text edit area
-        self.input_edit = create_text_edit(placeholder="Type your message here...")
+        self.input_edit = create_text_edit(
+            placeholder="Type your message... (Ctrl+Enter: Send & copy | Alt+Enter: Send & show | Ctrl+V: Paste image)"
+        )
         self.input_edit.setToolTip("Type and send message with prompt")
         self.input_edit.textChanged.connect(self._on_input_text_changed)
         section_layout.addWidget(self.input_edit)
@@ -373,15 +553,33 @@ class MessageShareDialog(BaseDialog):
         return container
 
     def _create_button_bar(self, layout: QVBoxLayout):
-        """Create button bar with hint label and send actions."""
+        """Create button bar with tabs inline and send actions."""
         button_widget = QWidget()
+        button_widget.setFixedHeight(36)
         button_bar = QHBoxLayout(button_widget)
         button_bar.setContentsMargins(12, 0, 12, 0)
 
-        # Hint label on the left
-        hint_label = QLabel("Ctrl+Enter: Send & copy | Alt+Enter: Send & show result")
-        hint_label.setStyleSheet("QLabel { color: #666666; font-size: 11px; }")
-        button_bar.addWidget(hint_label)
+        # Add tab button on the left (plus icon)
+        self.add_tab_btn = QPushButton()
+        self.add_tab_btn.setIcon(create_icon("plus", "#888888", 16))
+        self.add_tab_btn.setToolTip("New conversation tab")
+        self.add_tab_btn.clicked.connect(self._on_add_tab_clicked)
+        button_bar.addWidget(self.add_tab_btn)
+
+        # Tab bar in horizontal scroll area
+        self._tab_scroll = QScrollArea()
+        self._tab_scroll.setWidgetResizable(True)
+        self._tab_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self._tab_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._tab_scroll.setFrameShape(QFrame.NoFrame)
+        self._tab_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+        self._tab_scroll.setFixedHeight(32)
+
+        self._tab_bar = ConversationTabBar()
+        self._tab_bar.tab_selected.connect(self._on_tab_selected)
+        self._tab_bar.tab_close_requested.connect(self._on_tab_close_requested)
+        self._tab_scroll.setWidget(self._tab_bar)
+        button_bar.addWidget(self._tab_scroll, 1)  # stretch factor 1
 
         button_bar.addStretch()
 
@@ -1080,6 +1278,420 @@ class MessageShareDialog(BaseDialog):
             self._last_output_text = current_output
 
         self._update_undo_redo_buttons()
+
+    # --- Tab Management ---
+
+    def _capture_current_state(self) -> TabState:
+        """Capture complete state of current conversation for tab switching."""
+        # Serialize dynamic sections
+        dynamic_sections_data = []
+        for section in self._dynamic_sections:
+            section_data = {
+                "turn_number": section.turn_number,
+                "text": section.text_edit.toPlainText(),
+                "images": [
+                    {"data": img.data, "media_type": img.media_type}
+                    for img in section.turn_images
+                ],
+                "undo_stack": list(section.undo_stack),
+                "redo_stack": list(section.redo_stack),
+                "last_text": section.last_text,
+                "collapsed": section.header.is_collapsed(),
+                "wrapped": section.header.is_wrapped(),
+            }
+            dynamic_sections_data.append(section_data)
+
+        # Serialize output sections
+        output_sections_data = []
+        for section in self._output_sections:
+            section_data = {
+                "turn_number": section.turn_number,
+                "text": section.text_edit.toPlainText(),
+                "undo_stack": list(section.undo_stack),
+                "redo_stack": list(section.redo_stack),
+                "last_text": section.last_text,
+                "collapsed": section.header.is_collapsed(),
+                "wrapped": section.header.is_wrapped(),
+            }
+            output_sections_data.append(section_data)
+
+        return TabState(
+            tab_id=self._active_tab_id or "",
+            tab_name=f"Tab {self._tab_counter}",
+            # Context section
+            context_images=[
+                ContextItem(item_type=img.item_type, data=img.data, media_type=img.media_type)
+                for img in self._current_images
+            ],
+            context_text=self.context_text_edit.toPlainText(),
+            context_undo_stack=list(self._context_undo_stack),
+            context_redo_stack=list(self._context_redo_stack),
+            last_context_text=self._last_context_text,
+            # Message/Input section
+            message_images=[
+                ContextItem(item_type=img.item_type, data=img.data, media_type=img.media_type)
+                for img in self._message_images
+            ],
+            message_text=self.input_edit.toPlainText(),
+            input_undo_stack=list(self._input_undo_stack),
+            input_redo_stack=list(self._input_redo_stack),
+            last_input_text=self._last_input_text,
+            # Output section
+            output_text=self.output_edit.toPlainText(),
+            output_section_shown=self._output_section_shown,
+            output_undo_stack=list(self._output_undo_stack),
+            output_redo_stack=list(self._output_redo_stack),
+            last_output_text=self._last_output_text,
+            # Multi-turn conversation
+            conversation_turns=list(self._conversation_turns),
+            current_turn_number=self._current_turn_number,
+            dynamic_sections_data=dynamic_sections_data,
+            output_sections_data=output_sections_data,
+            # Execution state
+            waiting_for_result=self._waiting_for_result,
+            is_streaming=self._is_streaming,
+            streaming_accumulated=self._streaming_accumulated,
+            # UI collapsed/wrapped states
+            context_collapsed=self.context_header.is_collapsed(),
+            input_collapsed=self.input_header.is_collapsed(),
+            output_collapsed=self.output_header.is_collapsed(),
+            context_wrapped=self.context_header.is_wrapped(),
+            input_wrapped=self.input_header.is_wrapped(),
+            output_wrapped=self.output_header.is_wrapped(),
+        )
+
+    def _restore_state(self, state: TabState):
+        """Restore complete state from a TabState object."""
+        # Clear dynamic sections first
+        self._clear_dynamic_sections()
+
+        # Restore context section
+        self._current_images = [
+            ContextItem(item_type=img.item_type, data=img.data, media_type=img.media_type)
+            for img in state.context_images
+        ]
+        self._rebuild_image_chips()
+        self.context_text_edit.blockSignals(True)
+        self.context_text_edit.setPlainText(state.context_text)
+        self.context_text_edit.blockSignals(False)
+        self._context_undo_stack = list(state.context_undo_stack)
+        self._context_redo_stack = list(state.context_redo_stack)
+        self._last_context_text = state.last_context_text
+
+        # Restore message/input section
+        self._message_images = [
+            ContextItem(item_type=img.item_type, data=img.data, media_type=img.media_type)
+            for img in state.message_images
+        ]
+        self._rebuild_message_image_chips()
+        self.input_edit.blockSignals(True)
+        self.input_edit.setPlainText(state.message_text)
+        self.input_edit.blockSignals(False)
+        self._input_undo_stack = list(state.input_undo_stack)
+        self._input_redo_stack = list(state.input_redo_stack)
+        self._last_input_text = state.last_input_text
+
+        # Restore output section
+        self.output_edit.blockSignals(True)
+        self.output_edit.setPlainText(state.output_text)
+        self.output_edit.blockSignals(False)
+        self._output_undo_stack = list(state.output_undo_stack)
+        self._output_redo_stack = list(state.output_redo_stack)
+        self._last_output_text = state.last_output_text
+
+        # Handle output section visibility
+        if state.output_section_shown and not self._output_section_shown:
+            self.sections_layout.addWidget(self.output_section)
+            self.output_edit.installEventFilter(self)
+            self._output_section_shown = True
+        elif not state.output_section_shown and self._output_section_shown:
+            self.sections_layout.removeWidget(self.output_section)
+            self.output_section.setParent(None)
+            self._output_section_shown = False
+
+        # Restore multi-turn conversation state
+        self._conversation_turns = list(state.conversation_turns)
+        self._current_turn_number = state.current_turn_number
+
+        # Restore dynamic sections
+        self._restore_dynamic_sections(
+            state.dynamic_sections_data, state.output_sections_data
+        )
+
+        # Restore execution state
+        self._waiting_for_result = state.waiting_for_result
+        self._is_streaming = state.is_streaming
+        self._streaming_accumulated = state.streaming_accumulated
+
+        # Restore UI collapsed/wrapped states
+        self._restore_section_ui_states(state)
+
+        # Update button states
+        self._update_undo_redo_buttons()
+        self._update_send_buttons_state()
+        self._update_delete_button_visibility()
+
+        # Show reply button if needed
+        has_output = self._output_section_shown or bool(self._output_sections)
+        has_pending_reply = bool(self._dynamic_sections)
+        self.reply_btn.setVisible(
+            has_output and not self._waiting_for_result and not has_pending_reply
+        )
+
+    def _clear_dynamic_sections(self):
+        """Remove all dynamic reply and output sections from layout."""
+        for section in self._dynamic_sections:
+            self.sections_layout.removeWidget(section)
+            section.setParent(None)
+            section.deleteLater()
+        self._dynamic_sections.clear()
+
+        for section in self._output_sections:
+            self.sections_layout.removeWidget(section)
+            section.setParent(None)
+            section.deleteLater()
+        self._output_sections.clear()
+
+    def _restore_dynamic_sections(
+        self, reply_data: List[Dict], output_data: List[Dict]
+    ):
+        """Recreate dynamic sections from serialized data."""
+        # Recreate reply sections
+        for data in reply_data:
+            section = self._create_reply_section(data["turn_number"])
+            section.text_edit.setPlainText(data["text"])
+            section.undo_stack = list(data["undo_stack"])
+            section.redo_stack = list(data["redo_stack"])
+            section.last_text = data["last_text"]
+
+            # Restore images
+            for img_data in data.get("images", []):
+                section.turn_images.append(
+                    ContextItem(
+                        item_type=ContextItemType.IMAGE,
+                        data=img_data["data"],
+                        media_type=img_data["media_type"],
+                    )
+                )
+            self._rebuild_reply_image_chips(section)
+
+            # Restore collapsed/wrapped state
+            if data.get("collapsed", False):
+                section.toggle_fn()
+            section.header.set_wrap_state(data.get("wrapped", True))
+
+            self._dynamic_sections.append(section)
+            self.sections_layout.addWidget(section)
+            section.text_edit.installEventFilter(self)
+
+        # Recreate output sections
+        for data in output_data:
+            section = self._create_dynamic_output_section(data["turn_number"])
+            section.text_edit.setPlainText(data["text"])
+            section.undo_stack = list(data["undo_stack"])
+            section.redo_stack = list(data["redo_stack"])
+            section.last_text = data["last_text"]
+
+            # Restore collapsed/wrapped state
+            if data.get("collapsed", False):
+                section.toggle_fn()
+            section.header.set_wrap_state(data.get("wrapped", True))
+
+            self._output_sections.append(section)
+            self.sections_layout.addWidget(section)
+            section.text_edit.installEventFilter(self)
+
+    def _restore_section_ui_states(self, state: TabState):
+        """Restore collapsed and wrapped states for main sections."""
+        # Context section
+        if state.context_collapsed:
+            self.context_text_edit.hide()
+            self.context_images_container.hide()
+            self.context_header.set_collapsed(True)
+            self.context_section.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        else:
+            self.context_text_edit.show()
+            if self._current_images:
+                self.context_images_container.show()
+            self.context_header.set_collapsed(False)
+            self.context_section.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+
+        self.context_header.set_wrap_state(state.context_wrapped)
+        if not state.context_wrapped:
+            content_height = get_text_edit_content_height(self.context_text_edit)
+            self.context_text_edit.setMinimumHeight(content_height)
+            self.context_text_edit.setMaximumHeight(QWIDGETSIZE_MAX)
+        else:
+            self.context_text_edit.setMinimumHeight(100)
+            self.context_text_edit.setMaximumHeight(TEXT_EDIT_MIN_HEIGHT)
+
+        # Input section
+        if state.input_collapsed:
+            self.input_edit.hide()
+            self.input_header.set_collapsed(True)
+            self.input_section.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        else:
+            self.input_edit.show()
+            self.input_header.set_collapsed(False)
+            self.input_section.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+
+        self.input_header.set_wrap_state(state.input_wrapped)
+        if not state.input_wrapped:
+            content_height = get_text_edit_content_height(self.input_edit)
+            self.input_edit.setMinimumHeight(content_height)
+
+        # Output section
+        if self._output_section_shown:
+            if state.output_collapsed:
+                self.output_edit.hide()
+                self.output_header.set_collapsed(True)
+                self.output_section.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+            else:
+                self.output_edit.show()
+                self.output_header.set_collapsed(False)
+                self.output_section.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+
+            self.output_header.set_wrap_state(state.output_wrapped)
+            if not state.output_wrapped:
+                content_height = get_text_edit_content_height(self.output_edit)
+                self.output_edit.setMinimumHeight(content_height)
+
+    def _reset_to_initial_state(self):
+        """Reset dialog to fresh initial state for a new tab."""
+        # Clear dynamic sections
+        self._clear_dynamic_sections()
+
+        # Remove output section from layout if shown
+        if self._output_section_shown:
+            self.sections_layout.removeWidget(self.output_section)
+            self.output_section.setParent(None)
+            self._output_section_shown = False
+
+        # Reset context - reload from context_manager
+        self._context_undo_stack.clear()
+        self._context_redo_stack.clear()
+        self._load_context()
+
+        # Reset message/input section
+        self._message_images.clear()
+        self._rebuild_message_image_chips()
+        self.input_edit.blockSignals(True)
+        self.input_edit.setPlainText("")
+        self.input_edit.blockSignals(False)
+        self._input_undo_stack.clear()
+        self._input_redo_stack.clear()
+        self._last_input_text = ""
+
+        # Reset output section
+        self.output_edit.blockSignals(True)
+        self.output_edit.setPlainText("")
+        self.output_edit.blockSignals(False)
+        self._output_undo_stack.clear()
+        self._output_redo_stack.clear()
+        self._last_output_text = ""
+
+        # Reset multi-turn conversation state
+        self._conversation_turns.clear()
+        self._current_turn_number = 0
+
+        # Reset execution state
+        self._waiting_for_result = False
+        self._is_streaming = False
+        self._streaming_accumulated = ""
+
+        # Reset UI states
+        self.context_text_edit.show()
+        self.context_header.set_collapsed(False)
+        self.input_edit.show()
+        self.input_header.set_collapsed(False)
+        self.reply_btn.setVisible(False)
+
+        # Update button states
+        self._update_undo_redo_buttons()
+        self._update_send_buttons_state()
+
+    def _on_add_tab_clicked(self):
+        """Handle add tab button click."""
+        if len(self._tabs) >= self._max_tabs:
+            return
+
+        # If this is the first tab creation, create Tab 1 for current state
+        if not self._active_tab_id:
+            self._tab_counter += 1
+            first_tab_id = f"tab_{self._tab_counter}"
+            first_tab_name = f"Tab {self._tab_counter}"
+
+            # Capture current state as Tab 1
+            first_state = self._capture_current_state()
+            first_state.tab_id = first_tab_id
+            first_state.tab_name = first_tab_name
+            self._tabs[first_tab_id] = first_state
+            self._active_tab_id = first_tab_id
+
+            # Add first tab to tab bar
+            self._tab_bar.add_tab(first_tab_id, first_tab_name)
+        else:
+            # Save current tab state
+            self._tabs[self._active_tab_id] = self._capture_current_state()
+
+        # Increment tab counter and generate new tab ID
+        self._tab_counter += 1
+        new_tab_id = f"tab_{self._tab_counter}"
+        new_tab_name = f"Tab {self._tab_counter}"
+
+        # Reset dialog to initial state
+        self._reset_to_initial_state()
+
+        # Create and store new tab state
+        new_state = self._capture_current_state()
+        new_state.tab_id = new_tab_id
+        new_state.tab_name = new_tab_name
+        self._tabs[new_tab_id] = new_state
+        self._active_tab_id = new_tab_id
+
+        # Add tab to tab bar
+        self._tab_bar.add_tab(new_tab_id, new_tab_name)
+        self._tab_bar.set_active_tab(new_tab_id)
+
+        # Focus input for immediate typing
+        self.input_edit.setFocus()
+
+    def _on_tab_selected(self, tab_id: str):
+        """Handle tab selection."""
+        if tab_id == self._active_tab_id:
+            return
+
+        # Save current tab state
+        if self._active_tab_id:
+            self._tabs[self._active_tab_id] = self._capture_current_state()
+
+        # Switch to new tab
+        self._active_tab_id = tab_id
+        self._tab_bar.set_active_tab(tab_id)
+
+        # Restore state from selected tab
+        if tab_id in self._tabs:
+            self._restore_state(self._tabs[tab_id])
+
+    def _on_tab_close_requested(self, tab_id: str):
+        """Handle tab close request."""
+        if self._tab_bar.get_tab_count() <= 1:
+            # Last tab - just reset to initial state instead of closing
+            self._reset_to_initial_state()
+            return
+
+        # If closing active tab, switch to another first
+        if tab_id == self._active_tab_id:
+            tab_ids = self._tab_bar.get_tab_ids()
+            current_idx = tab_ids.index(tab_id)
+            # Switch to previous tab, or next if this is first
+            new_idx = current_idx - 1 if current_idx > 0 else current_idx + 1
+            new_tab_id = tab_ids[new_idx]
+            self._on_tab_selected(new_tab_id)
+
+        # Remove tab from storage and UI
+        self._tabs.pop(tab_id, None)
+        self._tab_bar.remove_tab(tab_id)
 
     # --- Execution ---
 

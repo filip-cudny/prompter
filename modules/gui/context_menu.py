@@ -641,7 +641,7 @@ class PyQtContextMenu(QObject):
         self, menu: QMenu, item: MenuItem
     ) -> Optional[QAction]:
         """Create a custom menu item with hover effects."""
-        from PyQt5.QtWidgets import QHBoxLayout
+        from PyQt5.QtWidgets import QHBoxLayout, QGraphicsOpacityEffect
         from modules.gui.icons import create_icon_pixmap, ICON_COLOR_NORMAL, ICON_COLOR_DISABLED, ICON_COLOR_HOVER
         from modules.gui.context_widgets import IconButton
 
@@ -652,6 +652,8 @@ class PyQtContextMenu(QObject):
                 self._menu_item = menu_item
                 self._context_menu = context_menu
                 self._is_highlighted = False
+                self._disable_reason = None
+                self._is_recording_action = False
 
                 self._normal_style = """
                     QWidget {
@@ -754,8 +756,97 @@ class PyQtContextMenu(QObject):
                     self._message_btn.clicked.connect(self._on_message_share_clicked)
                     layout.addWidget(self._message_btn)
 
+            def _check_is_recording_action(self) -> bool:
+                """Check if this menu item is the currently recording action."""
+                if hasattr(self._context_menu, 'menu_coordinator') and self._context_menu.menu_coordinator:
+                    prompt_store_service = self._context_menu.menu_coordinator.prompt_store_service
+                    if prompt_store_service:
+                        recording_action_id = prompt_store_service.get_recording_action_id()
+                        return recording_action_id == self._menu_item.id
+                return False
+
+            def set_disabled_state(self, disable_reason: Optional[str]):
+                """Set disabled state with visual feedback based on reason."""
+                self._disable_reason = disable_reason
+                self._is_recording_action = self._check_is_recording_action()
+
+                if disable_reason:
+                    # Apply opacity effect to text label
+                    text_effect = QGraphicsOpacityEffect(self._text_label)
+                    text_effect.setOpacity(0.5)
+                    self._text_label.setGraphicsEffect(text_effect)
+
+                    # Apply opacity to icon if present
+                    if self._icon_label:
+                        icon_effect = QGraphicsOpacityEffect(self._icon_label)
+                        icon_effect.setOpacity(0.5)
+                        self._icon_label.setGraphicsEffect(icon_effect)
+
+                    # Update text style
+                    self._text_label.setStyleSheet(self._label_disabled_style)
+
+                    # Update mic button state based on reason - disabled with opacity
+                    if self._mic_btn:
+                        if disable_reason in ('recording', 'executing'):
+                            self._mic_btn.setEnabled(False)
+                            self._mic_btn.setCursor(Qt.ArrowCursor)
+                            # Apply opacity to disabled mic button
+                            mic_effect = QGraphicsOpacityEffect(self._mic_btn)
+                            mic_effect.setOpacity(0.5)
+                            self._mic_btn.setGraphicsEffect(mic_effect)
+
+                    # Message buttons stay enabled - no opacity effect (same as normal state)
+                    if self._message_btn:
+                        self._message_btn.setEnabled(True)
+                        self._message_btn.setCursor(Qt.PointingHandCursor)
+                        self._message_btn.setGraphicsEffect(None)
+                else:
+                    # Clear opacity effects
+                    self._text_label.setGraphicsEffect(None)
+                    if self._icon_label:
+                        self._icon_label.setGraphicsEffect(None)
+
+                    # Restore normal text style
+                    self._text_label.setStyleSheet(self._label_style)
+
+                    # Enable buttons and clear any opacity effects
+                    if self._mic_btn:
+                        self._mic_btn.setEnabled(True)
+                        self._mic_btn.setCursor(Qt.PointingHandCursor)
+                        self._mic_btn.setGraphicsEffect(None)
+                    if self._message_btn:
+                        self._message_btn.setEnabled(True)
+                        self._message_btn.setCursor(Qt.PointingHandCursor)
+                        self._message_btn.setGraphicsEffect(None)
+
+            def set_recording_action_state(self, is_recording_action: bool):
+                """Set this item as the currently recording action."""
+                self._is_recording_action = is_recording_action
+
+                if is_recording_action and self._mic_btn:
+                    # Clear opacity for this specific item since it's the active recording one
+                    self.setGraphicsEffect(None)
+
+                    # Restore normal text style
+                    self._text_label.setStyleSheet(self._label_style)
+
+                    # Change mic icon to square (stop icon)
+                    self._mic_btn.set_icon("square")
+                    self._mic_btn.setToolTip("Stop recording")
+                    self._mic_btn.setEnabled(True)
+                    self._mic_btn.setCursor(Qt.PointingHandCursor)
+
+                    # Message button stays enabled
+                    if self._message_btn:
+                        self._message_btn.setEnabled(True)
+                        self._message_btn.setCursor(Qt.PointingHandCursor)
+
             def _update_style(self, highlighted: bool):
                 """Update styles for highlight state."""
+                # Don't update style if disabled (keep disabled appearance)
+                if self._disable_reason and not self._is_recording_action:
+                    return
+
                 if highlighted:
                     self.setStyleSheet(self._hover_style)
                     self._text_label.setStyleSheet(self._label_hover_style)
@@ -768,6 +859,7 @@ class PyQtContextMenu(QObject):
 
             def _on_message_share_clicked(self):
                 """Handle message share button click."""
+                # Message button is always enabled, so allow this
                 # Close the menu
                 if self._context_menu.menu:
                     self._context_menu.menu.close()
@@ -799,29 +891,12 @@ class PyQtContextMenu(QObject):
 
             def _on_mic_clicked(self):
                 """Handle mic button click - trigger alternative execution (speech input)."""
-                if self._context_menu.execution_callback and self._menu_item.enabled:
-                    # True = shift_pressed, triggers alternative execution (speech-to-text)
-                    self._context_menu.execution_callback(self._menu_item, True)
-                    # Close the menu after execution
-                    if self._context_menu.menu:
-                        self._context_menu.menu.close()
-                    if self._context_menu.focus_window:
-                        self._context_menu.focus_window.hide()
-                    # Restore focus after execution
-                    self._context_menu._focus_restore_pending = True
-                    QTimer.singleShot(
-                        100, self._context_menu._restore_focus_with_cleanup
-                    )
-
-            def mousePressEvent(self, event):
-                if event.button() == Qt.LeftButton and self._menu_item.enabled:
-                    if self._context_menu.execution_callback:
-                        shift_pressed = bool(
-                            QApplication.keyboardModifiers() & Qt.ShiftModifier
-                        )
-                        self._context_menu.execution_callback(
-                            self._menu_item, shift_pressed
-                        )
+                # For recording action, this stops recording (always allowed)
+                # For non-recording actions when enabled
+                if self._context_menu.execution_callback:
+                    if self._is_recording_action or self._menu_item.enabled:
+                        # True = shift_pressed, triggers alternative execution (speech-to-text)
+                        self._context_menu.execution_callback(self._menu_item, True)
                         # Close the menu after execution
                         if self._context_menu.menu:
                             self._context_menu.menu.close()
@@ -833,28 +908,61 @@ class PyQtContextMenu(QObject):
                             100, self._context_menu._restore_focus_with_cleanup
                         )
 
+            def mousePressEvent(self, event):
+                # Check if click is on a button - if so, let the button handle it
+                if self._mic_btn and self._mic_btn.geometry().contains(event.pos()):
+                    return super().mousePressEvent(event)
+                if self._message_btn and self._message_btn.geometry().contains(event.pos()):
+                    return super().mousePressEvent(event)
+
+                # For text area clicks, check if action is enabled
+                if event.button() == Qt.LeftButton:
+                    # Block if disabled (but allow if this is the recording action for stopping)
+                    if self._disable_reason and not self._is_recording_action:
+                        event.ignore()
+                        return
+
+                    if self._menu_item.enabled or self._is_recording_action:
+                        if self._context_menu.execution_callback:
+                            shift_pressed = bool(
+                                QApplication.keyboardModifiers() & Qt.ShiftModifier
+                            )
+                            self._context_menu.execution_callback(
+                                self._menu_item, shift_pressed
+                            )
+                            # Close the menu after execution
+                            if self._context_menu.menu:
+                                self._context_menu.menu.close()
+                            if self._context_menu.focus_window:
+                                self._context_menu.focus_window.hide()
+                            # Restore focus after execution
+                            self._context_menu._focus_restore_pending = True
+                            QTimer.singleShot(
+                                100, self._context_menu._restore_focus_with_cleanup
+                            )
+
             def enterEvent(self, event):
-                if self._menu_item.enabled:
+                if self._menu_item.enabled or self._is_recording_action:
                     self._is_highlighted = True
                     self._update_style(True)
                     self._context_menu.hovered_widgets.add(self)
                 super().enterEvent(event)
 
             def leaveEvent(self, event):
-                if self._menu_item.enabled and not self.hasFocus():
+                if (self._menu_item.enabled or self._is_recording_action) and not self.hasFocus():
                     self._is_highlighted = False
                     self._update_style(False)
                     self._context_menu.hovered_widgets.discard(self)
                 super().leaveEvent(event)
 
             def focusInEvent(self, event):
-                if self._menu_item.enabled:
+                if self._menu_item.enabled or self._is_recording_action:
                     self._is_highlighted = True
                     self._update_style(True)
                 super().focusInEvent(event)
 
             def focusOutEvent(self, event):
-                if self._menu_item.enabled:
+                if self._menu_item.enabled or self._is_recording_action:
                     self._is_highlighted = False
                     self._update_style(False)
                 super().focusOutEvent(event)
@@ -862,7 +970,7 @@ class PyQtContextMenu(QObject):
             def keyPressEvent(self, event):
                 if (
                     event.key() in (Qt.Key_Return, Qt.Key_Enter)
-                    and self._menu_item.enabled
+                    and (self._menu_item.enabled or self._is_recording_action)
                 ):
                     if self._context_menu.execution_callback:
                         shift_pressed = bool(
@@ -886,7 +994,16 @@ class PyQtContextMenu(QObject):
                     super().keyPressEvent(event)
 
         widget = ClickableMenuItem(item.label, item, self)
-        if not item.enabled:
+
+        # Apply disabled state if needed
+        disable_reason = item.data.get("disable_reason") if item.data else None
+        is_recording_action = item.data.get("is_recording_action", False) if item.data else False
+
+        if is_recording_action:
+            widget.set_recording_action_state(True)
+        elif disable_reason:
+            widget.set_disabled_state(disable_reason)
+        elif not item.enabled:
             widget.setEnabled(False)
 
         # Set tooltip if available
@@ -896,8 +1013,9 @@ class PyQtContextMenu(QObject):
         action = QWidgetAction(menu)
         action.setDefaultWidget(widget)
 
-        # Ensure the action can receive focus for keyboard navigation
-        action.setEnabled(item.enabled)
+        # Keep action enabled so buttons can be clicked
+        # Disabling is handled at widget level via set_disabled_state()
+        action.setEnabled(True)
 
         return action
 

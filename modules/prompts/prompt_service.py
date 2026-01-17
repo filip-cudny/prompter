@@ -115,8 +115,16 @@ class PromptStoreService(PromptStoreServiceProtocol):
         return self.execution_service.get_recording_action_id()
 
     def should_disable_action(self, action_id: str) -> bool:
-        """Check if action should be disabled due to recording state."""
+        """Check if action should be disabled due to recording or execution state."""
         return self.execution_service.should_disable_action(action_id)
+
+    def is_executing(self) -> bool:
+        """Check if any handler is executing (LLM request in progress)."""
+        return self.execution_service.is_executing()
+
+    def get_disable_reason(self, action_id: str) -> Optional[str]:
+        """Get the reason for disabling an action ('recording', 'executing', or None)."""
+        return self.execution_service.get_disable_reason(action_id)
 
     def set_menu_coordinator(self, menu_coordinator):
         """Set the menu coordinator for GUI updates."""

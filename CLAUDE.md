@@ -72,6 +72,10 @@ make autostart-linux   # Setup Linux systemd service
 
 **Background Service**: Runs as daemon process with PID file management and comprehensive logging
 
+## Code Style
+
+**Do NOT use comments to explain what code does.** Code must be meaningful and self-explanatory. Use clear variable names, well-named functions, and logical structure instead of comments. If code needs a comment to be understood, refactor it to be clearer.
+
 ## Development Notes
 
 - **GUI Framework**: PyQt5-based system tray application
