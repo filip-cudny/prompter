@@ -173,6 +173,10 @@ class ConversationTabBar(QWidget):
             widget.setProperty("active", is_active)
             widget.style().unpolish(widget)
             widget.style().polish(widget)
+            if hasattr(widget, "label"):
+                font = widget.label.font()
+                font.setWeight(63 if is_active else 50)  # DemiBold : Normal
+                widget.label.setFont(font)
 
     def get_tab_count(self) -> int:
         """Get the number of tabs."""
@@ -512,7 +516,7 @@ class MessageShareDialog(BaseDialog):
 
         # Text edit area
         self.input_edit = create_text_edit(
-            placeholder="Type your message... (Ctrl+Enter: Send & copy | Alt+Enter: Send & show | Ctrl+V: Paste image)"
+            placeholder="Type your message...\n(Ctrl+Enter: Send & copy | Alt+Enter: Send & show | Ctrl+V: Paste image)"
         )
         self.input_edit.setToolTip("Type and send message with prompt")
         self.input_edit.textChanged.connect(self._on_input_text_changed)
@@ -555,7 +559,7 @@ class MessageShareDialog(BaseDialog):
     def _create_button_bar(self, layout: QVBoxLayout):
         """Create button bar with tabs inline and send actions."""
         button_widget = QWidget()
-        button_widget.setFixedHeight(36)
+        button_widget.setFixedHeight(44)
         button_bar = QHBoxLayout(button_widget)
         button_bar.setContentsMargins(12, 0, 12, 0)
 
@@ -572,13 +576,42 @@ class MessageShareDialog(BaseDialog):
         self._tab_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self._tab_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._tab_scroll.setFrameShape(QFrame.NoFrame)
-        self._tab_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
-        self._tab_scroll.setFixedHeight(32)
+        self._tab_scroll.setStyleSheet("""
+            QScrollArea {
+                background: transparent;
+                border: none;
+            }
+            QScrollArea > QWidget > QWidget {
+                background: transparent;
+            }
+            QScrollBar:horizontal {
+                height: 6px;
+                background: transparent;
+                margin: 0;
+            }
+            QScrollBar::handle:horizontal {
+                background: #555555;
+                border-radius: 3px;
+                min-width: 20px;
+            }
+            QScrollBar::handle:horizontal:hover {
+                background: #666666;
+            }
+            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+                width: 0;
+                height: 0;
+            }
+            QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
+                background: transparent;
+            }
+        """)
+        self._tab_scroll.setFixedHeight(40)
 
         self._tab_bar = ConversationTabBar()
         self._tab_bar.tab_selected.connect(self._on_tab_selected)
         self._tab_bar.tab_close_requested.connect(self._on_tab_close_requested)
         self._tab_scroll.setWidget(self._tab_bar)
+        self._tab_scroll.hide()
         button_bar.addWidget(self._tab_scroll, 1)  # stretch factor 1
 
         button_bar.addStretch()
@@ -1610,6 +1643,11 @@ class MessageShareDialog(BaseDialog):
         self._update_undo_redo_buttons()
         self._update_send_buttons_state()
 
+    def _update_tab_bar_visibility(self):
+        """Show tab bar only when there are multiple tabs."""
+        has_multiple_tabs = self._tab_bar.get_tab_count() > 1
+        self._tab_scroll.setVisible(has_multiple_tabs)
+
     def _on_add_tab_clicked(self):
         """Handle add tab button click."""
         if len(self._tabs) >= self._max_tabs:
@@ -1652,6 +1690,7 @@ class MessageShareDialog(BaseDialog):
         # Add tab to tab bar
         self._tab_bar.add_tab(new_tab_id, new_tab_name)
         self._tab_bar.set_active_tab(new_tab_id)
+        self._update_tab_bar_visibility()
 
         # Focus input for immediate typing
         self.input_edit.setFocus()
@@ -1676,7 +1715,6 @@ class MessageShareDialog(BaseDialog):
     def _on_tab_close_requested(self, tab_id: str):
         """Handle tab close request."""
         if self._tab_bar.get_tab_count() <= 1:
-            # Last tab - just reset to initial state instead of closing
             self._reset_to_initial_state()
             return
 
@@ -1684,14 +1722,13 @@ class MessageShareDialog(BaseDialog):
         if tab_id == self._active_tab_id:
             tab_ids = self._tab_bar.get_tab_ids()
             current_idx = tab_ids.index(tab_id)
-            # Switch to previous tab, or next if this is first
             new_idx = current_idx - 1 if current_idx > 0 else current_idx + 1
             new_tab_id = tab_ids[new_idx]
             self._on_tab_selected(new_tab_id)
 
-        # Remove tab from storage and UI
         self._tabs.pop(tab_id, None)
         self._tab_bar.remove_tab(tab_id)
+        self._update_tab_bar_visibility()
 
     # --- Execution ---
 
@@ -2082,7 +2119,9 @@ class MessageShareDialog(BaseDialog):
         images_container.hide()
         layout.addWidget(images_container)
 
-        text_edit = create_text_edit(placeholder="Type your message...")
+        text_edit = create_text_edit(
+            placeholder="Type your message...\n(Ctrl+Enter: Send & copy | Alt+Enter: Send & show | Ctrl+V: Paste image)"
+        )
         text_edit.textChanged.connect(self._update_send_buttons_state)
         layout.addWidget(text_edit)
 
