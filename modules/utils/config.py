@@ -113,8 +113,24 @@ class ConfigService:
             )
 
         settings_file = Path("settings/settings.json")
+        settings_to_save = self._sanitize_settings_for_save(self._settings_data)
         with open(settings_file, "w", encoding="utf-8") as f:
-            json.dump(self._settings_data, f, indent=2)
+            json.dump(settings_to_save, f, indent=2)
+
+    def _sanitize_settings_for_save(self, settings: Dict[str, Any]) -> Dict[str, Any]:
+        """Remove sensitive data (api_key) before saving to disk."""
+        import copy
+
+        sanitized = copy.deepcopy(settings)
+
+        if "models" in sanitized:
+            for model_config in sanitized["models"].values():
+                model_config.pop("api_key", None)
+
+        if "speech_to_text_model" in sanitized:
+            sanitized["speech_to_text_model"].pop("api_key", None)
+
+        return sanitized
 
     def update_prompts_order(self, prompt_ids: List[str], persist: bool = True) -> None:
         """Reorder prompts by ID list.
