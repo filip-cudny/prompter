@@ -100,6 +100,7 @@ class PromptMenuProvider:
                         "is_executing_action": is_executing_action,
                     },
                     enabled=enabled,
+                    tooltip=prompt.description if prompt.description else None,
                 )
 
                 def create_action(menu_item):

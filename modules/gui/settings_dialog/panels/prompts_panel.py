@@ -1,7 +1,5 @@
 """Prompts settings panel."""
 
-from typing import Optional
-
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (
     QComboBox,
@@ -14,9 +12,12 @@ from PyQt5.QtWidgets import (
 from modules.gui.context_widgets import IconButton
 from modules.gui.dialog_styles import (
     COLOR_BORDER,
+    COLOR_BUTTON_BG,
+    COLOR_BUTTON_HOVER,
     COLOR_TEXT,
     COLOR_TEXT_EDIT_BG,
     COLOR_DIALOG_BG,
+    SVG_CHEVRON_DOWN_PATH,
     TOOLTIP_STYLE,
 )
 from modules.utils.config import ConfigService
@@ -49,7 +50,7 @@ class PromptsPanel(SettingsPanelBase):
         self._load_prompts()
         self._load_generator_config()
 
-        layout.addWidget(self._prompt_list)
+        layout.addWidget(self._prompt_list, 1)
 
     def _setup_generator_config_section(self, layout: QVBoxLayout) -> None:
         """Set up the description generator configuration section."""
@@ -67,6 +68,7 @@ class PromptsPanel(SettingsPanelBase):
                 border: 1px solid {COLOR_BORDER};
                 border-radius: 4px;
                 padding: 6px 8px;
+                padding-right: 28px;
                 min-width: 200px;
             }}
             QComboBox::drop-down {{
@@ -74,11 +76,9 @@ class PromptsPanel(SettingsPanelBase):
                 width: 24px;
             }}
             QComboBox::down-arrow {{
-                image: none;
-                border-left: 4px solid transparent;
-                border-right: 4px solid transparent;
-                border-top: 6px solid {COLOR_TEXT};
-                margin-right: 8px;
+                image: url("{SVG_CHEVRON_DOWN_PATH}");
+                width: 12px;
+                height: 12px;
             }}
             QComboBox QAbstractItemView {{
                 background-color: {COLOR_DIALOG_BG};
@@ -109,26 +109,33 @@ class PromptsPanel(SettingsPanelBase):
         )
         row_layout.addWidget(self._generator_model_combo)
 
-        row_layout.addStretch()
-
         icon_btn_style = f"""
             QPushButton {{
-                background: transparent;
-                border: none;
+                background-color: {COLOR_BUTTON_BG};
+                border: 1px solid {COLOR_BORDER};
+                border-radius: 4px;
                 padding: 4px;
                 min-width: 28px;
                 max-width: 28px;
                 min-height: 28px;
                 max-height: 28px;
             }}
+            QPushButton:hover {{
+                background-color: {COLOR_BUTTON_HOVER};
+            }}
+            QPushButton:disabled {{
+                background-color: {COLOR_DIALOG_BG};
+            }}
             {TOOLTIP_STYLE}
         """
-        self._edit_prompt_btn = IconButton("edit", size=18)
+        self._edit_prompt_btn = IconButton("edit", size=16)
         self._edit_prompt_btn.setStyleSheet(icon_btn_style)
-        self._edit_prompt_btn.setToolTip("Edit generation prompt template")
+        self._edit_prompt_btn.setToolTip("Edit prompt descriptor prompt")
         self._edit_prompt_btn.setCursor(Qt.PointingHandCursor)
         self._edit_prompt_btn.clicked.connect(self._on_edit_generator_prompt)
         row_layout.addWidget(self._edit_prompt_btn)
+
+        row_layout.addStretch()
 
         section_layout.addLayout(row_layout)
         layout.addWidget(container)
@@ -162,14 +169,14 @@ class PromptsPanel(SettingsPanelBase):
         """Open dialog to edit the generator prompt template."""
         config = self._config_service.get_description_generator_config()
         current_prompt = self._pending_generator_config.get(
-            "prompt", config.get("prompt", "")
+            "system_prompt", config.get("system_prompt", "")
         )
 
         dialog = PromptTemplateDialog(current_prompt=current_prompt, parent=self)
         if dialog.exec_():
             result = dialog.get_result()
             if result is not None:
-                self._pending_generator_config["prompt"] = result
+                self._pending_generator_config["system_prompt"] = result
                 self.mark_dirty()
 
     def _load_prompts(self):

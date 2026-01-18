@@ -732,7 +732,6 @@ class PyQtContextMenu(QObject):
     ) -> Optional[QAction]:
         """Create a custom menu item with hover effects."""
         from PyQt5.QtWidgets import QHBoxLayout, QGraphicsOpacityEffect
-        from PyQt5.QtGui import QPixmap, QPainter
         from modules.gui.icons import create_icon_pixmap, ICON_COLOR_NORMAL, ICON_COLOR_DISABLED
         from modules.gui.context_widgets import IconButton
 
@@ -746,8 +745,6 @@ class PyQtContextMenu(QObject):
                 self._disable_reason = None
                 self._is_recording_action = False
                 self._is_executing_action = False
-                self._rotation_angle = 0
-                self._rotation_timer = None
 
                 self._normal_style = """
                     QWidget {
@@ -826,6 +823,28 @@ class PyQtContextMenu(QObject):
 
                 layout.addStretch()
 
+                # Info icon for prompts with description (only for PROMPT items)
+                self._info_btn = None
+                if menu_item.item_type == MenuItemType.PROMPT:
+                    self._info_btn = IconButton("info", size=16)
+                    info_effect = QGraphicsOpacityEffect(self._info_btn)
+                    info_effect.setOpacity(DISABLED_OPACITY)
+                    self._info_btn.setGraphicsEffect(info_effect)
+                    self._info_btn.setStyleSheet("""
+                        QPushButton {
+                            background: transparent;
+                            border: none;
+                            padding: 2px;
+                            min-width: 20px;
+                            max-width: 20px;
+                            min-height: 20px;
+                            max-height: 20px;
+                        }
+                    """)
+                    self._info_btn.setCursor(Qt.ArrowCursor)
+                    self._info_btn.hide()
+                    layout.addWidget(self._info_btn)
+
                 # Mic button for alternative execution (only for PROMPT items)
                 self._mic_btn = None
                 if menu_item.item_type == MenuItemType.PROMPT:
@@ -874,6 +893,13 @@ class PyQtContextMenu(QObject):
                         recording_action_id = prompt_store_service.get_recording_action_id()
                         return recording_action_id == self._menu_item.id
                 return False
+
+            def set_description(self, text):
+                """Set description - shows info icon with tooltip."""
+                if self._info_btn and text:
+                    wrapped_text = f'<div style="max-width: 800px;">{text}</div>'
+                    self._info_btn.setToolTip(wrapped_text)
+                    self._info_btn.show()
 
             def set_disabled_state(self, disable_reason: Optional[str]):
                 """Set disabled state with visual feedback based on reason."""
@@ -1001,47 +1027,13 @@ class PyQtContextMenu(QObject):
                     self._stop_loader_animation()
 
             def _start_loader_animation(self):
-                """Start rotating the loader icon."""
-                self._rotation_angle = 0
-                # Cache the base pixmap at smaller size to leave room for rotation
-                self._loader_base_pixmap = create_icon_pixmap("loader", ICON_COLOR_DISABLED, 12)
-                self._loader_dpr = self._loader_base_pixmap.devicePixelRatio()
-                self._loader_canvas_size = int(20 * self._loader_dpr)
-                self._loader_icon_size = int(12 * self._loader_dpr)
-                self._rotation_timer = QTimer(self)
-                self._rotation_timer.timeout.connect(self._rotate_loader)
-                self._rotation_timer.start(150)
-
-            def _rotate_loader(self):
-                """Rotate the loader icon smoothly on a fixed-size canvas."""
-                self._rotation_angle = (self._rotation_angle + 30) % 360
-                if self._loader_label and hasattr(self, '_loader_base_pixmap'):
-                    # Create fixed-size output pixmap
-                    canvas = self._loader_canvas_size
-                    icon = self._loader_icon_size
-                    offset = (canvas - icon) // 2
-
-                    result = QPixmap(canvas, canvas)
-                    result.fill(Qt.transparent)
-
-                    # Paint rotated icon centered on fixed canvas
-                    painter = QPainter(result)
-                    painter.setRenderHint(QPainter.Antialiasing)
-                    painter.setRenderHint(QPainter.SmoothPixmapTransform)
-                    painter.translate(canvas / 2, canvas / 2)
-                    painter.rotate(self._rotation_angle)
-                    painter.translate(-icon / 2, -icon / 2)
-                    painter.drawPixmap(0, 0, self._loader_base_pixmap)
-                    painter.end()
-
-                    result.setDevicePixelRatio(self._loader_dpr)
-                    self._loader_label.setPixmap(result)
+                """Show a static hourglass icon during execution."""
+                pixmap = create_icon_pixmap("hourglass", ICON_COLOR_DISABLED, 14)
+                self._loader_label.setPixmap(pixmap)
 
             def _stop_loader_animation(self):
-                """Stop the loader animation."""
-                if self._rotation_timer:
-                    self._rotation_timer.stop()
-                    self._rotation_timer = None
+                """Clear the loader icon."""
+                pass
 
             def _update_style(self, highlighted: bool):
                 """Update styles for highlight state."""
@@ -1225,9 +1217,9 @@ class PyQtContextMenu(QObject):
         elif not item.enabled:
             widget.setEnabled(False)
 
-        # Set tooltip if available
+        # Set description if available (shows info icon with tooltip)
         if hasattr(item, "tooltip") and item.tooltip:
-            widget.setToolTip(item.tooltip)
+            widget.set_description(item.tooltip)
 
         action = QWidgetAction(menu)
         action.setDefaultWidget(widget)

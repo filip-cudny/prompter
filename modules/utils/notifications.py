@@ -1,5 +1,6 @@
 """Enhanced notification system with non-focus-stealing implementation."""
 
+import os
 import platform
 import threading
 from typing import Union, Optional
@@ -39,6 +40,11 @@ PLATFORM = platform.system()
 MACOS_PLATFORM = PLATFORM == "Darwin"
 LINUX_PLATFORM = PLATFORM == "Linux"
 WINDOWS_PLATFORM = PLATFORM == "Windows"
+
+
+def is_wayland_session() -> bool:
+    """Check if running under Wayland display server."""
+    return os.environ.get("XDG_SESSION_TYPE", "").lower() == "wayland"
 
 
 class EnhancedNotificationWidget(QWidget):
@@ -81,11 +87,9 @@ class EnhancedNotificationWidget(QWidget):
         )
 
         # Platform-specific window flags
-        if LINUX_PLATFORM:
-            # On Linux, bypass window manager for true overlay behavior
-            flags = base_flags | Qt.X11BypassWindowManagerHint
-        else:
-            flags = base_flags
+        # Note: Qt.X11BypassWindowManagerHint can prevent windows from rendering
+        # on some Linux configurations, so we use base flags only on Linux
+        flags = base_flags
 
         self.setWindowFlags(flags)
 

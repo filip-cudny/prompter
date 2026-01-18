@@ -134,13 +134,21 @@ class PromptExecutionWorker(QThread):
         """Execute the prompt in the worker thread."""
         if not self.item:
             # Ensure error callback is called for early return so cleanup happens
-            logger.warning("Worker run() called with no item - triggering error callback")
+            logger.warning(
+                "Worker run() called with no item - triggering error callback"
+            )
             if self.error_callback:
-                self.error_callback("No item to execute", "Unknown", 0, self.execution_id)
+                self.error_callback(
+                    "No item to execute", "Unknown", 0, self.execution_id
+                )
             return
 
         self.start_time = time.time()
-        prompt_name = self.item.label or "Unknown Prompt"
+        prompt_name = (
+            (self.item.data.get("prompt_name") if self.item.data else None)
+            or self.item.label
+            or "Unknown Prompt"
+        )
 
         try:
             # Call started callback
@@ -165,18 +173,25 @@ class PromptExecutionWorker(QThread):
 
             if result.success:
                 if self.finished_callback:
-                    self.finished_callback(result, prompt_name, execution_time, self.execution_id)
+                    self.finished_callback(
+                        result, prompt_name, execution_time, self.execution_id
+                    )
             else:
                 if self.error_callback:
                     self.error_callback(
-                        result.error or "Unknown error", prompt_name, execution_time, self.execution_id
+                        result.error or "Unknown error",
+                        prompt_name,
+                        execution_time,
+                        self.execution_id,
                     )
 
         except Exception as e:
             execution_time = time.time() - self.start_time
             logger.error("Worker thread exception: %s", e, exc_info=True)
             if self.error_callback:
-                self.error_callback(str(e), prompt_name, execution_time, self.execution_id)
+                self.error_callback(
+                    str(e), prompt_name, execution_time, self.execution_id
+                )
 
     def _execute_prompt_sync(self) -> ExecutionResult:
         """Execute the prompt synchronously (runs in worker thread)."""
@@ -263,7 +278,9 @@ class PromptExecutionWorker(QThread):
                     # Handle existing content (could be string or list)
                     if isinstance(last_content, str):
                         if last_content.strip():
-                            message_content.append({"type": "text", "text": last_content})
+                            message_content.append(
+                                {"type": "text", "text": last_content}
+                            )
                     elif isinstance(last_content, list):
                         message_content.extend(last_content)
 
@@ -272,12 +289,14 @@ class PromptExecutionWorker(QThread):
                         img_data = img.get("data", "")
                         media_type = img.get("media_type", "image/png")
                         if img_data:
-                            message_content.append({
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:{media_type};base64,{img_data}"
-                                },
-                            })
+                            message_content.append(
+                                {
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": f"data:{media_type};base64,{img_data}"
+                                    },
+                                }
+                            )
 
                     # Update the last message with combined content
                     if message_content:
@@ -339,10 +358,7 @@ class PromptExecutionWorker(QThread):
 
             if role == "assistant":
                 # Assistant response
-                processed.append({
-                    "role": "assistant",
-                    "content": turn.get("text", "")
-                })
+                processed.append({"role": "assistant", "content": turn.get("text", "")})
             else:
                 # User turn - build content with text and images
                 content = []
@@ -353,10 +369,12 @@ class PromptExecutionWorker(QThread):
 
                 if context_text:
                     # First turn with context
-                    content.append({
-                        "type": "text",
-                        "text": f"<context>\n{context_text}\n</context>\n\n{text}"
-                    })
+                    content.append(
+                        {
+                            "type": "text",
+                            "text": f"<context>\n{context_text}\n</context>\n\n{text}",
+                        }
+                    )
                 elif text.strip():
                     content.append({"type": "text", "text": text})
 
@@ -365,24 +383,28 @@ class PromptExecutionWorker(QThread):
                     img_data = img.get("data", "")
                     media_type = img.get("media_type", "image/png")
                     if img_data:
-                        content.append({
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:{media_type};base64,{img_data}"
+                        content.append(
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:{media_type};base64,{img_data}"
+                                },
                             }
-                        })
+                        )
 
                 # Add message images
                 for img in turn.get("images", []):
                     img_data = img.get("data", "")
                     media_type = img.get("media_type", "image/png")
                     if img_data:
-                        content.append({
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:{media_type};base64,{img_data}"
+                        content.append(
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:{media_type};base64,{img_data}"
+                                },
                             }
-                        })
+                        )
 
                 if content:
                     processed.append({"role": "user", "content": content})
@@ -469,7 +491,9 @@ class PromptExecutionWorker(QThread):
                 messages=processed_messages,
             ):
                 # Emit chunk signal (Qt handles thread safety)
-                self.chunk_received.emit(chunk_text, accumulated, False, self.execution_id)
+                self.chunk_received.emit(
+                    chunk_text, accumulated, False, self.execution_id
+                )
 
             # Emit final signal
             self.chunk_received.emit("", accumulated, True, self.execution_id)
@@ -583,14 +607,15 @@ class AsyncPromptExecutionManager:
         )
 
         # Connect streaming chunk signal to route through menu coordinator
-        if self.prompt_store_service and hasattr(self.prompt_store_service, '_menu_coordinator'):
-            worker.chunk_received.connect(
-                self._on_chunk_received,
-                Qt.QueuedConnection
-            )
+        if self.prompt_store_service and hasattr(
+            self.prompt_store_service, "_menu_coordinator"
+        ):
+            worker.chunk_received.connect(self._on_chunk_received, Qt.QueuedConnection)
 
         # Determine if this is alternative execution
-        is_alternative = bool(item.data and item.data.get("alternative_execution", False))
+        is_alternative = bool(
+            item.data and item.data.get("alternative_execution", False)
+        )
 
         # Capture the original input content before execution starts
         if is_alternative:
@@ -637,26 +662,42 @@ class AsyncPromptExecutionManager:
         """Handle execution started signal."""
         self.is_executing = True
 
-    def _on_chunk_received(self, chunk: str, accumulated: str, is_final: bool, execution_id: str = ""):
+    def _on_chunk_received(
+        self, chunk: str, accumulated: str, is_final: bool, execution_id: str = ""
+    ):
         """Route streaming chunk signal to menu coordinator."""
-        if self.prompt_store_service and hasattr(self.prompt_store_service, '_menu_coordinator'):
+        if self.prompt_store_service and hasattr(
+            self.prompt_store_service, "_menu_coordinator"
+        ):
             self.prompt_store_service._menu_coordinator.streaming_chunk.emit(
                 chunk, accumulated, is_final, execution_id
             )
 
     def _on_execution_finished(
-        self, result: ExecutionResult, prompt_name: str, execution_time: float, execution_id: str = ""
+        self,
+        result: ExecutionResult,
+        prompt_name: str,
+        execution_time: float,
+        execution_id: str = "",
     ):
         """Handle successful execution completion."""
         # Look up execution context
-        exec_context = self._active_executions.get(execution_id) if execution_id else None
+        exec_context = (
+            self._active_executions.get(execution_id) if execution_id else None
+        )
         current_item = exec_context.item if exec_context else self.current_item
-        original_input = exec_context.original_input if exec_context else self.original_input_content
+        original_input = (
+            exec_context.original_input if exec_context else self.original_input_content
+        )
         worker = exec_context.worker if exec_context else self.worker
 
         try:
             # Copy response to clipboard (unless explicitly skipped)
-            skip_clipboard = current_item and current_item.data and current_item.data.get("skip_clipboard_copy", False)
+            skip_clipboard = (
+                current_item
+                and current_item.data
+                and current_item.data.get("skip_clipboard_copy", False)
+            )
             if result.content and not skip_clipboard:
                 self.clipboard_manager.set_content(result.content)
 
@@ -702,12 +743,18 @@ class AsyncPromptExecutionManager:
                     metadata={"action": "execute_prompt"},
                     execution_id=execution_id,
                 )
-                self.prompt_store_service.emit_execution_completed(error_result, execution_id)
+                self.prompt_store_service.emit_execution_completed(
+                    error_result, execution_id
+                )
         finally:
             self._cleanup_execution(execution_id)
 
     def _on_execution_error(
-        self, error_message: str, prompt_name: str, execution_time: float, execution_id: str = ""
+        self,
+        error_message: str,
+        prompt_name: str,
+        execution_time: float,
+        execution_id: str = "",
     ):
         """Handle execution error."""
         self.notification_manager.show_error_notification(
@@ -722,14 +769,18 @@ class AsyncPromptExecutionManager:
                 metadata={"action": "execute_prompt"},
                 execution_id=execution_id,
             )
-            self.prompt_store_service.emit_execution_completed(error_result, execution_id)
+            self.prompt_store_service.emit_execution_completed(
+                error_result, execution_id
+            )
 
         self._cleanup_execution(execution_id)
 
     def _cleanup_execution(self, execution_id: str = ""):
         """Clean up a specific execution by ID."""
         # Remove from active executions
-        exec_context = self._active_executions.pop(execution_id, None) if execution_id else None
+        exec_context = (
+            self._active_executions.pop(execution_id, None) if execution_id else None
+        )
         worker = exec_context.worker if exec_context else self.worker
 
         # Reset legacy state if no more active executions
@@ -749,7 +800,9 @@ class AsyncPromptExecutionManager:
 
             if worker.isRunning():
                 worker.quit()
-                QTimer.singleShot(100, lambda w=worker: self._finish_worker_cleanup_for(w))
+                QTimer.singleShot(
+                    100, lambda w=worker: self._finish_worker_cleanup_for(w)
+                )
             else:
                 worker.deleteLater()
 
@@ -758,7 +811,9 @@ class AsyncPromptExecutionManager:
         if worker:
             if worker.isRunning():
                 worker.terminate()
-                QTimer.singleShot(50, lambda w=worker: self._force_worker_cleanup_for(w))
+                QTimer.singleShot(
+                    50, lambda w=worker: self._force_worker_cleanup_for(w)
+                )
             else:
                 worker.deleteLater()
 
@@ -767,7 +822,9 @@ class AsyncPromptExecutionManager:
         if worker:
             worker.deleteLater()
 
-    def stop_execution(self, execution_id: Optional[str] = None, silent: bool = False) -> bool:
+    def stop_execution(
+        self, execution_id: Optional[str] = None, silent: bool = False
+    ) -> bool:
         """Stop specific execution by ID, or all if None.
 
         Args:
@@ -820,7 +877,9 @@ class AsyncPromptExecutionManager:
             prompt_name = cancelled_item.data.get("prompt_name", "Prompt")
 
         if is_notification_enabled("prompt_execution_cancel"):
-            self.notification_manager.show_warning_notification(f"{prompt_name} cancelled")
+            self.notification_manager.show_warning_notification(
+                f"{prompt_name} cancelled"
+            )
 
         if self.prompt_store_service:
             cancel_result = ExecutionResult(
@@ -829,7 +888,9 @@ class AsyncPromptExecutionManager:
                 metadata={"action": "execution_cancelled"},
                 execution_id=execution_id,
             )
-            self.prompt_store_service.emit_execution_completed(cancel_result, execution_id)
+            self.prompt_store_service.emit_execution_completed(
+                cancel_result, execution_id
+            )
 
         return True
 

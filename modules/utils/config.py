@@ -68,6 +68,7 @@ class ConfigService:
         if not self._initialized:
             self._config = None
             self._settings_data = None
+            self._on_save_callbacks = []
             self._initialized = True
 
     def initialize(
@@ -76,6 +77,10 @@ class ConfigService:
         """Initialize the configuration service."""
         self._config = self._load_config(env_file, settings_file)
         return self._config
+
+    def register_on_save_callback(self, callback):
+        """Register callback to be called after settings are saved."""
+        self._on_save_callbacks.append(callback)
 
     def get_config(self) -> AppConfig:
         """Get the current configuration."""
@@ -153,6 +158,9 @@ class ConfigService:
         settings_to_save = self._sanitize_settings_for_save(self._settings_data)
         with open(settings_file, "w", encoding="utf-8") as f:
             json.dump(settings_to_save, f, indent=2, ensure_ascii=False)
+
+        for callback in self._on_save_callbacks:
+            callback()
 
     def _sanitize_settings_for_save(self, settings: Dict[str, Any]) -> Dict[str, Any]:
         """Remove sensitive data (api_key) before saving to disk, except for direct API keys."""
@@ -424,27 +432,54 @@ class ConfigService:
         """Get the description generator configuration.
 
         Returns:
-            Dict with 'model' and 'prompt' keys
+            Dict with 'model' and 'system_prompt' keys
         """
         if self._settings_data is None:
             raise ConfigurationError(
                 "ConfigService not initialized. Call initialize() first."
             )
 
+        default_system_prompt = (
+            "You are an AI assistant whose sole task is to generate a short, concise "
+            "description explaining what a given prompt does.\n\n"
+            "You will receive:\n\n"
+            "* The prompt name.\n"
+            "* The full system prompt content.\n"
+            "* The user message template, including placeholders and their explanations.\n\n"
+            "Your goal:\n\n"
+            "* Produce a brief description (1–3 sentences or up to 3 bullet points) that "
+            "clearly summarizes the purpose and behavior of the prompt.\n"
+            "* The description must be suitable for quick recall in a list or context menu.\n"
+            "* Write the description in the same primary language as the prompt itself "
+            "(the core prompt language), even if examples inside the prompt use other languages.\n\n"
+            "Rules:\n\n"
+            "* Emphasize whether the prompt performs execution, refinement, correction, "
+            "translation, or a lossless transformation.\n"
+            "* Explicitly distinguish transformations from summarization or content reduction "
+            "when applicable.\n"
+            "* Do not restate the prompt name verbatim.\n"
+            "* Do not describe internal formatting or XML mechanics unless essential.\n"
+            "* Do not explain placeholders individually unless critical.\n"
+            "* Do not add examples.\n"
+            "* Output either a short paragraph or up to 3 bullet points.\n"
+            "* Do not use meta commentary.\n"
+            "* Output only the final description text."
+        )
+
         default_config = {
             "model": "",
-            "prompt": (
-                "Generate a concise 3-4 word description for the following AI prompt.\n"
-                "The description should capture the primary purpose or action.\n"
-                "Only respond with the description, nothing else.\n\n"
-                "Prompt name: {{name}}\n"
-                "System message: {{system}}\n"
-                "User message template: {{user}}"
-            ),
+            "system_prompt": default_system_prompt,
         }
 
         config = self._settings_data.get("description_generator", {})
-        return {**default_config, **config}
+        result = {**default_config, **config}
+
+        if "prompt" in result and "system_prompt" not in config:
+            result["system_prompt"] = result.pop("prompt")
+        elif "prompt" in result:
+            del result["prompt"]
+
+        return result
 
     def update_description_generator_config(
         self, config: Dict[str, Any], persist: bool = True

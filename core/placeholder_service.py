@@ -1,6 +1,7 @@
 """Placeholder service for processing placeholders in messages."""
 
 import logging
+import re
 from typing import Dict, List, Optional, Any
 from abc import ABC, abstractmethod
 
@@ -18,6 +19,10 @@ class PlaceholderProcessor(ABC):
         """Return the placeholder name this processor handles."""
 
     @abstractmethod
+    def get_description(self) -> str:
+        """Return a description of what this placeholder provides."""
+
+    @abstractmethod
     def process(self, context: Optional[str] = None) -> str:
         """Process and return the replacement value."""
 
@@ -30,6 +35,9 @@ class ClipboardPlaceholderProcessor(PlaceholderProcessor):
 
     def get_placeholder_name(self) -> str:
         return "clipboard"
+
+    def get_description(self) -> str:
+        return "The current clipboard text content"
 
     def process(self, context: Optional[str] = None) -> str:
         """Get clipboard content or use provided context."""
@@ -51,6 +59,9 @@ class ContextPlaceholderProcessor(PlaceholderProcessor):
 
     def get_placeholder_name(self) -> str:
         return "context"
+
+    def get_description(self) -> str:
+        return "Persistent context data set across prompt executions"
 
     def process(self, context: Optional[str] = None) -> str:
         """Return stored context value or empty string."""
@@ -179,3 +190,21 @@ class PlaceholderService:
             if placeholder_pattern in content:
                 return True
         return False
+
+    def get_placeholder_info(self) -> Dict[str, str]:
+        """Get dictionary mapping placeholder names to their descriptions."""
+        return {
+            name: processor.get_description()
+            for name, processor in self.processors.items()
+        }
+
+    def find_invalid_placeholders(self, content: str) -> List[str]:
+        """Find all invalid placeholders in content.
+
+        Returns:
+            List of placeholder names that are not registered.
+        """
+        pattern = r"\{\{(\w+)\}\}"
+        found_placeholders = re.findall(pattern, content)
+        valid_names = set(self.processors.keys())
+        return [name for name in found_placeholders if name not in valid_names]
