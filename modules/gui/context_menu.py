@@ -6,7 +6,7 @@ from PyQt5.QtCore import Qt, QPoint, QTimer, QObject, QEvent
 from PyQt5.QtGui import QCursor
 from core.models import MenuItem, MenuItemType
 from modules.gui.shared_widgets import TOOLTIP_STYLE
-from modules.gui.dialog_styles import DISABLED_OPACITY
+from modules.gui.icons import DISABLED_OPACITY
 import sip
 import platform
 import subprocess

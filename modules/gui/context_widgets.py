@@ -19,12 +19,13 @@ from PyQt5.QtCore import Qt, pyqtSignal, QByteArray, QBuffer, QSize, QPoint
 from PyQt5.QtGui import QImage
 
 from core.context_manager import ContextManager, ContextItemType
-from modules.gui.dialog_styles import TOOLTIP_STYLE, DISABLED_OPACITY
+from modules.gui.dialog_styles import TOOLTIP_STYLE
 from modules.gui.icons import (
     create_icon,
     ICON_COLOR_NORMAL,
     ICON_COLOR_HOVER,
     ICON_COLOR_DISABLED,
+    DISABLED_OPACITY,
 )
 
 
