@@ -3,7 +3,7 @@
 import os
 import json
 import json5
-from typing import Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 from dataclasses import dataclass, asdict
 from pathlib import Path
 from dotenv import load_dotenv
@@ -104,6 +104,242 @@ class ConfigService:
             raise ConfigurationError(f"Model '{model_key}' not found in configuration")
 
         self._config.default_model = model_key
+
+    def save_settings(self) -> None:
+        """Save current settings to JSON file."""
+        if self._settings_data is None:
+            raise ConfigurationError(
+                "ConfigService not initialized. Call initialize() first."
+            )
+
+        settings_file = Path("settings/settings.json")
+        with open(settings_file, "w", encoding="utf-8") as f:
+            json.dump(self._settings_data, f, indent=2)
+
+    def update_prompts_order(self, prompt_ids: List[str], persist: bool = True) -> None:
+        """Reorder prompts by ID list.
+
+        Args:
+            prompt_ids: List of prompt IDs in the desired order
+            persist: Whether to save settings to file immediately
+        """
+        if self._settings_data is None:
+            raise ConfigurationError(
+                "ConfigService not initialized. Call initialize() first."
+            )
+
+        prompts = self._settings_data.get("prompts", [])
+        id_to_prompt = {p["id"]: p for p in prompts}
+        self._settings_data["prompts"] = [
+            id_to_prompt[pid] for pid in prompt_ids if pid in id_to_prompt
+        ]
+        if persist:
+            self.save_settings()
+
+    def update_setting(self, key: str, value: Any, persist: bool = True) -> None:
+        """Update a top-level setting value and save.
+
+        Args:
+            key: Setting key (e.g., 'default_model', 'number_input_debounce_ms')
+            value: New value for the setting
+            persist: Whether to save settings to file immediately
+        """
+        if self._settings_data is None:
+            raise ConfigurationError(
+                "ConfigService not initialized. Call initialize() first."
+            )
+
+        self._settings_data[key] = value
+        if persist:
+            self.save_settings()
+
+        if self._config and hasattr(self._config, key):
+            setattr(self._config, key, value)
+
+    def add_prompt(self, prompt_data: Dict[str, Any], persist: bool = True) -> None:
+        """Add a new prompt to settings.
+
+        Args:
+            prompt_data: Prompt configuration dict with id, name, messages, etc.
+            persist: Whether to save settings to file immediately
+        """
+        if self._settings_data is None:
+            raise ConfigurationError(
+                "ConfigService not initialized. Call initialize() first."
+            )
+
+        if "prompts" not in self._settings_data:
+            self._settings_data["prompts"] = []
+
+        self._settings_data["prompts"].append(prompt_data)
+        if persist:
+            self.save_settings()
+
+    def update_prompt(
+        self, prompt_id: str, prompt_data: Dict[str, Any], persist: bool = True
+    ) -> None:
+        """Update an existing prompt.
+
+        Args:
+            prompt_id: ID of the prompt to update
+            prompt_data: Updated prompt configuration
+            persist: Whether to save settings to file immediately
+        """
+        if self._settings_data is None:
+            raise ConfigurationError(
+                "ConfigService not initialized. Call initialize() first."
+            )
+
+        prompts = self._settings_data.get("prompts", [])
+        for i, prompt in enumerate(prompts):
+            if prompt.get("id") == prompt_id:
+                self._settings_data["prompts"][i] = prompt_data
+                break
+        if persist:
+            self.save_settings()
+
+    def delete_prompt(self, prompt_id: str, persist: bool = True) -> None:
+        """Delete a prompt by ID.
+
+        Args:
+            prompt_id: ID of the prompt to delete
+            persist: Whether to save settings to file immediately
+        """
+        if self._settings_data is None:
+            raise ConfigurationError(
+                "ConfigService not initialized. Call initialize() first."
+            )
+
+        prompts = self._settings_data.get("prompts", [])
+        self._settings_data["prompts"] = [
+            p for p in prompts if p.get("id") != prompt_id
+        ]
+        if persist:
+            self.save_settings()
+
+    def add_model(
+        self, model_key: str, model_config: Dict[str, Any], persist: bool = True
+    ) -> None:
+        """Add a new model to settings.
+
+        Args:
+            model_key: Unique key for the model
+            model_config: Model configuration dict
+            persist: Whether to save settings to file immediately
+        """
+        if self._settings_data is None:
+            raise ConfigurationError(
+                "ConfigService not initialized. Call initialize() first."
+            )
+
+        if "models" not in self._settings_data:
+            self._settings_data["models"] = {}
+
+        self._settings_data["models"][model_key] = model_config
+        if self._config:
+            self._config.models[model_key] = model_config
+        if persist:
+            self.save_settings()
+
+    def update_model(
+        self, model_key: str, model_config: Dict[str, Any], persist: bool = True
+    ) -> None:
+        """Update an existing model configuration.
+
+        Args:
+            model_key: Key of the model to update
+            model_config: Updated model configuration
+            persist: Whether to save settings to file immediately
+        """
+        if self._settings_data is None:
+            raise ConfigurationError(
+                "ConfigService not initialized. Call initialize() first."
+            )
+
+        if "models" not in self._settings_data:
+            self._settings_data["models"] = {}
+
+        self._settings_data["models"][model_key] = model_config
+        if self._config:
+            self._config.models[model_key] = model_config
+        if persist:
+            self.save_settings()
+
+    def delete_model(self, model_key: str, persist: bool = True) -> None:
+        """Delete a model by key.
+
+        Args:
+            model_key: Key of the model to delete
+            persist: Whether to save settings to file immediately
+        """
+        if self._settings_data is None:
+            raise ConfigurationError(
+                "ConfigService not initialized. Call initialize() first."
+            )
+
+        models = self._settings_data.get("models", {})
+        if model_key in models:
+            del self._settings_data["models"][model_key]
+            if self._config and model_key in self._config.models:
+                del self._config.models[model_key]
+        if persist:
+            self.save_settings()
+
+    def update_notifications(
+        self, notifications_config: Dict[str, Any], persist: bool = True
+    ) -> None:
+        """Update notifications configuration.
+
+        Args:
+            notifications_config: Full notifications configuration dict
+            persist: Whether to save settings to file immediately
+        """
+        if self._settings_data is None:
+            raise ConfigurationError(
+                "ConfigService not initialized. Call initialize() first."
+            )
+
+        self._settings_data["notifications"] = notifications_config
+        if persist:
+            self.save_settings()
+
+    def update_speech_model(
+        self, speech_config: Dict[str, Any], persist: bool = True
+    ) -> None:
+        """Update speech-to-text model configuration.
+
+        Args:
+            speech_config: Speech model configuration dict
+            persist: Whether to save settings to file immediately
+        """
+        if self._settings_data is None:
+            raise ConfigurationError(
+                "ConfigService not initialized. Call initialize() first."
+            )
+
+        self._settings_data["speech_to_text_model"] = speech_config
+        if self._config:
+            self._config.speech_to_text_model = speech_config
+        if persist:
+            self.save_settings()
+
+    def update_keymaps(
+        self, keymaps: List[Dict[str, Any]], persist: bool = True
+    ) -> None:
+        """Update keymaps configuration.
+
+        Args:
+            keymaps: List of keymap configuration dicts
+            persist: Whether to save settings to file immediately
+        """
+        if self._settings_data is None:
+            raise ConfigurationError(
+                "ConfigService not initialized. Call initialize() first."
+            )
+
+        self._settings_data["keymaps"] = keymaps
+        if persist:
+            self.save_settings()
 
     def _load_config(
         self, env_file: Optional[str] = None, settings_file: Optional[str] = None

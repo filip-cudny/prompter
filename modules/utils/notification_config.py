@@ -7,7 +7,6 @@ from typing import Dict, Any
 
 NOTIFICATION_ICON_MONOCHROME_COLOR = "#1a1a1a"
 NOTIFICATION_BG_COLOR = "#FFFFFF"
-NOTIFICATION_OPACITY = 0.8
 
 NOTIFICATION_TYPES = {
     "success": {
@@ -50,6 +49,7 @@ DEFAULT_NOTIFICATION_SETTINGS: Dict[str, Any] = {
         "warning": "#FFFFFF",
     },
     "monochromatic_notification_icons": True,
+    "opacity": 0.8,
 }
 
 
@@ -91,3 +91,9 @@ def is_monochromatic_mode() -> bool:
         "monochromatic_notification_icons",
         DEFAULT_NOTIFICATION_SETTINGS["monochromatic_notification_icons"],
     )
+
+
+def get_notification_opacity() -> float:
+    """Get the notification window opacity from settings."""
+    settings = get_notification_settings()
+    return settings.get("opacity", DEFAULT_NOTIFICATION_SETTINGS["opacity"])

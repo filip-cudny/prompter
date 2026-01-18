@@ -711,6 +711,8 @@ class PyQtContextMenu(QObject):
         current_model = item.data.get("current_model", "None")
         current_prompt = item.data.get("current_prompt", "None")
         on_prompt_clear = item.data.get("on_prompt_clear")
+        on_settings_click = item.data.get("on_settings_click")
+        on_close_app_click = item.data.get("on_close_app_click")
 
         widget = SettingsSectionWidget(
             model_options=model_options,
@@ -718,6 +720,8 @@ class PyQtContextMenu(QObject):
             current_model=current_model,
             current_prompt=current_prompt,
             on_prompt_clear=on_prompt_clear,
+            on_settings_click=on_settings_click,
+            on_close_app_click=on_close_app_click,
         )
         action = QWidgetAction(menu)
         action.setDefaultWidget(widget)

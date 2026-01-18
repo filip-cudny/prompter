@@ -1971,6 +1971,7 @@ class MessageShareDialog(BaseDialog):
                 **(self.menu_item.data or {}),
                 "custom_context": full_message,
                 "conversation_data": conv_data,
+                "skip_clipboard_copy": keep_open,
             },
             enabled=self.menu_item.enabled,
         )

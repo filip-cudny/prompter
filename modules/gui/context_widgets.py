@@ -477,14 +477,6 @@ class FlowLayout(QVBoxLayout):
             elif item.layout():
                 self._clear_layout(item.layout())
 
-    def add_widget(self, widget: QWidget):
-        """Add a widget, creating new rows as needed."""
-        # For simplicity, add each chip in a horizontal layout
-        # that allows multiple chips per row
-        if not self._rows or self._current_row_full():
-            self._add_new_row()
-        self._rows[-1].addWidget(widget)
-
     def _current_row_full(self) -> bool:
         """Check if current row is full (simple heuristic: max 3 chips)."""
         if not self._rows:
@@ -994,7 +986,9 @@ class LastInteractionChip(QWidget):
 
 
 class LastInteractionHeaderWidget(QWidget):
-    """Header widget with 'Last interaction' label only."""
+    """Header widget with 'Last interaction' label and history button."""
+
+    history_requested = pyqtSignal()
 
     _header_style = """
         QWidget {
@@ -1012,6 +1006,21 @@ class LastInteractionHeaderWidget(QWidget):
         }
     """
 
+    _btn_style = (
+        """
+        QPushButton {
+            background: transparent;
+            border: none;
+            padding: 2px;
+            min-width: 22px;
+            max-width: 22px;
+            min-height: 22px;
+            max-height: 22px;
+        }
+    """
+        + TOOLTIP_STYLE
+    )
+
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
         self.setStyleSheet(self._header_style)
@@ -1025,6 +1034,16 @@ class LastInteractionHeaderWidget(QWidget):
         layout.addWidget(title_label)
 
         layout.addStretch()
+
+        self.history_btn = IconButton("history", size=18)
+        self.history_btn.setStyleSheet(self._btn_style)
+        self.history_btn.setCursor(Qt.PointingHandCursor)
+        self.history_btn.setToolTip("View execution history")
+        self.history_btn.clicked.connect(self._on_history_clicked)
+        layout.addWidget(self.history_btn)
+
+    def _on_history_clicked(self):
+        self.history_requested.emit()
 
 
 class LastInteractionSectionWidget(QWidget):
@@ -1074,8 +1093,9 @@ class LastInteractionSectionWidget(QWidget):
         self.main_layout.setContentsMargins(0, 0, 0, 0)
         self.main_layout.setSpacing(2)
 
-        # Header with title
+        # Header with title and history button
         header = LastInteractionHeaderWidget()
+        header.history_requested.connect(self._on_history_requested)
         self.main_layout.addWidget(header)
 
         # Create container for chips (will be populated by _rebuild_chips)
@@ -1179,6 +1199,15 @@ class LastInteractionSectionWidget(QWidget):
             show_preview_dialog(
                 title, content, clipboard_manager=self.clipboard_manager
             )
+
+    def _on_history_requested(self):
+        """Handle history button click - show history dialog."""
+        from modules.gui.history_dialog import show_history_dialog
+
+        show_history_dialog(
+            history_service=self.history_service,
+            clipboard_manager=self.clipboard_manager,
+        )
 
     def cleanup(self):
         """Clean up resources."""
@@ -1418,7 +1447,10 @@ class SettingsSelectorChip(QWidget):
 
 
 class SettingsHeaderWidget(QWidget):
-    """Header widget with 'Settings' label."""
+    """Header widget with 'Settings' label and settings/close buttons."""
+
+    settings_requested = pyqtSignal()
+    close_app_requested = pyqtSignal()
 
     _header_style = """
         QWidget {
@@ -1436,6 +1468,21 @@ class SettingsHeaderWidget(QWidget):
         }
     """
 
+    _btn_style = (
+        """
+        QPushButton {
+            background: transparent;
+            border: none;
+            padding: 2px;
+            min-width: 22px;
+            max-width: 22px;
+            min-height: 22px;
+            max-height: 22px;
+        }
+    """
+        + TOOLTIP_STYLE
+    )
+
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
         self.setStyleSheet(self._header_style)
@@ -1448,6 +1495,26 @@ class SettingsHeaderWidget(QWidget):
         title.setStyleSheet(self._title_style)
         layout.addWidget(title)
         layout.addStretch()
+
+        self.settings_btn = IconButton("settings", size=18)
+        self.settings_btn.setStyleSheet(self._btn_style)
+        self.settings_btn.setCursor(Qt.PointingHandCursor)
+        self.settings_btn.setToolTip("Settings...")
+        self.settings_btn.clicked.connect(self._on_settings_clicked)
+        layout.addWidget(self.settings_btn)
+
+        self.close_app_btn = IconButton("power", size=18)
+        self.close_app_btn.setStyleSheet(self._btn_style)
+        self.close_app_btn.setCursor(Qt.PointingHandCursor)
+        self.close_app_btn.setToolTip("Close App")
+        self.close_app_btn.clicked.connect(self._on_close_app_clicked)
+        layout.addWidget(self.close_app_btn)
+
+    def _on_settings_clicked(self):
+        self.settings_requested.emit()
+
+    def _on_close_app_clicked(self):
+        self.close_app_requested.emit()
 
 
 class SettingsSectionWidget(QWidget):
@@ -1472,6 +1539,8 @@ class SettingsSectionWidget(QWidget):
         on_model_select: Optional[Callable[[str], None]] = None,
         on_prompt_select: Optional[Callable[[str], None]] = None,
         on_prompt_clear: Optional[Callable[[], None]] = None,
+        on_settings_click: Optional[Callable[[], None]] = None,
+        on_close_app_click: Optional[Callable[[], None]] = None,
         parent: Optional[QWidget] = None,
     ):
         super().__init__(parent)
@@ -1480,6 +1549,8 @@ class SettingsSectionWidget(QWidget):
         self._on_model_select = on_model_select
         self._on_prompt_select = on_prompt_select
         self._on_prompt_clear = on_prompt_clear
+        self._on_settings_click = on_settings_click
+        self._on_close_app_click = on_close_app_click
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(4, 0, 4, 4)
@@ -1487,6 +1558,8 @@ class SettingsSectionWidget(QWidget):
 
         # Header
         header = SettingsHeaderWidget()
+        header.settings_requested.connect(self._handle_settings_click)
+        header.close_app_requested.connect(self._handle_close_app_click)
         main_layout.addWidget(header)
 
         # Chips row
@@ -1535,6 +1608,16 @@ class SettingsSectionWidget(QWidget):
         self.prompt_cleared.emit()
         if self._on_prompt_clear:
             self._on_prompt_clear()
+
+    def _handle_settings_click(self):
+        """Handle settings button click."""
+        if self._on_settings_click:
+            self._on_settings_click()
+
+    def _handle_close_app_click(self):
+        """Handle close app button click."""
+        if self._on_close_app_click:
+            self._on_close_app_click()
 
     def update_model(self, model_name: str, options: list):
         """Update model chip with new value and options."""

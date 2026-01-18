@@ -42,6 +42,9 @@ COLOR_SCROLLBAR_HANDLE_HOVER = "#666666"
 COLOR_TOOLTIP_BG = "#0d0d0d"
 COLOR_TOOLTIP_BORDER = "#444444"
 
+# ComboBox colors
+COLOR_COMBOBOX_ARROW = "#cccccc"
+
 # Dark theme tooltip style - single source of truth for all tooltips
 TOOLTIP_STYLE = f"""
     QToolTip {{
@@ -50,6 +53,41 @@ TOOLTIP_STYLE = f"""
         border: 1px solid {COLOR_TOOLTIP_BORDER};
         border-radius: 2px;
         padding: 2px 2px;
+    }}
+"""
+
+COMBOBOX_STYLE = f"""
+    QComboBox {{
+        background-color: {COLOR_BUTTON_BG};
+        color: {COLOR_TEXT};
+        border: 1px solid {COLOR_BORDER};
+        border-radius: 4px;
+        padding: 4px 24px 4px 8px;
+        min-width: 50px;
+    }}
+    QComboBox:hover {{
+        background-color: {COLOR_BUTTON_HOVER};
+    }}
+    QComboBox::drop-down {{
+        subcontrol-origin: padding;
+        subcontrol-position: top right;
+        width: 20px;
+        border: none;
+    }}
+    QComboBox::down-arrow {{
+        image: none;
+        width: 0;
+        height: 0;
+        border-left: 4px solid transparent;
+        border-right: 4px solid transparent;
+        border-top: 5px solid {COLOR_COMBOBOX_ARROW};
+    }}
+    QComboBox QAbstractItemView {{
+        background-color: {COLOR_DIALOG_BG};
+        color: {COLOR_TEXT};
+        border: 1px solid {COLOR_BORDER};
+        selection-background-color: {COLOR_SELECTION};
+        outline: none;
     }}
 """
 

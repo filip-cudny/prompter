@@ -411,6 +411,11 @@ class PyQtMenuCoordinator(QObject):
 
         return bottom_items
 
+    def _open_settings_dialog(self):
+        """Open the settings dialog."""
+        from modules.gui.settings_dialog import show_settings_dialog
+        show_settings_dialog()
+
     def _add_active_prompt_info(self, all_items: List[MenuItem]) -> None:
         """Add settings section with model and prompt chips to the menu."""
         if not self.prompt_store_service:
@@ -457,6 +462,8 @@ class PyQtMenuCoordinator(QObject):
                 "current_model": default_model_display_name,
                 "current_prompt": active_prompt_display_name,
                 "on_prompt_clear": self._handle_prompt_clear,
+                "on_settings_click": self._open_settings_dialog,
+                "on_close_app_click": lambda: QApplication.instance().quit(),
             },
         )
 

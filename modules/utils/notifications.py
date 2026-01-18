@@ -26,9 +26,9 @@ from PyQt5.QtGui import QPainter, QPen, QColor, QPainterPath, QCursor
 from modules.gui.icons import create_icon_pixmap
 from modules.utils.notification_config import (
     NOTIFICATION_ICON_MONOCHROME_COLOR,
-    NOTIFICATION_OPACITY,
     NOTIFICATION_TYPES,
     get_background_color,
+    get_notification_opacity,
     is_monochromatic_mode,
 )
 
@@ -230,13 +230,13 @@ class EnhancedNotificationWidget(QWidget):
     def fade_in(self):
         self.fade_animation.setDuration(300)
         self.fade_animation.setStartValue(0.0)
-        self.fade_animation.setEndValue(NOTIFICATION_OPACITY)
+        self.fade_animation.setEndValue(get_notification_opacity())
         self.fade_animation.setEasingCurve(QEasingCurve.OutCubic)
         self.fade_animation.start()
 
     def fade_out(self):
         self.fade_animation.setDuration(300)
-        self.fade_animation.setStartValue(NOTIFICATION_OPACITY)
+        self.fade_animation.setStartValue(get_notification_opacity())
         self.fade_animation.setEndValue(0.0)
         self.fade_animation.setEasingCurve(QEasingCurve.InCubic)
 

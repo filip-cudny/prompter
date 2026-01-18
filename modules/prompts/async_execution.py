@@ -655,8 +655,9 @@ class AsyncPromptExecutionManager:
         worker = exec_context.worker if exec_context else self.worker
 
         try:
-            # Copy response to clipboard
-            if result.content:
+            # Copy response to clipboard (unless explicitly skipped)
+            skip_clipboard = current_item and current_item.data and current_item.data.get("skip_clipboard_copy", False)
+            if result.content and not skip_clipboard:
                 self.clipboard_manager.set_content(result.content)
 
             # Add to history using prompt store service which has proper logic

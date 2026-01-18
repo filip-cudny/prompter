@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class HistoryService:
     """Service for tracking execution history."""
 
-    def __init__(self, max_entries: int = 10):
+    def __init__(self, max_entries: int = 100):
         self.max_entries = max_entries
         self._history: deque = deque(maxlen=max_entries)
         self._change_callbacks: List[Callable[[], None]] = []
