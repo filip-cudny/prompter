@@ -627,6 +627,10 @@ class AsyncPromptExecutionManager:
         worker.set_execution_params(item, context)
         worker.start()
 
+        # Emit execution started signal for global awareness
+        if self.prompt_store_service:
+            self.prompt_store_service.emit_execution_started(execution_id)
+
         return execution_id
 
     def _on_execution_started(self, prompt_name: str, execution_id: str = ""):

@@ -19,6 +19,7 @@ class PyQtMenuCoordinator(QObject):
 
     # Qt signals for thread-safe communication
     execution_completed = pyqtSignal(object, str)  # ExecutionResult, execution_id
+    execution_started = pyqtSignal(str)  # execution_id
     execution_error = pyqtSignal(str)
     streaming_chunk = pyqtSignal(str, str, bool, str)  # chunk, accumulated, is_final, execution_id
 
