@@ -93,6 +93,28 @@ class ConfigService:
             )
         return self._settings_data
 
+    def reload_settings(self) -> None:
+        """Reload settings from disk, discarding any in-memory changes."""
+        settings_file = Path("settings/settings.json")
+        if not settings_file.exists():
+            raise ConfigurationError(f"Settings file not found: {settings_file}")
+
+        self._settings_data = safe_load_json(settings_file)
+
+        if self._config:
+            self._config.models = self._settings_data.get("models", [])
+            self._config.speech_to_text_model = self._settings_data.get(
+                "speech_to_text_model"
+            )
+            self._config.default_model = self._settings_data.get("default_model")
+
+            _migrate_model_params(self._config.models)
+            _load_api_keys(self._config.models)
+            if self._config.speech_to_text_model:
+                _load_api_key_for_model(
+                    self._config.speech_to_text_model, "speech_to_text_model"
+                )
+
     def update_default_model(self, model_id: str) -> None:
         """Update the default model configuration."""
         if self._config is None:
@@ -133,14 +155,15 @@ class ConfigService:
             json.dump(settings_to_save, f, indent=2, ensure_ascii=False)
 
     def _sanitize_settings_for_save(self, settings: Dict[str, Any]) -> Dict[str, Any]:
-        """Remove sensitive data (api_key) before saving to disk."""
+        """Remove sensitive data (api_key) before saving to disk, except for direct API keys."""
         import copy
 
         sanitized = copy.deepcopy(settings)
 
         if "models" in sanitized and isinstance(sanitized["models"], list):
             for model_config in sanitized["models"]:
-                model_config.pop("api_key", None)
+                if model_config.get("api_key_source") != "direct":
+                    model_config.pop("api_key", None)
 
         if "speech_to_text_model" in sanitized:
             sanitized["speech_to_text_model"].pop("api_key", None)
@@ -442,6 +465,9 @@ class ConfigService:
                     "speech_to_text_model"
                 )
 
+                # Migrate legacy model params to nested parameters dict
+                _migrate_model_params(config.models)
+
                 # Set default_model to first model ID if not set
                 config.default_model = self._settings_data.get("default_model")
                 if config.models and not config.default_model:
@@ -537,7 +563,7 @@ def validate_config(config: AppConfig) -> None:
 
         model_display = model_config.get("display_name", model_id)
 
-        required_fields = ["model", "display_name", "api_key_env"]
+        required_fields = ["model", "display_name"]
         for field in required_fields:
             if field not in model_config:
                 raise ConfigurationError(
@@ -549,17 +575,29 @@ def validate_config(config: AppConfig) -> None:
                     f"Model '{model_display}' field '{field}' cannot be empty"
                 )
 
-        if "temperature" in model_config and model_config["temperature"] is not None:
-            try:
-                temp = float(model_config["temperature"])
-                if temp < 0 or temp > 2:
-                    raise ConfigurationError(
-                        f"Model '{model_display}' temperature must be between 0 and 2"
-                    )
-            except (ValueError, TypeError):
+        api_key_source = model_config.get("api_key_source", "env")
+        if api_key_source == "env":
+            if "api_key_env" not in model_config or not model_config["api_key_env"]:
                 raise ConfigurationError(
-                    f"Model '{model_display}' temperature must be a number"
+                    f"Model '{model_display}' requires 'api_key_env' when api_key_source is 'env'"
                 )
+        elif api_key_source == "direct":
+            if "api_key" not in model_config or not model_config["api_key"]:
+                raise ConfigurationError(
+                    f"Model '{model_display}' requires 'api_key' when api_key_source is 'direct'"
+                )
+
+        if "parameters" in model_config:
+            params = model_config["parameters"]
+            if not isinstance(params, dict):
+                raise ConfigurationError(
+                    f"Model '{model_display}' parameters must be a dictionary"
+                )
+            for param_name, param_value in params.items():
+                if not isinstance(param_value, (int, float, str, bool)):
+                    raise ConfigurationError(
+                        f"Model '{model_display}' parameter '{param_name}' must be a number, string, or boolean"
+                    )
 
         if "base_url" in model_config and model_config["base_url"]:
             if not model_config["base_url"].startswith(("http://", "https://")):
@@ -617,11 +655,28 @@ def _load_api_keys(models: List[Dict[str, Any]]) -> None:
 
 
 def _load_api_key_for_model(model_config: Dict[str, Any], model_name: str) -> None:
-    """Load API key from environment variable for a single model."""
-    api_key_env = model_config.get("api_key_env")
-    if api_key_env:
-        api_key = os.getenv(api_key_env)
-        model_config["api_key"] = api_key
+    """Load API key based on api_key_source setting."""
+    source = model_config.get("api_key_source", "env")
+    if source == "env":
+        api_key_env = model_config.get("api_key_env")
+        if api_key_env:
+            model_config["api_key"] = os.getenv(api_key_env)
+
+
+def _migrate_model_params(models: List[Dict[str, Any]]) -> None:
+    """Migrate top-level model params to nested 'parameters' dict."""
+    KNOWN_PARAMS = {
+        "temperature", "max_tokens", "top_p", "frequency_penalty",
+        "presence_penalty", "reasoning_effort"
+    }
+
+    for model in models:
+        if "parameters" not in model:
+            model["parameters"] = {}
+
+        for param in list(KNOWN_PARAMS):
+            if param in model and param not in model["parameters"]:
+                model["parameters"][param] = model.pop(param)
 
 
 def load_settings_file(settings_path: Path) -> Dict[str, Any]:

@@ -66,13 +66,6 @@ class ModelsPanel(SettingsPanelBase):
         self._add_btn.clicked.connect(self._on_add_model)
         toolbar.addWidget(self._add_btn)
 
-        self._save_btn = QPushButton("Save")
-        self._save_btn.setStyleSheet(TOOLBAR_BTN_STYLE)
-        self._save_btn.setToolTip("Save model changes")
-        self._save_btn.setEnabled(False)
-        self._save_btn.clicked.connect(self._on_save_model)
-        toolbar.addWidget(self._save_btn)
-
         self._delete_btn = QPushButton("Delete")
         self._delete_btn.setStyleSheet(TOOLBAR_BTN_STYLE)
         self._delete_btn.setToolTip("Delete selected model")
@@ -169,15 +162,14 @@ class ModelsPanel(SettingsPanelBase):
     def _update_button_states(self):
         """Update enabled state of buttons based on selection."""
         has_selection = self._model_list.currentItem() is not None
-        self._save_btn.setEnabled(has_selection or self._model_editor.is_new_model())
         self._delete_btn.setEnabled(has_selection and not self._model_editor.is_new_model())
 
     def _on_add_model(self):
         """Handle add model request."""
         self._model_list.clearSelection()
         self._model_editor.set_new_mode()
-        self._save_btn.setEnabled(True)
         self._delete_btn.setEnabled(False)
+        self.mark_dirty()
 
     def _on_save_model(self):
         """Handle save model request (in-panel save button)."""
@@ -207,6 +199,16 @@ class ModelsPanel(SettingsPanelBase):
 
     def save_changes(self) -> bool:
         """Save pending changes to config."""
+        result = self._model_editor.get_model_data()
+        if result:
+            model_id, config = result
+            self._config_service.update_model(model_id, config, persist=False)
+            self._load_models()
+            for i in range(self._model_list.count()):
+                item = self._model_list.item(i)
+                if item.data(Qt.UserRole) == model_id:
+                    self._model_list.setCurrentItem(item)
+                    break
         self.mark_clean()
         return True
 

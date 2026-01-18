@@ -9,17 +9,12 @@ from PyQt5.QtWidgets import (
     QLineEdit,
     QVBoxLayout,
     QWidget,
-    QPushButton,
-    QHBoxLayout,
 )
 
 from modules.gui.dialog_styles import (
     COLOR_BORDER,
-    COLOR_BUTTON_BG,
-    COLOR_BUTTON_HOVER,
     COLOR_TEXT,
     COLOR_TEXT_EDIT_BG,
-    TOOLTIP_STYLE,
 )
 from modules.utils.config import ConfigService
 from ..settings_panel_base import SettingsPanelBase
@@ -37,19 +32,6 @@ FORM_STYLE = f"""
         color: {COLOR_TEXT};
     }}
 """
-
-SAVE_BTN_STYLE = f"""
-    QPushButton {{
-        background-color: {COLOR_BUTTON_BG};
-        color: {COLOR_TEXT};
-        border: 1px solid {COLOR_BORDER};
-        border-radius: 4px;
-        padding: 8px 20px;
-    }}
-    QPushButton:hover {{
-        background-color: {COLOR_BUTTON_HOVER};
-    }}
-""" + TOOLTIP_STYLE
 
 
 class SpeechPanel(SettingsPanelBase):
@@ -101,16 +83,10 @@ class SpeechPanel(SettingsPanelBase):
 
         layout.addWidget(form_container)
 
-        button_row = QHBoxLayout()
-        button_row.addStretch()
-
-        save_btn = QPushButton("Save")
-        save_btn.setStyleSheet(SAVE_BTN_STYLE)
-        save_btn.setToolTip("Save speech model configuration")
-        save_btn.clicked.connect(self._on_save)
-        button_row.addWidget(save_btn)
-
-        layout.addLayout(button_row)
+        self._model_edit.textChanged.connect(self._on_field_changed)
+        self._display_name_edit.textChanged.connect(self._on_field_changed)
+        self._api_key_env_edit.textChanged.connect(self._on_field_changed)
+        self._base_url_edit.textChanged.connect(self._on_field_changed)
 
         self._load_settings()
 
@@ -119,19 +95,34 @@ class SpeechPanel(SettingsPanelBase):
         settings_data = self._config_service.get_settings_data()
         speech_config = settings_data.get("speech_to_text_model", {})
 
+        self._model_edit.blockSignals(True)
+        self._display_name_edit.blockSignals(True)
+        self._api_key_env_edit.blockSignals(True)
+        self._base_url_edit.blockSignals(True)
+
         self._model_edit.setText(speech_config.get("model", ""))
         self._display_name_edit.setText(speech_config.get("display_name", ""))
         self._api_key_env_edit.setText(speech_config.get("api_key_env", ""))
         self._base_url_edit.setText(speech_config.get("base_url", ""))
 
-    def _on_save(self):
-        """Handle in-panel save button click."""
+        self._model_edit.blockSignals(False)
+        self._display_name_edit.blockSignals(False)
+        self._api_key_env_edit.blockSignals(False)
+        self._base_url_edit.blockSignals(False)
+
+    def _on_field_changed(self):
+        """Handle any field change."""
+        self.mark_dirty()
+
+    def save_changes(self) -> bool:
+        """Save pending changes to config."""
         model = self._model_edit.text().strip()
         display_name = self._display_name_edit.text().strip()
         api_key_env = self._api_key_env_edit.text().strip()
 
         if not all([model, display_name, api_key_env]):
-            return
+            self.mark_clean()
+            return True
 
         speech_config = {
             "model": model,
@@ -144,10 +135,6 @@ class SpeechPanel(SettingsPanelBase):
             speech_config["base_url"] = base_url
 
         self._config_service.update_speech_model(speech_config, persist=False)
-        self.mark_dirty()
-
-    def save_changes(self) -> bool:
-        """Save pending changes to config."""
         self.mark_clean()
         return True
 

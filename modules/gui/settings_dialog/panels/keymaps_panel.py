@@ -155,12 +155,6 @@ class KeymapsPanel(SettingsPanelBase):
         toolbar.addWidget(delete_btn)
 
         toolbar.addStretch()
-
-        save_btn = QPushButton("Save")
-        save_btn.setStyleSheet(TOOLBAR_BTN_STYLE)
-        save_btn.clicked.connect(self._save_keymaps)
-        toolbar.addWidget(save_btn)
-
         tab_layout.addLayout(toolbar)
 
         table = QTableWidget()
@@ -268,6 +262,7 @@ class KeymapsPanel(SettingsPanelBase):
         table.setCellWidget(row, 1, action_combo)
         table.selectRow(row)
         table.editItem(shortcut_item)
+        self.mark_dirty()
 
     def _delete_binding(self, os_context: str):
         """Delete the selected binding."""
@@ -278,9 +273,10 @@ class KeymapsPanel(SettingsPanelBase):
         current_row = table.currentRow()
         if current_row >= 0:
             table.removeRow(current_row)
+            self.mark_dirty()
 
-    def _save_keymaps(self):
-        """Save keymaps to config (in-panel save button)."""
+    def _collect_keymaps(self) -> list:
+        """Collect keymaps from all OS tabs."""
         keymaps = []
 
         for os_context, table in self._os_tabs.items():
@@ -303,11 +299,12 @@ class KeymapsPanel(SettingsPanelBase):
                     "bindings": bindings,
                 })
 
-        self._config_service.update_keymaps(keymaps, persist=False)
-        self.mark_dirty()
+        return keymaps
 
     def save_changes(self) -> bool:
         """Save pending changes to config."""
+        keymaps = self._collect_keymaps()
+        self._config_service.update_keymaps(keymaps, persist=False)
         self.mark_clean()
         return True
 
