@@ -78,6 +78,7 @@ class PyQtMenuCoordinator(QObject):
 
         # Connect internal signals
         self.execution_completed.connect(self._handle_execution_result)
+        self.execution_started.connect(self._on_execution_started)
         self.execution_error.connect(self._handle_error)
 
     def _handle_menu_item_execution(self, item: MenuItem, shift_pressed: bool = False):
@@ -320,6 +321,10 @@ class PyQtMenuCoordinator(QObject):
                 self.execution_callback(result)
             except (RuntimeError, Exception) as e:
                 print(f"Error in execution callback: {e}")
+
+    def _on_execution_started(self, execution_id: str) -> None:
+        """Handle execution started by invalidating cache so menu shows correct state."""
+        self._invalidate_cache()
 
     def _handle_error(self, error_message: str) -> None:
         """Handle error on main thread."""
