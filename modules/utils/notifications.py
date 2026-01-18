@@ -26,18 +26,18 @@ from PyQt5.QtGui import QPainter, QPen, QColor, QPainterPath, QCursor
 from modules.gui.icons import create_icon_pixmap
 from modules.utils.notification_config import (
     NOTIFICATION_ICON_MONOCHROME_COLOR,
-    NOTIFICATION_BG_COLOR,
     NOTIFICATION_OPACITY,
     NOTIFICATION_TYPES,
-    is_notification_enabled,
     get_background_color,
     is_monochromatic_mode,
 )
 
 # Platform-specific configuration
-MACOS_PLATFORM = platform.system() == "Darwin"
-LINUX_PLATFORM = platform.system() == "Linux"
-WINDOWS_PLATFORM = platform.system() == "Windows"
+
+PLATFORM = platform.system()
+MACOS_PLATFORM = PLATFORM == "Darwin"
+LINUX_PLATFORM = PLATFORM == "Linux"
+WINDOWS_PLATFORM = PLATFORM == "Windows"
 
 
 class EnhancedNotificationWidget(QWidget):
