@@ -7,7 +7,6 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (
     QComboBox,
     QDialog,
-    QFormLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -120,20 +119,9 @@ class PromptEditorDialog(QDialog):
         form_layout.addWidget(system_label)
 
         self._system_edit = QTextEdit()
-        self._system_edit.setPlaceholderText(
-            "Enter system message content or leave empty for file reference..."
-        )
+        self._system_edit.setPlaceholderText("Enter system message content...")
         self._system_edit.setMinimumHeight(120)
         form_layout.addWidget(self._system_edit)
-
-        system_file_row = QHBoxLayout()
-        file_label = QLabel("Or file path:")
-        file_label.setFixedWidth(100)
-        self._system_file_edit = QLineEdit()
-        self._system_file_edit.setPlaceholderText("prompts/my_prompt.md")
-        system_file_row.addWidget(file_label)
-        system_file_row.addWidget(self._system_file_edit)
-        form_layout.addLayout(system_file_row)
 
         user_label = QLabel("User Message Template:")
         form_layout.addWidget(user_label)
@@ -196,6 +184,20 @@ class PromptEditorDialog(QDialog):
                 display_name = model_config.get("display_name", model_key)
                 self._model_combo.addItem(display_name, model_key)
 
+    def _load_file_content(self, file_path: str) -> str:
+        """Load content from a file path."""
+        import logging
+
+        from core.services import SettingsService
+
+        try:
+            settings_service = SettingsService()
+            settings_service.load_settings()
+            return settings_service._load_file_content(file_path)
+        except Exception as e:
+            logging.getLogger(__name__).warning(f"Failed to load file {file_path}: {e}")
+            return f"[Error loading file: {file_path}]"
+
     def _load_data(self):
         """Load prompt data into form fields."""
         if not self._prompt_data:
@@ -215,7 +217,8 @@ class PromptEditorDialog(QDialog):
             role = msg.get("role", "")
             if role == "system":
                 if "file" in msg:
-                    self._system_file_edit.setText(msg["file"])
+                    content = self._load_file_content(msg["file"])
+                    self._system_edit.setPlainText(content)
                 elif "content" in msg:
                     self._system_edit.setPlainText(msg["content"])
             elif role == "user":
@@ -232,11 +235,7 @@ class PromptEditorDialog(QDialog):
         messages = []
 
         system_content = self._system_edit.toPlainText().strip()
-        system_file = self._system_file_edit.text().strip()
-
-        if system_file:
-            messages.append({"role": "system", "file": system_file})
-        elif system_content:
+        if system_content:
             messages.append({"role": "system", "content": system_content})
 
         user_content = self._user_edit.toPlainText().strip()

@@ -1,12 +1,11 @@
 """Shared dialog styling constants and functions."""
 
-import os
 from typing import Callable, Dict, Optional, TypeVar
 
 from PyQt5.QtCore import QTimer
 from PyQt5.QtWidgets import QDialog, QSizePolicy, QWidget
 
-_ASSETS_DIR = os.path.join(os.path.dirname(__file__), "assets")
+from .icons import SVG_CHEVRON_DOWN, SVG_CHEVRON_UP
 
 # Timing constants
 DIALOG_SHOW_DELAY_MS = 75
@@ -47,10 +46,6 @@ COLOR_TOOLTIP_BORDER = "#444444"
 
 # ComboBox colors
 COLOR_COMBOBOX_ARROW = "#cccccc"
-
-# SVG arrow icon paths for stylesheet usage
-SVG_CHEVRON_DOWN = os.path.join(_ASSETS_DIR, "chevron-down.svg")
-SVG_CHEVRON_UP = os.path.join(_ASSETS_DIR, "chevron-up.svg")
 
 # Dark theme tooltip style - single source of truth for all tooltips
 TOOLTIP_STYLE = f"""
