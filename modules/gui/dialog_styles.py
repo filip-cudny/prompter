@@ -5,7 +5,7 @@ from typing import Callable, Dict, Optional, TypeVar
 from PyQt5.QtCore import QTimer
 from PyQt5.QtWidgets import QDialog, QSizePolicy, QWidget
 
-from .icons import SVG_CHEVRON_DOWN, SVG_CHEVRON_UP
+from .icons import get_svg_data_url
 
 # Timing constants
 DIALOG_SHOW_DELAY_MS = 75
@@ -58,6 +58,9 @@ TOOLTIP_STYLE = f"""
     }}
 """
 
+_SVG_CHEVRON_DOWN_URL = get_svg_data_url("chevron-down", COLOR_COMBOBOX_ARROW)
+_SVG_CHEVRON_UP_URL = get_svg_data_url("chevron-up", COLOR_COMBOBOX_ARROW)
+
 COMBOBOX_STYLE = f"""
     QComboBox {{
         background-color: {COLOR_BUTTON_BG};
@@ -77,7 +80,7 @@ COMBOBOX_STYLE = f"""
         border: none;
     }}
     QComboBox::down-arrow {{
-        image: url("{SVG_CHEVRON_DOWN}");
+        image: url("{_SVG_CHEVRON_DOWN_URL}");
         width: 12px;
         height: 12px;
     }}
@@ -105,12 +108,12 @@ SPINBOX_STYLE = f"""
         width: 16px;
     }}
     QSpinBox::up-arrow {{
-        image: url("{SVG_CHEVRON_UP}");
+        image: url("{_SVG_CHEVRON_UP_URL}");
         width: 10px;
         height: 10px;
     }}
     QSpinBox::down-arrow {{
-        image: url("{SVG_CHEVRON_DOWN}");
+        image: url("{_SVG_CHEVRON_DOWN_URL}");
         width: 10px;
         height: 10px;
     }}

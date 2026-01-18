@@ -180,9 +180,10 @@ class PromptEditorDialog(QDialog):
         config = config_service.get_config()
 
         if config.models:
-            for model_key, model_config in config.models.items():
-                display_name = model_config.get("display_name", model_key)
-                self._model_combo.addItem(display_name, model_key)
+            for model in config.models:
+                model_id = model.get("id")
+                display_name = model.get("display_name", model_id)
+                self._model_combo.addItem(display_name, model_id)
 
     def _load_file_content(self, file_path: str) -> str:
         """Load content from a file path."""

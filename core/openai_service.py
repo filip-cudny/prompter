@@ -1,7 +1,7 @@
 """OpenAI service for managing multiple OpenAI client instances."""
 
 import os
-from typing import Dict, Optional, List, BinaryIO, Any, Generator, Tuple
+from typing import Dict, Optional, List, BinaryIO, Any, Generator, Tuple, Union
 from openai import OpenAI
 from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
 from core.exceptions import ConfigurationError
@@ -12,25 +12,30 @@ class OpenAiService:
 
     def __init__(
         self,
-        models_config: Dict[str, Any],
+        models_config: List[Dict[str, Any]],
         speech_to_text_config: Optional[Dict[str, Any]] = None,
     ):
         """
         Initialize OpenAI service with model configurations.
 
         Args:
-            models_config: Dictionary of model configurations from settings
+            models_config: List of model configurations from settings (array with 'id' field)
             speech_to_text_config: Optional speech-to-text model configuration
         """
         self._clients: Dict[str, OpenAI] = {}
-        self._models_config = models_config
+        self._models_by_id: Dict[str, Dict[str, Any]] = {}
         self._speech_to_text_config = speech_to_text_config
+
+        for model in models_config:
+            model_id = model.get("id")
+            if model_id:
+                self._models_by_id[model_id] = model
 
         self._initialize_clients()
 
     def _initialize_clients(self) -> None:
         """Initialize OpenAI clients for all configured models."""
-        for model_key, model_config in self._models_config.items():
+        for model_id, model_config in self._models_by_id.items():
             try:
                 api_key = model_config.get("api_key")
                 if not api_key:
@@ -42,10 +47,10 @@ class OpenAiService:
                     api_key=api_key,
                     base_url=model_config.get("base_url"),
                 )
-                self._clients[model_key] = client
+                self._clients[model_id] = client
             except Exception as e:
                 raise ConfigurationError(
-                    f"Failed to initialize OpenAI client for model '{model_key}': {e}"
+                    f"Failed to initialize OpenAI client for model '{model_id}': {e}"
                 ) from e
 
         if self._speech_to_text_config:
@@ -91,11 +96,11 @@ class OpenAiService:
         if model_key not in self._clients:
             raise ConfigurationError(f"Model '{model_key}' not found in configuration")
 
-        if model_key not in self._models_config:
+        if model_key not in self._models_by_id:
             raise ConfigurationError(f"Model configuration for '{model_key}' not found")
 
         client = self._clients[model_key]
-        model_config = self._models_config[model_key]
+        model_config = self._models_by_id[model_key]
 
         try:
             completion_params = {
@@ -142,11 +147,11 @@ class OpenAiService:
         if model_key not in self._clients:
             raise ConfigurationError(f"Model '{model_key}' not found in configuration")
 
-        if model_key not in self._models_config:
+        if model_key not in self._models_by_id:
             raise ConfigurationError(f"Model configuration for '{model_key}' not found")
 
         client = self._clients[model_key]
-        model_config = self._models_config[model_key]
+        model_config = self._models_by_id[model_key]
 
         try:
             completion_params = {
@@ -203,8 +208,8 @@ class OpenAiService:
 
         if model_key == "speech_to_text" and self._speech_to_text_config:
             model_name = self._speech_to_text_config["model"]
-        elif model_key in self._models_config:
-            model_name = self._models_config[model_key]["model"]
+        elif model_key in self._models_by_id:
+            model_name = self._models_by_id[model_key]["model"]
         else:
             raise ConfigurationError(f"Model configuration for '{model_key}' not found")
 
@@ -263,8 +268,8 @@ class OpenAiService:
         """
         if model_key == "speech_to_text" and self._speech_to_text_config:
             return self._speech_to_text_config
-        elif model_key in self._models_config:
-            return self._models_config[model_key]
+        elif model_key in self._models_by_id:
+            return self._models_by_id[model_key]
         else:
             raise ConfigurationError(f"Model configuration for '{model_key}' not found")
 
@@ -275,7 +280,7 @@ class OpenAiService:
         Returns:
             List of available model keys
         """
-        models = list(self._models_config.keys())
+        models = list(self._models_by_id.keys())
         if self._speech_to_text_config:
             models.append("speech_to_text")
         return models

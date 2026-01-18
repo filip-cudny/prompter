@@ -317,8 +317,8 @@ class SettingsService:
                 )
                 prompts.append(prompt)
 
-            # Parse models (keep as raw dict for flexibility)
-            models = data.get("models", {})
+            # Parse models (keep as raw list for flexibility)
+            models = data.get("models", [])
 
             return SettingsConfig(
                 models=models, prompts=prompts, settings_path=self.settings_path
@@ -394,25 +394,23 @@ class SettingsService:
         return messages
 
     def get_available_models(self) -> List[str]:
-        """Get list of available model names from all providers."""
+        """Get list of available model IDs."""
         settings = self.get_settings()
         models = []
 
-        for provider_name, provider_models in settings.models.items():
-            for model_config in provider_models:
-                model_name = model_config.get("model", "")
-                if model_name:
-                    models.append(f"{provider_name}/{model_name}")
+        for model_config in settings.models:
+            model_id = model_config.get("id", "")
+            if model_id:
+                models.append(model_id)
 
         return models
 
-    def get_model_config(self, provider: str, model: str) -> Optional[Dict[str, Any]]:
-        """Get configuration for a specific model."""
+    def get_model_config(self, model_id: str) -> Optional[Dict[str, Any]]:
+        """Get configuration for a specific model by ID."""
         settings = self.get_settings()
-        provider_models = settings.models.get(provider, [])
 
-        for model_config in provider_models:
-            if model_config.get("model") == model:
+        for model_config in settings.models:
+            if model_config.get("id") == model_id:
                 return model_config
 
         return None

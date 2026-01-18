@@ -35,7 +35,7 @@ class AppConfig:
     menu_position_offset: tuple = (0, 0)
     number_input_debounce_ms: int = 200
     keymap_manager: Optional["KeymapManager"] = None
-    models: Optional[Dict[str, Any]] = None
+    models: Optional[List[Dict[str, Any]]] = None
     speech_to_text_model: Optional[Dict[str, Any]] = None
     default_model: Optional[str] = None
 
@@ -93,17 +93,32 @@ class ConfigService:
             )
         return self._settings_data
 
-    def update_default_model(self, model_key: str) -> None:
+    def update_default_model(self, model_id: str) -> None:
         """Update the default model configuration."""
         if self._config is None:
             raise ConfigurationError(
                 "ConfigService not initialized. Call initialize() first."
             )
 
-        if model_key not in self._config.models:
-            raise ConfigurationError(f"Model '{model_key}' not found in configuration")
+        if not self.get_model_by_id(model_id):
+            raise ConfigurationError(f"Model '{model_id}' not found in configuration")
 
-        self._config.default_model = model_key
+        self._config.default_model = model_id
+
+    def get_model_by_id(self, model_id: str) -> Optional[Dict[str, Any]]:
+        """Get a model configuration by its ID."""
+        if self._config is None or not self._config.models:
+            return None
+        for model in self._config.models:
+            if model.get("id") == model_id:
+                return model
+        return None
+
+    def get_models_list(self) -> List[Dict[str, Any]]:
+        """Get list of all model configurations."""
+        if self._config is None or not self._config.models:
+            return []
+        return self._config.models
 
     def save_settings(self) -> None:
         """Save current settings to JSON file."""
@@ -115,7 +130,7 @@ class ConfigService:
         settings_file = Path("settings/settings.json")
         settings_to_save = self._sanitize_settings_for_save(self._settings_data)
         with open(settings_file, "w", encoding="utf-8") as f:
-            json.dump(settings_to_save, f, indent=2)
+            json.dump(settings_to_save, f, indent=2, ensure_ascii=False)
 
     def _sanitize_settings_for_save(self, settings: Dict[str, Any]) -> Dict[str, Any]:
         """Remove sensitive data (api_key) before saving to disk."""
@@ -123,8 +138,8 @@ class ConfigService:
 
         sanitized = copy.deepcopy(settings)
 
-        if "models" in sanitized:
-            for model_config in sanitized["models"].values():
+        if "models" in sanitized and isinstance(sanitized["models"], list):
+            for model_config in sanitized["models"]:
                 model_config.pop("api_key", None)
 
         if "speech_to_text_model" in sanitized:
@@ -234,13 +249,13 @@ class ConfigService:
             self.save_settings()
 
     def add_model(
-        self, model_key: str, model_config: Dict[str, Any], persist: bool = True
+        self, model_id: str, model_config: Dict[str, Any], persist: bool = True
     ) -> None:
         """Add a new model to settings.
 
         Args:
-            model_key: Unique key for the model
-            model_config: Model configuration dict
+            model_id: UUID for the model
+            model_config: Model configuration dict (should include 'id')
             persist: Whether to save settings to file immediately
         """
         if self._settings_data is None:
@@ -249,21 +264,24 @@ class ConfigService:
             )
 
         if "models" not in self._settings_data:
-            self._settings_data["models"] = {}
+            self._settings_data["models"] = []
 
-        self._settings_data["models"][model_key] = model_config
+        model_with_id = {"id": model_id, **model_config}
+        self._settings_data["models"].append(model_with_id)
         if self._config:
-            self._config.models[model_key] = model_config
+            if self._config.models is None:
+                self._config.models = []
+            self._config.models.append(model_with_id)
         if persist:
             self.save_settings()
 
     def update_model(
-        self, model_key: str, model_config: Dict[str, Any], persist: bool = True
+        self, model_id: str, model_config: Dict[str, Any], persist: bool = True
     ) -> None:
-        """Update an existing model configuration.
+        """Update an existing model configuration or add if not found.
 
         Args:
-            model_key: Key of the model to update
+            model_id: UUID of the model to update
             model_config: Updated model configuration
             persist: Whether to save settings to file immediately
         """
@@ -273,19 +291,40 @@ class ConfigService:
             )
 
         if "models" not in self._settings_data:
-            self._settings_data["models"] = {}
+            self._settings_data["models"] = []
 
-        self._settings_data["models"][model_key] = model_config
+        model_with_id = {"id": model_id, **model_config}
+
+        found = False
+        for i, model in enumerate(self._settings_data["models"]):
+            if model.get("id") == model_id:
+                self._settings_data["models"][i] = model_with_id
+                found = True
+                break
+
+        if not found:
+            self._settings_data["models"].append(model_with_id)
+
         if self._config:
-            self._config.models[model_key] = model_config
+            if self._config.models is None:
+                self._config.models = []
+            config_found = False
+            for i, model in enumerate(self._config.models):
+                if model.get("id") == model_id:
+                    self._config.models[i] = model_with_id
+                    config_found = True
+                    break
+            if not config_found:
+                self._config.models.append(model_with_id)
+
         if persist:
             self.save_settings()
 
-    def delete_model(self, model_key: str, persist: bool = True) -> None:
-        """Delete a model by key.
+    def delete_model(self, model_id: str, persist: bool = True) -> None:
+        """Delete a model by ID.
 
         Args:
-            model_key: Key of the model to delete
+            model_id: UUID of the model to delete
             persist: Whether to save settings to file immediately
         """
         if self._settings_data is None:
@@ -293,11 +332,12 @@ class ConfigService:
                 "ConfigService not initialized. Call initialize() first."
             )
 
-        models = self._settings_data.get("models", {})
-        if model_key in models:
-            del self._settings_data["models"][model_key]
-            if self._config and model_key in self._config.models:
-                del self._config.models[model_key]
+        models = self._settings_data.get("models", [])
+        self._settings_data["models"] = [m for m in models if m.get("id") != model_id]
+
+        if self._config and self._config.models:
+            self._config.models = [m for m in self._config.models if m.get("id") != model_id]
+
         if persist:
             self.save_settings()
 
@@ -396,16 +436,16 @@ class ConfigService:
                     self._settings_data.get("keymaps", [])
                 )
 
-                # Load models and speech_to_text_model configuration
-                config.models = self._settings_data.get("models", {})
+                # Load models and speech_to_text_model configuration (now array)
+                config.models = self._settings_data.get("models", [])
                 config.speech_to_text_model = self._settings_data.get(
                     "speech_to_text_model"
                 )
 
-                # Set default_model to first model key
+                # Set default_model to first model ID if not set
                 config.default_model = self._settings_data.get("default_model")
                 if config.models and not config.default_model:
-                    config.default_model = next(iter(config.models.keys()))
+                    config.default_model = config.models[0].get("id")
 
                 # Load number input debounce delay from settings if available
                 if "number_input_debounce_ms" in self._settings_data:
@@ -479,42 +519,52 @@ def validate_config(config: AppConfig) -> None:
     if not config.models:
         raise ConfigurationError("At least one model must be configured")
 
-    # Validate all model entries
-    for model_name, model_config in config.models.items():
-        if not isinstance(model_config, dict):
-            raise ConfigurationError(f"Model '{model_name}' must be a dictionary")
+    if not isinstance(config.models, list):
+        raise ConfigurationError("Models must be an array")
 
-        # Required fields
+    seen_ids = set()
+    for model_config in config.models:
+        if not isinstance(model_config, dict):
+            raise ConfigurationError("Each model entry must be a dictionary")
+
+        model_id = model_config.get("id")
+        if not model_id:
+            raise ConfigurationError("Each model must have an 'id' field")
+
+        if model_id in seen_ids:
+            raise ConfigurationError(f"Duplicate model ID: '{model_id}'")
+        seen_ids.add(model_id)
+
+        model_display = model_config.get("display_name", model_id)
+
         required_fields = ["model", "display_name", "api_key_env"]
         for field in required_fields:
             if field not in model_config:
                 raise ConfigurationError(
-                    f"Model '{model_name}' missing required field: {field}"
+                    f"Model '{model_display}' missing required field: {field}"
                 )
 
             if not model_config[field]:
                 raise ConfigurationError(
-                    f"Model '{model_name}' field '{field}' cannot be empty"
+                    f"Model '{model_display}' field '{field}' cannot be empty"
                 )
 
-        # Validate temperature if present (optional field)
         if "temperature" in model_config and model_config["temperature"] is not None:
             try:
                 temp = float(model_config["temperature"])
                 if temp < 0 or temp > 2:
                     raise ConfigurationError(
-                        f"Model '{model_name}' temperature must be between 0 and 2"
+                        f"Model '{model_display}' temperature must be between 0 and 2"
                     )
             except (ValueError, TypeError):
                 raise ConfigurationError(
-                    f"Model '{model_name}' temperature must be a number"
+                    f"Model '{model_display}' temperature must be a number"
                 )
 
-        # Validate base_url if present (optional field)
         if "base_url" in model_config and model_config["base_url"]:
             if not model_config["base_url"].startswith(("http://", "https://")):
                 raise ConfigurationError(
-                    f"Model '{model_name}' base_url must start with http:// or https://"
+                    f"Model '{model_display}' base_url must start with http:// or https://"
                 )
 
     # Validate number_input_debounce_ms
@@ -559,9 +609,10 @@ def validate_config(config: AppConfig) -> None:
                 )
 
 
-def _load_api_keys(models: Dict[str, Any]) -> None:
+def _load_api_keys(models: List[Dict[str, Any]]) -> None:
     """Load API keys from environment variables for all models."""
-    for model_name, model_config in models.items():
+    for model_config in models:
+        model_name = model_config.get("display_name", model_config.get("id", "unknown"))
         _load_api_key_for_model(model_config, model_name)
 
 

@@ -1,6 +1,7 @@
 """Widget for editing model configuration."""
 
-from typing import Any, Dict, Optional
+import uuid
+from typing import Any, Dict, Optional, Tuple
 
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import (
@@ -55,7 +56,8 @@ class ModelEditorWidget(QWidget):
 
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
-        self._current_key: Optional[str] = None
+        self._model_id: Optional[str] = None
+        self._is_new: bool = False
         self._setup_ui()
 
     def _setup_ui(self):
@@ -79,11 +81,6 @@ class ModelEditorWidget(QWidget):
         form_layout = QFormLayout()
         form_layout.setSpacing(12)
         form_layout.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
-
-        self._key_edit = QLineEdit()
-        self._key_edit.setPlaceholderText("unique-model-key")
-        self._key_edit.setToolTip("Unique identifier for the model (used internally)")
-        form_layout.addRow("Key:", self._key_edit)
 
         self._display_name_edit = QLineEdit()
         self._display_name_edit.setPlaceholderText("Model Display Name")
@@ -120,17 +117,17 @@ class ModelEditorWidget(QWidget):
 
         self.setEnabled(False)
 
-    def load_model(self, key: str, config: Dict[str, Any]):
+    def load_model(self, model_id: str, config: Dict[str, Any]):
         """Load a model configuration into the editor.
 
         Args:
-            key: The model key
+            model_id: The model UUID
             config: The model configuration dict
         """
-        self._current_key = key
+        self._model_id = model_id
+        self._is_new = False
         self.setEnabled(True)
 
-        self._key_edit.setText(key)
         self._display_name_edit.setText(config.get("display_name", ""))
         self._model_edit.setText(config.get("model", ""))
         self._api_key_env_edit.setText(config.get("api_key_env", ""))
@@ -139,29 +136,30 @@ class ModelEditorWidget(QWidget):
 
     def clear(self):
         """Clear the editor and disable it."""
-        self._current_key = None
+        self._model_id = None
+        self._is_new = False
         self.setEnabled(False)
 
-        self._key_edit.clear()
         self._display_name_edit.clear()
         self._model_edit.clear()
         self._api_key_env_edit.clear()
         self._base_url_edit.clear()
         self._temperature_spin.setValue(0.7)
 
-    def get_model_data(self) -> Optional[tuple]:
+    def get_model_data(self) -> Optional[Tuple[str, Dict[str, Any]]]:
         """Get the current model data from the editor.
 
         Returns:
-            Tuple of (key, config) or None if invalid
+            Tuple of (id, config) or None if invalid
         """
-        key = self._key_edit.text().strip()
         display_name = self._display_name_edit.text().strip()
         model = self._model_edit.text().strip()
         api_key_env = self._api_key_env_edit.text().strip()
 
-        if not all([key, display_name, model, api_key_env]):
+        if not all([display_name, model, api_key_env]):
             return None
+
+        model_id = self._model_id if self._model_id else str(uuid.uuid4())
 
         config = {
             "display_name": display_name,
@@ -174,7 +172,7 @@ class ModelEditorWidget(QWidget):
         if base_url:
             config["base_url"] = base_url
 
-        return (key, config)
+        return (model_id, config)
 
     def is_new_model(self) -> bool:
         """Check if this is editing a new model.
@@ -182,26 +180,26 @@ class ModelEditorWidget(QWidget):
         Returns:
             True if editing a new model, False if editing existing
         """
-        return self._current_key is None
+        return self._is_new
 
-    def get_original_key(self) -> Optional[str]:
-        """Get the original model key (before any edits).
+    def get_model_id(self) -> Optional[str]:
+        """Get the current model ID.
 
         Returns:
-            The original key or None if new model
+            The model UUID or None if new model not yet saved
         """
-        return self._current_key
+        return self._model_id
 
     def set_new_mode(self):
-        """Set the editor to new model mode."""
-        self._current_key = None
+        """Set the editor to new model mode with a new UUID."""
+        self._model_id = str(uuid.uuid4())
+        self._is_new = True
         self.setEnabled(True)
 
-        self._key_edit.clear()
         self._display_name_edit.clear()
         self._model_edit.clear()
         self._api_key_env_edit.setText("OPENAI_API_KEY")
         self._base_url_edit.setText("https://api.openai.com/v1")
         self._temperature_spin.setValue(0.7)
 
-        self._key_edit.setFocus()
+        self._display_name_edit.setFocus()

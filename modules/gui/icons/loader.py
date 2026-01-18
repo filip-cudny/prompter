@@ -1,11 +1,13 @@
 """SVG loading with caching."""
 
+import base64
 import os
 from typing import Dict, List
 
 _SVG_DIR = os.path.join(os.path.dirname(__file__), "svg")
 
 _svg_content_cache: Dict[str, str] = {}
+_svg_data_url_cache: Dict[str, str] = {}
 
 
 def get_svg_path(name: str) -> str:
@@ -60,3 +62,29 @@ def get_available_icons() -> List[str]:
         for f in os.listdir(_SVG_DIR)
         if f.endswith(".svg")
     ]
+
+
+def get_svg_data_url(name: str, color: str) -> str:
+    """Return a data URL for an SVG icon with color applied.
+
+    Data URLs can be used in Qt stylesheets where raw SVG paths
+    would render currentColor as black.
+
+    Args:
+        name: Icon name (without .svg extension)
+        color: Hex color string to replace currentColor with
+
+    Returns:
+        Data URL string (data:image/svg+xml;base64,...)
+    """
+    cache_key = f"{name}:{color}"
+    if cache_key in _svg_data_url_cache:
+        return _svg_data_url_cache[cache_key]
+
+    svg_content = get_svg_content(name)
+    svg_colored = svg_content.replace("currentColor", color)
+    encoded = base64.b64encode(svg_colored.encode()).decode()
+    data_url = f"data:image/svg+xml;base64,{encoded}"
+
+    _svg_data_url_cache[cache_key] = data_url
+    return data_url

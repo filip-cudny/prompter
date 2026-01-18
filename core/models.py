@@ -158,7 +158,7 @@ class PromptConfig:
 class SettingsConfig:
     """Main settings configuration."""
 
-    models: Dict[str, List[Dict[str, Any]]] = field(default_factory=dict)
+    models: List[Dict[str, Any]] = field(default_factory=list)
     prompts: List[PromptConfig] = field(default_factory=list)
     providers: List[ProviderConfig] = field(default_factory=list)
     settings_path: Optional[str] = None
