@@ -155,6 +155,7 @@ class PromptStoreService(PromptStoreServiceProtocol):
     ) -> None:
         """Add entry to history service for prompt executions."""
         if item.item_type in [MenuItemType.PROMPT]:
+            is_conversation = bool(item.data and item.data.get("conversation_data"))
             if result.success and item.data:
                 self.history_service.add_entry(
                     input_content=input_content,
@@ -162,6 +163,7 @@ class PromptStoreService(PromptStoreServiceProtocol):
                     output_content=result.content,
                     prompt_id=item.data.get("prompt_id"),
                     success=True,
+                    is_conversation=is_conversation,
                 )
             elif not result.success:
                 self.history_service.add_entry(
@@ -171,6 +173,7 @@ class PromptStoreService(PromptStoreServiceProtocol):
                     prompt_id=item.data.get("prompt_id") if item.data else None,
                     success=False,
                     error=result.error,
+                    is_conversation=is_conversation,
                 )
 
     def get_active_prompt(self) -> Optional[MenuItem]:

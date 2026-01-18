@@ -172,6 +172,7 @@ class KeymapsPanel(SettingsPanelBase):
         table.setColumnWidth(0, 200)
         table.setSelectionBehavior(QTableWidget.SelectRows)
         table.setSelectionMode(QTableWidget.SingleSelection)
+        table.verticalHeader().setDefaultSectionSize(36)
 
         tab_layout.addWidget(table)
 

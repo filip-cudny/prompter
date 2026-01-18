@@ -18,6 +18,8 @@ from modules.gui.dialog_styles import (
     COLOR_DIALOG_BG,
     COLOR_TEXT,
     COLOR_TEXT_EDIT_BG,
+    SVG_CHEVRON_DOWN,
+    SVG_CHEVRON_UP,
 )
 from modules.utils.config import ConfigService
 from ..settings_panel_base import SettingsPanelBase
@@ -37,11 +39,9 @@ FORM_STYLE = f"""
         width: 24px;
     }}
     QComboBox::down-arrow {{
-        image: none;
-        border-left: 4px solid transparent;
-        border-right: 4px solid transparent;
-        border-top: 6px solid {COLOR_TEXT};
-        margin-right: 8px;
+        image: url("{SVG_CHEVRON_DOWN}");
+        width: 12px;
+        height: 12px;
     }}
     QComboBox QAbstractItemView {{
         background-color: {COLOR_DIALOG_BG};
@@ -61,6 +61,16 @@ FORM_STYLE = f"""
         background-color: {COLOR_BUTTON_BG};
         border: none;
         width: 20px;
+    }}
+    QSpinBox::up-arrow {{
+        image: url("{SVG_CHEVRON_UP}");
+        width: 10px;
+        height: 10px;
+    }}
+    QSpinBox::down-arrow {{
+        image: url("{SVG_CHEVRON_DOWN}");
+        width: 10px;
+        height: 10px;
     }}
     QLabel {{
         color: {COLOR_TEXT};

@@ -48,6 +48,12 @@ DEFAULT_NOTIFICATION_SETTINGS: Dict[str, Any] = {
         "info": "#FFFFFF",
         "warning": "#FFFFFF",
     },
+    "icon_colors": {
+        "success": "#43803e",
+        "error": "#c94a4a",
+        "info": "#6A7D93",
+        "warning": "#b8860b",
+    },
     "monochromatic_notification_icons": True,
     "opacity": 0.8,
 }
@@ -82,6 +88,14 @@ def get_background_color(notification_type: str) -> str:
         "background_colors", DEFAULT_NOTIFICATION_SETTINGS["background_colors"]
     )
     return bg_colors.get(notification_type, NOTIFICATION_BG_COLOR)
+
+
+def get_icon_color(notification_type: str) -> str:
+    """Get icon color for a notification type from settings."""
+    settings = get_notification_settings()
+    icon_colors = settings.get("icon_colors", DEFAULT_NOTIFICATION_SETTINGS["icon_colors"])
+    default_color = NOTIFICATION_TYPES.get(notification_type, {}).get("icon_color", "#000000")
+    return icon_colors.get(notification_type, default_color)
 
 
 def is_monochromatic_mode() -> bool:
