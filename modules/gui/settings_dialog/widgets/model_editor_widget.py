@@ -29,6 +29,8 @@ from modules.gui.dialog_styles import (
     COLOR_TEXT,
     COLOR_TEXT_EDIT_BG,
     COLOR_TEXT_SECONDARY,
+    SVG_CHEVRON_DOWN_PATH,
+    SVG_CHEVRON_UP_PATH,
 )
 from modules.gui.icons import create_icon
 
@@ -66,6 +68,16 @@ FORM_STYLE = f"""
         border: none;
         width: 20px;
     }}
+    QDoubleSpinBox::up-arrow, QSpinBox::up-arrow {{
+        image: url("{SVG_CHEVRON_UP_PATH}");
+        width: 10px;
+        height: 10px;
+    }}
+    QDoubleSpinBox::down-arrow, QSpinBox::down-arrow {{
+        image: url("{SVG_CHEVRON_DOWN_PATH}");
+        width: 10px;
+        height: 10px;
+    }}
     QLabel {{
         color: {COLOR_TEXT};
     }}
@@ -80,6 +92,11 @@ FORM_STYLE = f"""
     QComboBox::drop-down {{
         border: none;
         width: 20px;
+    }}
+    QComboBox::down-arrow {{
+        image: url("{SVG_CHEVRON_DOWN_PATH}");
+        width: 12px;
+        height: 12px;
     }}
     QComboBox QAbstractItemView {{
         background-color: {COLOR_DIALOG_BG};

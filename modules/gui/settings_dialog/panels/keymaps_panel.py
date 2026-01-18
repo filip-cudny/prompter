@@ -25,6 +25,7 @@ from modules.gui.dialog_styles import (
     COLOR_SELECTION,
     COLOR_TEXT,
     COLOR_TEXT_EDIT_BG,
+    SVG_CHEVRON_DOWN_PATH,
     TOOLTIP_STYLE,
 )
 from modules.utils.config import ConfigService
@@ -210,6 +211,12 @@ class KeymapsPanel(SettingsPanelBase):
                         }}
                         QComboBox::drop-down {{
                             border: none;
+                            width: 20px;
+                        }}
+                        QComboBox::down-arrow {{
+                            image: url("{SVG_CHEVRON_DOWN_PATH}");
+                            width: 12px;
+                            height: 12px;
                         }}
                         QComboBox QAbstractItemView {{
                             background-color: {COLOR_DIALOG_BG};
@@ -249,6 +256,12 @@ class KeymapsPanel(SettingsPanelBase):
             }}
             QComboBox::drop-down {{
                 border: none;
+                width: 20px;
+            }}
+            QComboBox::down-arrow {{
+                image: url("{SVG_CHEVRON_DOWN_PATH}");
+                width: 12px;
+                height: 12px;
             }}
             QComboBox QAbstractItemView {{
                 background-color: {COLOR_DIALOG_BG};

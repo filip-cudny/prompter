@@ -22,13 +22,36 @@ from modules.gui.dialog_styles import (
     get_dialog_stylesheet,
 )
 
-DEFAULT_PROMPT = """Generate a concise 3-4 word description for the following AI prompt.
-The description should capture the primary purpose or action.
-Only respond with the description, nothing else.
+DEFAULT_SYSTEM_PROMPT = """You are an AI assistant whose sole task is to generate a short, concise description explaining what a given prompt does.
 
-Prompt name: {{name}}
-System message: {{system}}
-User message template: {{user}}"""
+You will receive:
+
+* The prompt name.
+* The full system prompt content.
+* The user message template, including placeholders and their explanations.
+
+Your goal:
+
+* Produce a brief description (1–3 sentences or up to 3 bullet points) that clearly summarizes the purpose and behavior of the prompt.
+* The description must be suitable for quick recall in a list or context menu.
+* **Always write the description in the same language as the core system prompt.**
+* **Ignore the language of examples, sample inputs, or sample outputs inside the prompt.**
+* **If the system prompt is written in English, the output MUST be in English.**
+
+Rules:
+
+* Emphasize whether the prompt performs execution, refinement, correction, translation, or a **lossless transformation**.
+* Explicitly distinguish transformations from summarization or content reduction when applicable.
+* Do not restate the prompt name verbatim.
+* Do not describe internal formatting, Markdown, or XML mechanics unless essential to understanding behavior.
+* Do not explain placeholders individually unless they are critical to the prompt’s function.
+* Do not add examples.
+* Output either a single short paragraph or up to 3 bullet points.
+* Do not use meta commentary.
+* Output only the final description text.
+* **Under no circumstances translate the description into another language.**
+
+"""
 
 
 class PromptTemplateDialog(QDialog):
@@ -40,10 +63,10 @@ class PromptTemplateDialog(QDialog):
         parent: Optional[QWidget] = None,
     ):
         super().__init__(parent)
-        self._current_prompt = current_prompt or DEFAULT_PROMPT
+        self._current_prompt = current_prompt or DEFAULT_SYSTEM_PROMPT
         self._result_prompt: Optional[str] = None
 
-        self.setWindowTitle("Edit Description Generator Prompt")
+        self.setWindowTitle("Edit Description Generator System Prompt")
         self.setMinimumSize(500, 400)
         self.resize(600, 450)
         self.setStyleSheet(get_dialog_stylesheet())
@@ -57,8 +80,8 @@ class PromptTemplateDialog(QDialog):
         layout.setSpacing(16)
 
         info_label = QLabel(
-            "Edit the prompt template used to generate descriptions.\n"
-            "Available placeholders: {{name}}, {{system}}, {{user}}"
+            "Edit the system prompt used for description generation.\n"
+            "The prompt name, system message, and user template are passed automatically."
         )
         info_label.setStyleSheet(f"color: {COLOR_TEXT}; font-size: 12px;")
         info_label.setWordWrap(True)
@@ -135,7 +158,7 @@ class PromptTemplateDialog(QDialog):
 
     def _on_reset(self):
         """Reset prompt to default."""
-        self._prompt_edit.setPlainText(DEFAULT_PROMPT)
+        self._prompt_edit.setPlainText(DEFAULT_SYSTEM_PROMPT)
 
     def _on_save(self):
         """Handle save button click."""

@@ -149,7 +149,7 @@ class PromptListWidget(QWidget):
         """)
         self._list_widget.itemSelectionChanged.connect(self._on_selection_changed)
         self._list_widget.itemDoubleClicked.connect(self._on_item_double_clicked)
-        layout.addWidget(self._list_widget)
+        layout.addWidget(self._list_widget, 1)
 
     def set_prompts(self, prompts: List[Dict[str, Any]]):
         """Set the list of prompts.

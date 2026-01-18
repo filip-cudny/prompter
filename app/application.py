@@ -27,7 +27,7 @@ from modules.history.history_execution_handler import HistoryExecutionHandler
 from modules.gui.menu_coordinator import PyQtMenuCoordinator, PyQtMenuEventHandler
 from modules.gui.hotkey_manager import PyQtHotkeyManager
 from modules.utils.clipboard import SystemClipboardManager
-from modules.utils.config import load_config, validate_config
+from modules.utils.config import load_config, validate_config, ConfigService
 from modules.utils.system import check_macos_permissions, show_macos_permissions_help
 from modules.utils.notifications import PyQtNotificationManager
 from modules.utils.notification_config import is_notification_enabled
@@ -149,6 +149,12 @@ class PrompterApp(QObject):
                 self.openai_service,
                 self.context_manager,
                 self.history_service,
+            )
+
+            # Register callback to invalidate prompt cache when settings are saved
+            config_service = ConfigService()
+            config_service.register_on_save_callback(
+                self.prompt_store_service.invalidate_cache
             )
 
             # Initialize GUI components

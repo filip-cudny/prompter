@@ -80,6 +80,15 @@ class PromptStoreService(PromptStoreServiceProtocol):
         except Exception as e:
             raise DataError(f"Failed to refresh prompts: {str(e)}") from e
 
+    def invalidate_cache(self):
+        """Invalidate prompt cache and refresh from providers."""
+        self._prompts_cache = None
+        for provider in self.prompt_providers:
+            if hasattr(provider, "refresh"):
+                provider.refresh()
+        if self._menu_coordinator and hasattr(self._menu_coordinator, "_clear_menu_cache"):
+            self._menu_coordinator._clear_menu_cache()
+
     def execute_item(self, item: MenuItem) -> ExecutionResult:
         """Execute a menu item and track in history."""
         try:
