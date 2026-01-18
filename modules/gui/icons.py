@@ -40,7 +40,10 @@ LUCIDE_ICONS = {
 # Color constants matching the app's color scheme
 ICON_COLOR_NORMAL = "#888888"
 ICON_COLOR_HOVER = "#aaaaaa"
-ICON_COLOR_DISABLED = "#666666"
+ICON_COLOR_DISABLED = "#888888"
+
+# Opacity for disabled state
+DISABLED_OPACITY = 0.5
 
 
 def create_icon(name: str, color: str = ICON_COLOR_NORMAL, size: int = 16) -> QIcon:
