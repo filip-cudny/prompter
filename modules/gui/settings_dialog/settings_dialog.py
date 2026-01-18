@@ -13,6 +13,7 @@ from PyQt5.QtWidgets import (
 
 from modules.gui.base_dialog import BaseDialog
 from modules.gui.dialog_styles import (
+    BUTTON_ROW_SPACING,
     COLOR_BORDER,
     COLOR_BUTTON_BG,
     COLOR_BUTTON_HOVER,
@@ -127,7 +128,15 @@ class SettingsDialog(BaseDialog):
 
         button_row = QHBoxLayout()
         button_row.setContentsMargins(16, 8, 16, 12)
+        button_row.setSpacing(BUTTON_ROW_SPACING)
         button_row.addStretch()
+
+        self._reset_btn = QPushButton("Reset")
+        self._reset_btn.setStyleSheet(SAVE_BTN_STYLE)
+        self._reset_btn.setToolTip("Discard changes and reset to saved settings")
+        self._reset_btn.setEnabled(False)
+        self._reset_btn.clicked.connect(self._on_reset_all)
+        button_row.addWidget(self._reset_btn)
 
         self._save_btn = QPushButton("Save")
         self._save_btn.setStyleSheet(SAVE_BTN_STYLE)
@@ -153,9 +162,10 @@ class SettingsDialog(BaseDialog):
         self._update_save_button_state()
 
     def _update_save_button_state(self):
-        """Enable Save button if any panel has unsaved changes."""
+        """Enable Save and Reset buttons if any panel has unsaved changes."""
         any_dirty = any(panel.is_dirty() for panel in self._panels.values())
         self._save_btn.setEnabled(any_dirty)
+        self._reset_btn.setEnabled(any_dirty)
 
     def _on_save_all(self):
         """Save all pending changes."""
@@ -163,6 +173,13 @@ class SettingsDialog(BaseDialog):
             if panel.is_dirty():
                 panel.save_changes()
         self._config_service.save_settings()
+        self._update_save_button_state()
+
+    def _on_reset_all(self):
+        """Reset all panels to saved settings."""
+        self._config_service.reload_settings()
+        for panel in self._panels.values():
+            panel.load_settings()
         self._update_save_button_state()
 
     def keyPressEvent(self, event):

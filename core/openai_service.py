@@ -109,14 +109,9 @@ class OpenAiService:
                 **kwargs,
             }
 
-            if "temperature" in model_config:
-                completion_params["temperature"] = model_config["temperature"]
-
-            if "max_tokens" in model_config:
-                completion_params["max_tokens"] = model_config["max_tokens"]
-
-            if "reasoning_effort" in model_config:
-                completion_params["reasoning_effort"] = model_config["reasoning_effort"]
+            parameters = model_config.get("parameters", {})
+            for param_name, param_value in parameters.items():
+                completion_params[param_name] = param_value
 
             response = client.chat.completions.create(**completion_params)
             return response.choices[0].message.content.strip()
@@ -161,14 +156,9 @@ class OpenAiService:
                 **kwargs,
             }
 
-            if "temperature" in model_config:
-                completion_params["temperature"] = model_config["temperature"]
-
-            if "max_tokens" in model_config:
-                completion_params["max_tokens"] = model_config["max_tokens"]
-
-            if "reasoning_effort" in model_config:
-                completion_params["reasoning_effort"] = model_config["reasoning_effort"]
+            parameters = model_config.get("parameters", {})
+            for param_name, param_value in parameters.items():
+                completion_params[param_name] = param_value
 
             accumulated = ""
             response = client.chat.completions.create(**completion_params)

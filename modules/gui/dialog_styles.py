@@ -20,6 +20,9 @@ DIALOG_CONTENT_MARGINS = (10, 10, 0, 10)  # No right margin - scrollbar at edge
 SCROLL_CONTENT_MARGINS = (0, 0, 6, 0)  # Right margin for scrollbar gap
 SCROLL_CONTENT_SPACING = 8
 
+# Button layout constants
+BUTTON_ROW_SPACING = 8
+
 # Window size defaults
 DEFAULT_DIALOG_SIZE = (600, 500)
 MIN_DIALOG_SIZE = (500, 400)
@@ -30,6 +33,7 @@ SMALL_MIN_DIALOG_SIZE = (400, 300)
 COLOR_DIALOG_BG = "#2b2b2b"
 COLOR_TEXT_EDIT_BG = "#1e1e1e"
 COLOR_TEXT = "#f0f0f0"
+COLOR_TEXT_SECONDARY = "#888888"
 COLOR_BORDER = "#555555"
 COLOR_BUTTON_BG = "#3a3a3a"
 COLOR_BUTTON_HOVER = "#454545"

@@ -15,14 +15,17 @@ from PyQt5.QtWidgets import (
 from modules.gui.dialog_styles import (
     COLOR_BORDER,
     COLOR_BUTTON_BG,
+    COLOR_COMBOBOX_ARROW,
     COLOR_DIALOG_BG,
     COLOR_TEXT,
     COLOR_TEXT_EDIT_BG,
 )
-from modules.gui.icons import SVG_CHEVRON_DOWN, SVG_CHEVRON_UP
+from modules.gui.icons import get_svg_data_url
 from modules.utils.config import ConfigService
 from ..settings_panel_base import SettingsPanelBase
 
+_SVG_CHEVRON_DOWN_URL = get_svg_data_url("chevron-down", COLOR_COMBOBOX_ARROW)
+_SVG_CHEVRON_UP_URL = get_svg_data_url("chevron-up", COLOR_COMBOBOX_ARROW)
 
 FORM_STYLE = f"""
     QComboBox {{
@@ -38,7 +41,7 @@ FORM_STYLE = f"""
         width: 24px;
     }}
     QComboBox::down-arrow {{
-        image: url("{SVG_CHEVRON_DOWN}");
+        image: url("{_SVG_CHEVRON_DOWN_URL}");
         width: 12px;
         height: 12px;
     }}
@@ -62,12 +65,12 @@ FORM_STYLE = f"""
         width: 20px;
     }}
     QSpinBox::up-arrow {{
-        image: url("{SVG_CHEVRON_UP}");
+        image: url("{_SVG_CHEVRON_UP_URL}");
         width: 10px;
         height: 10px;
     }}
     QSpinBox::down-arrow {{
-        image: url("{SVG_CHEVRON_DOWN}");
+        image: url("{_SVG_CHEVRON_DOWN_URL}");
         width: 10px;
         height: 10px;
     }}
