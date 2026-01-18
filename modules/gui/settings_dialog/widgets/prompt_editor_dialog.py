@@ -1,9 +1,10 @@
 """Dialog for editing a single prompt."""
 
+import logging
 import uuid
 from typing import Any, Dict, Optional
 
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtWidgets import (
     QComboBox,
     QDialog,
@@ -16,6 +17,7 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
+from modules.gui.context_widgets import IconButton
 from modules.gui.dialog_styles import (
     COLOR_BORDER,
     COLOR_BUTTON_BG,
@@ -23,8 +25,81 @@ from modules.gui.dialog_styles import (
     COLOR_DIALOG_BG,
     COLOR_TEXT,
     COLOR_TEXT_EDIT_BG,
+    TOOLTIP_STYLE,
     get_dialog_stylesheet,
 )
+
+logger = logging.getLogger(__name__)
+
+MIN_CONTENT_LENGTH = 10
+
+
+class DescriptionGeneratorWorker(QThread):
+    """Worker thread for generating descriptions via API."""
+
+    finished = pyqtSignal(str)
+    error = pyqtSignal(str)
+
+    def __init__(
+        self,
+        name: str,
+        system_content: str,
+        user_content: str,
+        parent: Optional[QThread] = None,
+    ):
+        super().__init__(parent)
+        self._name = name
+        self._system_content = system_content
+        self._user_content = user_content
+
+    def run(self):
+        try:
+            from modules.utils.config import ConfigService
+
+            config_service = ConfigService()
+            config = config_service.get_description_generator_config()
+
+            model_id = config.get("model", "")
+            prompt_template = config.get("prompt", "")
+
+            if not model_id:
+                models = config_service.get_models_list()
+                if models:
+                    model_id = models[0].get("id")
+
+            if not model_id:
+                self.error.emit("No model configured for description generation")
+                return
+
+            model_config = config_service.get_model_by_id(model_id)
+            if not model_config:
+                self.error.emit(f"Model '{model_id}' not found")
+                return
+
+            prompt = prompt_template.replace("{{name}}", self._name)
+            prompt = prompt.replace("{{system}}", self._system_content)
+            prompt = prompt.replace("{{user}}", self._user_content)
+
+            from core.openai_service import OpenAIService
+
+            service = OpenAIService(
+                api_key=model_config.get("api_key", ""),
+                model=model_config.get("model", ""),
+                base_url=model_config.get("base_url"),
+            )
+
+            messages = [{"role": "user", "content": prompt}]
+            response = service.send_request(messages)
+
+            description = response.strip()
+            if len(description) > 100:
+                description = description[:100]
+
+            self.finished.emit(description)
+
+        except Exception as e:
+            logger.exception("Failed to generate description")
+            self.error.emit(str(e))
 
 
 class PromptEditorDialog(QDialog):
@@ -39,6 +114,7 @@ class PromptEditorDialog(QDialog):
         self._prompt_data = prompt_data or {}
         self._is_new = prompt_data is None
         self._result_data: Optional[Dict[str, Any]] = None
+        self._generator_worker: Optional[DescriptionGeneratorWorker] = None
 
         self.setWindowTitle("New Prompt" if self._is_new else "Edit Prompt")
         self.setMinimumSize(600, 500)
@@ -105,6 +181,34 @@ class PromptEditorDialog(QDialog):
         name_row.addWidget(self._name_edit)
         form_layout.addLayout(name_row)
 
+        description_row = QHBoxLayout()
+        description_label = QLabel("Description:")
+        description_label.setFixedWidth(100)
+        self._description_edit = QLineEdit()
+        self._description_edit.setPlaceholderText("Short description (3-4 words)")
+        description_row.addWidget(description_label)
+        description_row.addWidget(self._description_edit)
+
+        icon_btn_style = f"""
+            QPushButton {{
+                background: transparent;
+                border: none;
+                padding: 4px;
+                min-width: 28px;
+                max-width: 28px;
+                min-height: 28px;
+                max-height: 28px;
+            }}
+            {TOOLTIP_STYLE}
+        """
+        self._generate_btn = IconButton("bot", size=18)
+        self._generate_btn.setStyleSheet(icon_btn_style)
+        self._generate_btn.setToolTip("Generate description using AI")
+        self._generate_btn.setEnabled(False)
+        self._generate_btn.clicked.connect(self._on_generate_description)
+        description_row.addWidget(self._generate_btn)
+        form_layout.addLayout(description_row)
+
         model_row = QHBoxLayout()
         model_label = QLabel("Model (optional):")
         model_label.setFixedWidth(100)
@@ -132,6 +236,9 @@ class PromptEditorDialog(QDialog):
         )
         self._user_edit.setMinimumHeight(100)
         form_layout.addWidget(self._user_edit)
+
+        self._system_edit.textChanged.connect(self._update_generate_button_state)
+        self._user_edit.textChanged.connect(self._update_generate_button_state)
 
         layout.addWidget(form_container)
 
@@ -203,9 +310,11 @@ class PromptEditorDialog(QDialog):
         """Load prompt data into form fields."""
         if not self._prompt_data:
             self._user_edit.setPlainText("{{clipboard}}")
+            self._update_generate_button_state()
             return
 
         self._name_edit.setText(self._prompt_data.get("name", ""))
+        self._description_edit.setText(self._prompt_data.get("description", ""))
 
         model = self._prompt_data.get("model", "")
         for i in range(self._model_combo.count()):
@@ -224,6 +333,8 @@ class PromptEditorDialog(QDialog):
                     self._system_edit.setPlainText(msg["content"])
             elif role == "user":
                 self._user_edit.setPlainText(msg.get("content", ""))
+
+        self._update_generate_button_state()
 
     def _on_save(self):
         """Handle save button click."""
@@ -249,6 +360,10 @@ class PromptEditorDialog(QDialog):
             "messages": messages,
         }
 
+        description = self._description_edit.text().strip()
+        if description:
+            self._result_data["description"] = description
+
         model = self._model_combo.currentData()
         if model:
             self._result_data["model"] = model
@@ -269,3 +384,60 @@ class PromptEditorDialog(QDialog):
             self.reject()
         else:
             super().keyPressEvent(event)
+
+    def _get_combined_content_length(self) -> int:
+        """Get the combined length of system and user content."""
+        system_len = len(self._system_edit.toPlainText().strip())
+        user_len = len(self._user_edit.toPlainText().strip())
+        return system_len + user_len
+
+    def _update_generate_button_state(self):
+        """Update the generate button enabled state and tooltip."""
+        content_len = self._get_combined_content_length()
+        is_generating = (
+            self._generator_worker is not None and self._generator_worker.isRunning()
+        )
+
+        if is_generating:
+            self._generate_btn.setEnabled(False)
+            self._generate_btn.setToolTip("Generating...")
+        elif content_len >= MIN_CONTENT_LENGTH:
+            self._generate_btn.setEnabled(True)
+            self._generate_btn.setToolTip("Generate description using AI")
+        else:
+            chars_needed = MIN_CONTENT_LENGTH - content_len
+            self._generate_btn.setEnabled(False)
+            self._generate_btn.setToolTip(
+                f"Enter at least {chars_needed} more character{'s' if chars_needed != 1 else ''}"
+            )
+
+    def _on_generate_description(self):
+        """Start description generation in background thread."""
+        if self._generator_worker is not None and self._generator_worker.isRunning():
+            return
+
+        name = self._name_edit.text().strip()
+        system_content = self._system_edit.toPlainText().strip()
+        user_content = self._user_edit.toPlainText().strip()
+
+        self._generator_worker = DescriptionGeneratorWorker(
+            name=name,
+            system_content=system_content,
+            user_content=user_content,
+            parent=self,
+        )
+        self._generator_worker.finished.connect(self._on_generation_finished)
+        self._generator_worker.error.connect(self._on_generation_error)
+        self._generator_worker.start()
+
+        self._update_generate_button_state()
+
+    def _on_generation_finished(self, description: str):
+        """Handle successful description generation."""
+        self._description_edit.setText(description)
+        self._update_generate_button_state()
+
+    def _on_generation_error(self, error_msg: str):
+        """Handle description generation error."""
+        logger.warning(f"Description generation failed: {error_msg}")
+        self._update_generate_button_state()

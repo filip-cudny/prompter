@@ -420,6 +420,53 @@ class ConfigService:
         if persist:
             self.save_settings()
 
+    def get_description_generator_config(self) -> Dict[str, Any]:
+        """Get the description generator configuration.
+
+        Returns:
+            Dict with 'model' and 'prompt' keys
+        """
+        if self._settings_data is None:
+            raise ConfigurationError(
+                "ConfigService not initialized. Call initialize() first."
+            )
+
+        default_config = {
+            "model": "",
+            "prompt": (
+                "Generate a concise 3-4 word description for the following AI prompt.\n"
+                "The description should capture the primary purpose or action.\n"
+                "Only respond with the description, nothing else.\n\n"
+                "Prompt name: {{name}}\n"
+                "System message: {{system}}\n"
+                "User message template: {{user}}"
+            ),
+        }
+
+        config = self._settings_data.get("description_generator", {})
+        return {**default_config, **config}
+
+    def update_description_generator_config(
+        self, config: Dict[str, Any], persist: bool = True
+    ) -> None:
+        """Update description generator configuration.
+
+        Args:
+            config: Dict with 'model' and/or 'prompt' keys
+            persist: Whether to save settings to file immediately
+        """
+        if self._settings_data is None:
+            raise ConfigurationError(
+                "ConfigService not initialized. Call initialize() first."
+            )
+
+        if "description_generator" not in self._settings_data:
+            self._settings_data["description_generator"] = {}
+
+        self._settings_data["description_generator"].update(config)
+        if persist:
+            self.save_settings()
+
     def _load_config(
         self, env_file: Optional[str] = None, settings_file: Optional[str] = None
     ) -> AppConfig:
