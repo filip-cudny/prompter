@@ -1,4 +1,27 @@
 {
+  "notifications": {
+    "events": {
+      "prompt_execution_success": true,
+      "prompt_execution_cancel": true,
+      "speech_recording_start": true,
+      "speech_recording_stop": true,
+      "speech_transcription_success": true,
+      "context_saved": true,
+      "context_set": true,
+      "context_append": true,
+      "context_cleared": true,
+      "clipboard_copy": true,
+      "image_added": true,
+      "prompt_execution_in_progress": true
+    },
+    "background_colors": {
+      "success": "#FFFFFF",
+      "error": "#FFFFFF",
+      "info": "#FFFFFF",
+      "warning": "#FFFFFF"
+    },
+    "monochromatic_notification_icons": true
+  },
   "speech_to_text_model": {
     "model": "gpt-4o-transcribe",
     "display_name": "gpt-4o-transcribe",

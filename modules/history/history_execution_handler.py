@@ -4,9 +4,8 @@ from typing import Optional
 import logging
 from core.interfaces import ClipboardManager
 from core.models import MenuItem, MenuItemType, ExecutionResult, ErrorCode
-from modules.utils.notifications import (
-    PyQtNotificationManager,
-)
+from modules.utils.notifications import PyQtNotificationManager
+from modules.utils.notification_config import is_notification_enabled
 import time
 
 logger = logging.getLogger(__name__)
@@ -59,7 +58,8 @@ class HistoryExecutionHandler:
             execution_time = time.time() - start_time
             logger.info(f"History item copied to clipboard: {content_type}")
 
-            self.notification_manager.show_success_notification("Copied")
+            if is_notification_enabled("clipboard_copy"):
+                self.notification_manager.show_success_notification("Copied")
 
             return ExecutionResult(
                 success=True,

@@ -18,6 +18,7 @@ from PyQt5.QtGui import QFont, QImage
 from modules.gui.context_widgets import IconButton
 from modules.gui.dialog_styles import TOOLTIP_STYLE
 from modules.gui.icons import ICON_COLOR_NORMAL
+from modules.utils.notification_config import is_notification_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -905,5 +906,5 @@ class ImageChipContainer(QWidget):
         """Handle image copy request."""
         if 0 <= index < len(self._chips):
             self._chips[index].copy_to_clipboard()
-            if self._notification_manager:
+            if self._notification_manager and is_notification_enabled("clipboard_copy"):
                 self._notification_manager.show_success_notification("Copied")

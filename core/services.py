@@ -77,6 +77,19 @@ class ExecutionService:
                 return True
         return False
 
+    def cancel_execution(self, execution_id: str, silent: bool = False) -> bool:
+        """Cancel specific execution by ID. Returns True if execution was cancelled.
+
+        Args:
+            execution_id: The execution ID to cancel
+            silent: If True, skip notification and signal emission (caller handles UI)
+        """
+        for handler in self.handlers:
+            if hasattr(handler, 'async_manager'):
+                if handler.async_manager.has_execution(execution_id):
+                    return handler.async_manager.stop_execution(execution_id, silent)
+        return False
+
     def should_disable_action(self, action_id: str) -> bool:
         """Check if action should be disabled due to recording or execution state."""
         if self.is_recording() and self.recording_action_id != action_id:

@@ -16,6 +16,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QTimer, QEvent, pyqtSignal
 
 from core.context_manager import ContextManager, ContextItem, ContextItemType
+from modules.utils.notification_config import is_notification_enabled
 from modules.gui.base_dialog import BaseDialog
 from modules.gui.dialog_styles import (
     DEFAULT_WRAPPED_HEIGHT,
@@ -338,7 +339,7 @@ class ContextEditorDialog(BaseDialog):
         if text_content:
             self.context_manager.append_context(text_content)
 
-        if self.notification_manager:
+        if self.notification_manager and is_notification_enabled("context_saved"):
             self.notification_manager.show_success_notification("Context saved")
 
     def _save_clipboard_only(self):
@@ -352,7 +353,7 @@ class ContextEditorDialog(BaseDialog):
             clipboard_content = self.clipboard_edit.toPlainText()
             self.clipboard_manager.set_content(clipboard_content)
 
-        if self.notification_manager:
+        if self.notification_manager and is_notification_enabled("clipboard_copy"):
             self.notification_manager.show_success_notification("Clipboard saved")
 
     def _load_context(self):
@@ -492,7 +493,7 @@ class ContextEditorDialog(BaseDialog):
         """Handle clipboard image copy request."""
         if self._clipboard_image_chip:
             self._clipboard_image_chip.copy_to_clipboard()
-            if self.notification_manager:
+            if self.notification_manager and is_notification_enabled("clipboard_copy"):
                 self.notification_manager.show_success_notification("Copied")
 
     # --- Context state management ---
@@ -687,7 +688,7 @@ class ContextEditorDialog(BaseDialog):
         """Handle image chip copy request."""
         if 0 <= index < len(self._image_chips):
             self._image_chips[index].copy_to_clipboard()
-            if self.notification_manager:
+            if self.notification_manager and is_notification_enabled("clipboard_copy"):
                 self.notification_manager.show_success_notification("Copied")
 
     def _paste_image_from_clipboard(self) -> bool:
@@ -707,7 +708,7 @@ class ContextEditorDialog(BaseDialog):
             self._current_images.append(new_image)
             self._rebuild_image_chips()
 
-            if self.notification_manager:
+            if self.notification_manager and is_notification_enabled("image_added"):
                 self.notification_manager.show_success_notification("Image added")
             return True
         return False

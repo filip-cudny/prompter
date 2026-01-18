@@ -17,6 +17,7 @@ from modules.utils.notifications import (
     PyQtNotificationManager,
     truncate_text,
 )
+from modules.utils.notification_config import is_notification_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +134,8 @@ class PyQtSpeechExecutionHandler:
                         success=True,
                         content=transcription,
                         metadata={"action": "speech_recording_stopped"},
-                    )
+                    ),
+                    ""
                 )
                 if not success:
                     self.notification_manager.show_error_notification(
@@ -164,7 +166,7 @@ class PyQtSpeechExecutionHandler:
             # Copy to clipboard
             success = self.clipboard_manager.set_content(content)
 
-            if success:
+            if success and is_notification_enabled("speech_transcription_success"):
                 self.notification_manager.show_success_notification("Copied")
 
                 return ExecutionResult(

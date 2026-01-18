@@ -6,6 +6,8 @@ import logging
 import time
 from typing import TYPE_CHECKING
 
+from modules.utils.notification_config import is_notification_enabled
+
 if TYPE_CHECKING:
     from core.context_manager import ContextManager
     from core.interfaces import ClipboardManager
@@ -141,7 +143,7 @@ class SetContextValueAction(KeymapAction):
                     self.context_manager.set_context_image(base64_data, media_type)
                     logger.info("Context image set from clipboard")
 
-                    if self.notification_manager:
+                    if self.notification_manager and is_notification_enabled("context_set"):
                         self.notification_manager.show_success_notification(
                             "Context image set"
                         )
@@ -155,7 +157,7 @@ class SetContextValueAction(KeymapAction):
                 self.context_manager.set_context(clipboard_content)
                 logger.info("Context value set from clipboard")
 
-                if self.notification_manager:
+                if self.notification_manager and is_notification_enabled("context_set"):
                     self.notification_manager.show_success_notification("Context set")
 
                 return True
@@ -195,7 +197,7 @@ class AppendContextValueAction(KeymapAction):
                     self.context_manager.append_context_image(base64_data, media_type)
                     logger.info("Context image appended from clipboard")
 
-                    if self.notification_manager:
+                    if self.notification_manager and is_notification_enabled("context_append"):
                         self.notification_manager.show_success_notification(
                             "Context image appended"
                         )
@@ -209,7 +211,7 @@ class AppendContextValueAction(KeymapAction):
                 self.context_manager.append_context(clipboard_content)
                 logger.info("Context value appended from clipboard")
 
-                if self.notification_manager:
+                if self.notification_manager and is_notification_enabled("context_append"):
                     self.notification_manager.show_success_notification(
                         "Context appended"
                     )
@@ -245,7 +247,7 @@ class ClearContextAction(KeymapAction):
             self.context_manager.clear_context()
             logger.info("Context value cleared")
 
-            if self.notification_manager:
+            if self.notification_manager and is_notification_enabled("context_cleared"):
                 self.notification_manager.show_success_notification("Context cleared")
 
             return True

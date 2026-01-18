@@ -8,6 +8,7 @@ from PyQt5.QtWidgets import QApplication
 from core.models import MenuItem, ExecutionResult, MenuItemType, ErrorCode
 from core.exceptions import MenuError
 from modules.utils.config import ConfigService
+from modules.utils.notification_config import is_notification_enabled
 from .context_menu import PyQtContextMenu
 
 logger = logging.getLogger(__name__)
@@ -17,9 +18,9 @@ class PyQtMenuCoordinator(QObject):
     """Coordinates menu providers and handles menu display using PyQt5."""
 
     # Qt signals for thread-safe communication
-    execution_completed = pyqtSignal(object)  # ExecutionResult
+    execution_completed = pyqtSignal(object, str)  # ExecutionResult, execution_id
     execution_error = pyqtSignal(str)
-    streaming_chunk = pyqtSignal(str, str, bool)  # chunk, accumulated, is_final
+    streaming_chunk = pyqtSignal(str, str, bool, str)  # chunk, accumulated, is_final, execution_id
 
     def __init__(self, prompt_store_service, parent=None):
         super().__init__(parent)
@@ -302,13 +303,13 @@ class PyQtMenuCoordinator(QObject):
                 self._invalidate_cache_for_action(item, result)
 
                 # Emit signal for thread-safe handling
-                self.execution_completed.emit(result)
+                self.execution_completed.emit(result, result.execution_id or "")
 
         except (RuntimeError, Exception) as e:
             error_msg = f"Failed to execute menu item '{item.label}': {str(e)}"
             self.execution_error.emit(error_msg)
 
-    def _handle_execution_result(self, result: ExecutionResult) -> None:
+    def _handle_execution_result(self, result: ExecutionResult, execution_id: str = "") -> None:
         """Handle execution result on main thread."""
         # Invalidate cache for actions that need it (handles submenu items)
         self._invalidate_cache_for_result(result)
@@ -464,7 +465,7 @@ class PyQtMenuCoordinator(QObject):
                 content="Active prompt cleared",
                 metadata={"action": "clear_active_prompt"},
             )
-            self.execution_completed.emit(result)
+            self.execution_completed.emit(result, "")
             self._invalidate_cache()
 
     def _get_prompt_selector_items(self) -> List[MenuItem]:
@@ -512,7 +513,7 @@ class PyQtMenuCoordinator(QObject):
                             content=f"Active prompt set to: {p.name}",
                             metadata={"action": "set_active_prompt", "prompt": p.name},
                         )
-                        self.execution_completed.emit(result)
+                        self.execution_completed.emit(result, "")
 
                     return set_active
 
@@ -576,7 +577,7 @@ class PyQtMenuCoordinator(QObject):
                                 content=f"Default model set to: {model_config.get('display_name', key)}",
                                 metadata={"action": "set_default_model", "model": key},
                             )
-                            self.execution_completed.emit(result)
+                            self.execution_completed.emit(result, "")
                             self._invalidate_cache()
                         except Exception as e:
                             result = ExecutionResult(
@@ -584,7 +585,7 @@ class PyQtMenuCoordinator(QObject):
                                 content=f"Error setting default model: {str(e)}",
                                 metadata={"action": "set_default_model", "model": key},
                             )
-                            self.execution_completed.emit(result)
+                            self.execution_completed.emit(result, "")
 
                     return set_default_model
 
@@ -765,10 +766,11 @@ class PyQtMenuEventHandler:
                     error_message,
                 )
             elif result.error_code == ErrorCode.EXECUTION_IN_PROGRESS:
-                self.notification_manager.show_warning_notification(
-                    "Prompt execution in progress",
-                    "Please wait for the current prompt to complete",
-                )
+                if is_notification_enabled("prompt_execution_in_progress"):
+                    self.notification_manager.show_warning_notification(
+                        "Prompt execution in progress",
+                        "Please wait for the current prompt to complete",
+                    )
             else:
                 self.notification_manager.show_error_notification(
                     "Execution Failed",

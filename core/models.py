@@ -81,6 +81,7 @@ class ExecutionResult:
     error_code: Optional[ErrorCode] = None
     execution_time: Optional[float] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
+    execution_id: Optional[str] = None
 
 
 @dataclass
