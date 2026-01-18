@@ -73,7 +73,7 @@ class ColorButton(QPushButton):
     def __init__(self, color: str = "#FFFFFF", parent: Optional[QWidget] = None):
         super().__init__(parent)
         self._color = color
-        self.setFixedSize(60, 28)
+        self.setFixedSize(80, 28)
         self.clicked.connect(self._on_clicked)
         self._update_style()
 
@@ -89,6 +89,11 @@ class ColorButton(QPushButton):
             }}
             QPushButton:hover {{
                 border: 2px solid {COLOR_BUTTON_HOVER};
+            }}
+            QPushButton:disabled {{
+                background-color: {COLOR_BUTTON_BG};
+                color: #666666;
+                border: 1px solid {COLOR_BORDER};
             }}
         """)
         self.setText(self._color)
@@ -133,6 +138,7 @@ class NotificationsPanel(SettingsPanelBase):
         self._config_service = ConfigService()
         self._event_checkboxes: Dict[str, QCheckBox] = {}
         self._color_buttons: Dict[str, ColorButton] = {}
+        self._icon_color_buttons: Dict[str, ColorButton] = {}
 
         events_group = QGroupBox("Notification Events")
         events_group.setStyleSheet(GROUP_STYLE)
@@ -148,29 +154,47 @@ class NotificationsPanel(SettingsPanelBase):
 
         layout.addWidget(events_group)
 
-        colors_group = QGroupBox("Background Colors")
+        colors_group = QGroupBox("Colors")
         colors_group.setStyleSheet(GROUP_STYLE)
-        colors_layout = QFormLayout(colors_group)
+        colors_layout = QVBoxLayout(colors_group)
         colors_layout.setSpacing(12)
 
-        for color_type in ["success", "error", "info", "warning"]:
-            label = QLabel(f"{color_type.capitalize()}:")
-            label.setStyleSheet(f"color: {COLOR_TEXT};")
-            color_btn = ColorButton()
-            color_btn.clicked.connect(self._on_color_changed)
-            self._color_buttons[color_type] = color_btn
-            colors_layout.addRow(label, color_btn)
+        self._monochrome_checkbox = QCheckBox("Use monochromatic icons")
+        self._monochrome_checkbox.setStyleSheet(CHECKBOX_STYLE)
+        self._monochrome_checkbox.stateChanged.connect(self._on_monochrome_changed)
+        colors_layout.addWidget(self._monochrome_checkbox)
 
+        color_grid = QFormLayout()
+        color_grid.setSpacing(8)
+
+        for color_type in ["success", "error", "info", "warning"]:
+            row_layout = QHBoxLayout()
+            row_layout.setSpacing(12)
+
+            bg_btn = ColorButton()
+            bg_btn.clicked.connect(self._on_color_changed)
+            self._color_buttons[color_type] = bg_btn
+
+            icon_btn = ColorButton()
+            icon_btn.clicked.connect(self._on_icon_color_changed)
+            self._icon_color_buttons[color_type] = icon_btn
+
+            row_layout.addWidget(QLabel("Background:"))
+            row_layout.addWidget(bg_btn)
+            row_layout.addWidget(QLabel("Icon:"))
+            row_layout.addWidget(icon_btn)
+            row_layout.addStretch()
+
+            label = QLabel(f"{color_type.capitalize()}")
+            label.setStyleSheet(f"color: {COLOR_TEXT}; font-weight: bold;")
+            color_grid.addRow(label, row_layout)
+
+        colors_layout.addLayout(color_grid)
         layout.addWidget(colors_group)
 
         options_group = QGroupBox("Display Options")
         options_group.setStyleSheet(GROUP_STYLE)
         options_layout = QVBoxLayout(options_group)
-
-        self._monochrome_checkbox = QCheckBox("Use monochromatic icons")
-        self._monochrome_checkbox.setStyleSheet(CHECKBOX_STYLE)
-        self._monochrome_checkbox.stateChanged.connect(self._on_monochrome_changed)
-        options_layout.addWidget(self._monochrome_checkbox)
 
         opacity_row = QHBoxLayout()
         opacity_label = QLabel("Opacity:")
@@ -212,6 +236,13 @@ class NotificationsPanel(SettingsPanelBase):
         for color_type, color_btn in self._color_buttons.items():
             color_btn.set_color(bg_colors.get(color_type, "#FFFFFF"))
 
+        icon_colors = notifications.get(
+            "icon_colors", DEFAULT_NOTIFICATION_SETTINGS["icon_colors"]
+        )
+        for color_type, icon_btn in self._icon_color_buttons.items():
+            default_color = DEFAULT_NOTIFICATION_SETTINGS["icon_colors"].get(color_type, "#000000")
+            icon_btn.set_color(icon_colors.get(color_type, default_color))
+
         monochrome = notifications.get(
             "monochromatic_notification_icons",
             DEFAULT_NOTIFICATION_SETTINGS["monochromatic_notification_icons"],
@@ -219,6 +250,10 @@ class NotificationsPanel(SettingsPanelBase):
         self._monochrome_checkbox.blockSignals(True)
         self._monochrome_checkbox.setChecked(monochrome)
         self._monochrome_checkbox.blockSignals(False)
+
+        for btn in self._icon_color_buttons.values():
+            btn.setEnabled(not monochrome)
+            btn.setToolTip("Disabled because monochromatic icons is enabled" if monochrome else "")
 
         opacity = notifications.get("opacity", DEFAULT_NOTIFICATION_SETTINGS["opacity"])
         opacity_percent = int(opacity * 100)
@@ -235,8 +270,16 @@ class NotificationsPanel(SettingsPanelBase):
         """Handle color button change."""
         self.mark_dirty()
 
+    def _on_icon_color_changed(self):
+        """Handle icon color button change."""
+        self.mark_dirty()
+
     def _on_monochrome_changed(self, state: int):
         """Handle monochrome checkbox change."""
+        is_monochrome = state == Qt.Checked
+        for btn in self._icon_color_buttons.values():
+            btn.setEnabled(not is_monochrome)
+            btn.setToolTip("Disabled because monochromatic icons is enabled" if is_monochrome else "")
         self.mark_dirty()
 
     def _on_opacity_changed(self, value: int):
@@ -248,11 +291,13 @@ class NotificationsPanel(SettingsPanelBase):
         """Save notification settings to config."""
         events = {key: cb.isChecked() for key, cb in self._event_checkboxes.items()}
         bg_colors = {key: btn.get_color() for key, btn in self._color_buttons.items()}
+        icon_colors = {key: btn.get_color() for key, btn in self._icon_color_buttons.items()}
         opacity = self._opacity_slider.value() / 100.0
 
         notifications_config = {
             "events": events,
             "background_colors": bg_colors,
+            "icon_colors": icon_colors,
             "monochromatic_notification_icons": self._monochrome_checkbox.isChecked(),
             "opacity": opacity,
         }

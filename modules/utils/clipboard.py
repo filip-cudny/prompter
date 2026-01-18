@@ -400,6 +400,24 @@ class SystemClipboardManager(ClipboardManager):
 
     def _get_content_linux(self) -> str:
         """Get clipboard content on Linux."""
+        # Try Qt's clipboard first - trust it if available
+        # This avoids X11 clipboard deadlock when Qt owns the clipboard
+        # (calling xclip from Qt's event loop while Qt owns clipboard causes timeout)
+        try:
+            from PyQt5.QtWidgets import QApplication
+
+            app = QApplication.instance()
+            if app:
+                clipboard = app.clipboard()
+                mime_data = clipboard.mimeData()
+                if mime_data and mime_data.hasText():
+                    text = mime_data.text()
+                    logger.debug(f"Got clipboard text from Qt, length: {len(text)}")
+                    return text
+        except Exception as e:
+            logger.debug(f"Qt clipboard check failed: {e}")
+
+        # Fallback to xclip/xsel for non-Qt contexts
         xclip_error = None
         try:
             result = subprocess.run(

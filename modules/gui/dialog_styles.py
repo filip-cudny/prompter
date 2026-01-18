@@ -1,9 +1,12 @@
 """Shared dialog styling constants and functions."""
 
+import os
 from typing import Callable, Dict, Optional, TypeVar
 
 from PyQt5.QtCore import QTimer
 from PyQt5.QtWidgets import QDialog, QSizePolicy, QWidget
+
+_ASSETS_DIR = os.path.join(os.path.dirname(__file__), "assets")
 
 # Timing constants
 DIALOG_SHOW_DELAY_MS = 75
@@ -45,6 +48,10 @@ COLOR_TOOLTIP_BORDER = "#444444"
 # ComboBox colors
 COLOR_COMBOBOX_ARROW = "#cccccc"
 
+# SVG arrow icon paths for stylesheet usage
+SVG_CHEVRON_DOWN = os.path.join(_ASSETS_DIR, "chevron-down.svg")
+SVG_CHEVRON_UP = os.path.join(_ASSETS_DIR, "chevron-up.svg")
+
 # Dark theme tooltip style - single source of truth for all tooltips
 TOOLTIP_STYLE = f"""
     QToolTip {{
@@ -75,12 +82,9 @@ COMBOBOX_STYLE = f"""
         border: none;
     }}
     QComboBox::down-arrow {{
-        image: none;
-        width: 0;
-        height: 0;
-        border-left: 4px solid transparent;
-        border-right: 4px solid transparent;
-        border-top: 5px solid {COLOR_COMBOBOX_ARROW};
+        image: url("{SVG_CHEVRON_DOWN}");
+        width: 12px;
+        height: 12px;
     }}
     QComboBox QAbstractItemView {{
         background-color: {COLOR_DIALOG_BG};
@@ -88,6 +92,32 @@ COMBOBOX_STYLE = f"""
         border: 1px solid {COLOR_BORDER};
         selection-background-color: {COLOR_SELECTION};
         outline: none;
+    }}
+"""
+
+SPINBOX_STYLE = f"""
+    QSpinBox {{
+        background-color: {COLOR_BUTTON_BG};
+        color: {COLOR_TEXT};
+        border: 1px solid {COLOR_BORDER};
+        border-radius: 4px;
+        padding: 4px 8px;
+        min-width: 60px;
+    }}
+    QSpinBox::up-button, QSpinBox::down-button {{
+        background-color: transparent;
+        border: none;
+        width: 16px;
+    }}
+    QSpinBox::up-arrow {{
+        image: url("{SVG_CHEVRON_UP}");
+        width: 10px;
+        height: 10px;
+    }}
+    QSpinBox::down-arrow {{
+        image: url("{SVG_CHEVRON_DOWN}");
+        width: 10px;
+        height: 10px;
     }}
 """
 

@@ -28,6 +28,7 @@ from modules.utils.notification_config import (
     NOTIFICATION_ICON_MONOCHROME_COLOR,
     NOTIFICATION_TYPES,
     get_background_color,
+    get_icon_color,
     get_notification_opacity,
     is_monochromatic_mode,
 )
@@ -327,7 +328,7 @@ class EnhancedNotificationManager:
         icon_color = (
             NOTIFICATION_ICON_MONOCHROME_COLOR
             if is_monochromatic_mode()
-            else config["icon_color"]
+            else get_icon_color("success")
         )
         self._display_notification(
             title,
@@ -345,7 +346,7 @@ class EnhancedNotificationManager:
         icon_color = (
             NOTIFICATION_ICON_MONOCHROME_COLOR
             if is_monochromatic_mode()
-            else config["icon_color"]
+            else get_icon_color("error")
         )
         self._display_notification(
             title,
@@ -363,7 +364,7 @@ class EnhancedNotificationManager:
         icon_color = (
             NOTIFICATION_ICON_MONOCHROME_COLOR
             if is_monochromatic_mode()
-            else config["icon_color"]
+            else get_icon_color("info")
         )
         self._display_notification(
             title,
@@ -381,7 +382,7 @@ class EnhancedNotificationManager:
         icon_color = (
             NOTIFICATION_ICON_MONOCHROME_COLOR
             if is_monochromatic_mode()
-            else config["icon_color"]
+            else get_icon_color("warning")
         )
         self._display_notification(
             title,

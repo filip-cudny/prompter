@@ -13,7 +13,7 @@ from PyQt5.QtWidgets import (
     QComboBox,
     QSizePolicy,
 )
-from PyQt5.QtCore import Qt, pyqtSignal, QTimer
+from PyQt5.QtCore import Qt, pyqtSignal
 
 from core.interfaces import ClipboardManager
 from core.models import HistoryEntry, HistoryEntryType
@@ -119,12 +119,6 @@ class HistoryEntryWidget(QWidget):
         }
     """
 
-    _separator_style = """
-        QFrame {
-            background-color: #555555;
-        }
-    """
-
     _truncated_text_style = """
         QLabel {
             color: #aaaaaa;
@@ -172,11 +166,6 @@ class HistoryEntryWidget(QWidget):
         self._input_text_label: Optional[ClickableLabel] = None
         self._output_text_label: Optional[ClickableLabel] = None
 
-        self._resize_timer = QTimer()
-        self._resize_timer.setSingleShot(True)
-        self._resize_timer.setInterval(150)
-        self._resize_timer.timeout.connect(self._update_truncated_text)
-
         self.setObjectName("historyEntry")
         self.setAttribute(Qt.WA_StyledBackground, True)
         self._apply_style()
@@ -189,29 +178,20 @@ class HistoryEntryWidget(QWidget):
         else:
             self.setStyleSheet(self._entry_style)
 
-    def _truncate_to_width(self, text: Optional[str], label: QLabel, available_width: int) -> tuple[str, bool]:
+    def _truncate_text(self, text: Optional[str], max_chars: int = 100) -> tuple[str, bool]:
         if not text:
             return "(empty)", False
         clean = text.replace("\n", " ").strip()
-
-        metrics = label.fontMetrics()
-        ellipsis_width = metrics.horizontalAdvance("...")
-
-        if metrics.horizontalAdvance(clean) <= available_width:
+        if len(clean) <= max_chars:
             return clean, False
-
-        target_width = available_width - ellipsis_width
-        for i in range(len(clean), 0, -1):
-            if metrics.horizontalAdvance(clean[:i]) <= target_width:
-                return clean[:i] + "...", True
-        return "...", True
+        return clean[:max_chars] + "...", True
 
     def _setup_ui(self):
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(8, 6, 8, 6)
         main_layout.setSpacing(4)
 
-        # Row 1: Header
+        # Header row
         header_row = QHBoxLayout()
         header_row.setSpacing(8)
 
@@ -220,6 +200,13 @@ class HistoryEntryWidget(QWidget):
         type_icon.setPixmap(create_icon_pixmap(type_icon_name, ICON_COLOR_NORMAL, 16))
         type_icon.setFixedSize(16, 16)
         header_row.addWidget(type_icon)
+
+        if self.entry.is_conversation:
+            conversation_icon = QLabel()
+            conversation_icon.setPixmap(create_icon_pixmap("message-square-share", "#6ba3ff", 16))
+            conversation_icon.setFixedSize(16, 16)
+            conversation_icon.setToolTip("From conversation - showing last message only")
+            header_row.addWidget(conversation_icon)
 
         if self._is_error:
             error_icon = QLabel()
@@ -233,29 +220,31 @@ class HistoryEntryWidget(QWidget):
         header_row.addWidget(timestamp_label)
 
         header_row.addStretch()
-
         main_layout.addLayout(header_row)
 
-        # Row 2: Content
-        content_row = QHBoxLayout()
-        content_row.setSpacing(8)
+        # Input row
+        has_input = bool(self.entry.input_content)
+        input_row = QHBoxLayout()
+        input_row.setSpacing(8)
 
-        # Input section
         input_label = QLabel("Input:")
         input_label.setStyleSheet(self._section_label_style)
-        content_row.addWidget(input_label)
+        input_row.addWidget(input_label)
 
-        has_input = bool(self.entry.input_content)
-        input_text_label = ClickableLabel("")
-        input_text_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        input_text, input_truncated = self._truncate_text(self.entry.input_content)
+        input_text_label = ClickableLabel(input_text)
+        input_text_label.setWordWrap(True)
+        input_text_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         if has_input:
             input_text_label.setStyleSheet(self._truncated_text_style)
             input_text_label.clicked.connect(self._preview_input)
+            if input_truncated:
+                input_text_label.setToolTip(self.entry.input_content)
         else:
             input_text_label.setStyleSheet(self._truncated_text_empty_style)
             input_text_label.setCursor(Qt.ArrowCursor)
         self._input_text_label = input_text_label
-        content_row.addWidget(input_text_label)
+        input_row.addWidget(input_text_label)
 
         input_copy_btn = IconButton("copy", size=16)
         input_copy_btn.setStyleSheet(self._icon_btn_style)
@@ -263,7 +252,7 @@ class HistoryEntryWidget(QWidget):
         input_copy_btn.setEnabled(has_input)
         input_copy_btn.setCursor(Qt.PointingHandCursor if has_input else Qt.ArrowCursor)
         input_copy_btn.clicked.connect(self._copy_input)
-        content_row.addWidget(input_copy_btn)
+        input_row.addWidget(input_copy_btn)
 
         input_preview_btn = IconButton("preview", size=16)
         input_preview_btn.setStyleSheet(self._icon_btn_style)
@@ -271,31 +260,33 @@ class HistoryEntryWidget(QWidget):
         input_preview_btn.setEnabled(has_input)
         input_preview_btn.setCursor(Qt.PointingHandCursor if has_input else Qt.ArrowCursor)
         input_preview_btn.clicked.connect(self._preview_input)
-        content_row.addWidget(input_preview_btn)
+        input_row.addWidget(input_preview_btn)
 
-        # Separator
-        separator = QFrame()
-        separator.setFrameShape(QFrame.VLine)
-        separator.setStyleSheet(self._separator_style)
-        separator.setFixedWidth(1)
-        content_row.addWidget(separator)
+        main_layout.addLayout(input_row)
 
-        # Output section
+        # Output row
+        has_output = bool(self.entry.output_content)
+        output_row = QHBoxLayout()
+        output_row.setSpacing(8)
+
         output_label = QLabel("Output:")
         output_label.setStyleSheet(self._section_label_style)
-        content_row.addWidget(output_label)
+        output_row.addWidget(output_label)
 
-        has_output = bool(self.entry.output_content)
-        output_text_label = ClickableLabel("")
-        output_text_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        output_text, output_truncated = self._truncate_text(self.entry.output_content)
+        output_text_label = ClickableLabel(output_text)
+        output_text_label.setWordWrap(True)
+        output_text_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         if has_output:
             output_text_label.setStyleSheet(self._truncated_text_style)
             output_text_label.clicked.connect(self._preview_output)
+            if output_truncated:
+                output_text_label.setToolTip(self.entry.output_content)
         else:
             output_text_label.setStyleSheet(self._truncated_text_empty_style)
             output_text_label.setCursor(Qt.ArrowCursor)
         self._output_text_label = output_text_label
-        content_row.addWidget(output_text_label)
+        output_row.addWidget(output_text_label)
 
         output_copy_btn = IconButton("copy", size=16)
         output_copy_btn.setStyleSheet(self._icon_btn_style)
@@ -303,7 +294,7 @@ class HistoryEntryWidget(QWidget):
         output_copy_btn.setEnabled(has_output)
         output_copy_btn.setCursor(Qt.PointingHandCursor if has_output else Qt.ArrowCursor)
         output_copy_btn.clicked.connect(self._copy_output)
-        content_row.addWidget(output_copy_btn)
+        output_row.addWidget(output_copy_btn)
 
         output_preview_btn = IconButton("preview", size=16)
         output_preview_btn.setStyleSheet(self._icon_btn_style)
@@ -311,14 +302,9 @@ class HistoryEntryWidget(QWidget):
         output_preview_btn.setEnabled(has_output)
         output_preview_btn.setCursor(Qt.PointingHandCursor if has_output else Qt.ArrowCursor)
         output_preview_btn.clicked.connect(self._preview_output)
-        content_row.addWidget(output_preview_btn)
+        output_row.addWidget(output_preview_btn)
 
-        content_row.addStretch()
-        main_layout.addLayout(content_row)
-
-        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
-
-        QTimer.singleShot(0, self._update_truncated_text)
+        main_layout.addLayout(output_row)
 
     def _copy_input(self):
         if self.entry.input_content and self.clipboard_manager:
@@ -358,32 +344,6 @@ class HistoryEntryWidget(QWidget):
     def leaveEvent(self, event):
         self._apply_style()
         super().leaveEvent(event)
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        self._resize_timer.start()
-
-    def _update_truncated_text(self):
-        if not self._input_text_label or not self._output_text_label:
-            return
-
-        content_width = self.width() - 16
-        section_width = (content_width - 8) // 2
-        label_width = max(50, section_width - 45 - 20 - 20 - 24)
-
-        if self.entry.input_content:
-            display_text, truncated = self._truncate_to_width(
-                self.entry.input_content, self._input_text_label, label_width
-            )
-            self._input_text_label.setText(display_text)
-            self._input_text_label.setToolTip(self.entry.input_content if truncated else "")
-
-        if self.entry.output_content:
-            display_text, truncated = self._truncate_to_width(
-                self.entry.output_content, self._output_text_label, label_width
-            )
-            self._output_text_label.setText(display_text)
-            self._output_text_label.setToolTip(self.entry.output_content if truncated else "")
 
 
 class HistoryDialog(BaseDialog):
