@@ -6,6 +6,7 @@ from modules.utils.speech_to_text import SpeechToTextService
 from core.interfaces import PromptStoreServiceProtocol
 from modules.history.history_service import HistoryService
 from modules.utils.notifications import PyQtNotificationManager
+from modules.utils.notification_config import is_notification_enabled
 from core.openai_service import OpenAiService
 from core.models import (
     ErrorCode,
@@ -138,10 +139,11 @@ class PromptStoreService(PromptStoreServiceProtocol):
         """Set the menu coordinator for GUI updates."""
         self._menu_coordinator = menu_coordinator
 
-    def emit_execution_completed(self, result: ExecutionResult) -> None:
+    def emit_execution_completed(self, result: ExecutionResult, execution_id: str = "") -> None:
         """Emit execution completed signal to update GUI."""
         if self._menu_coordinator:
-            self._menu_coordinator.execution_completed.emit(result)
+            eid = execution_id or (result.execution_id if result else "") or ""
+            self._menu_coordinator.execution_completed.emit(result, eid)
 
     def add_history_entry(
         self, item: MenuItem, input_content: str, result: ExecutionResult
@@ -179,9 +181,10 @@ class PromptStoreService(PromptStoreServiceProtocol):
                 if item.data
                 else "Unknown Prompt"
             )
-            self.notification_manager.show_success_notification(
-                f"{prompt_name} is active",
-            )
+            if is_notification_enabled("prompt_execution_success"):
+                self.notification_manager.show_success_notification(
+                    f"{prompt_name} is active",
+                )
 
     def execute_active_prompt(self) -> ExecutionResult:
         """Execute the active prompt with current clipboard content."""

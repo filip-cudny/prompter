@@ -30,6 +30,7 @@ from modules.utils.clipboard import SystemClipboardManager
 from modules.utils.config import load_config, validate_config
 from modules.utils.system import check_macos_permissions, show_macos_permissions_help
 from modules.utils.notifications import PyQtNotificationManager
+from modules.utils.notification_config import is_notification_enabled
 from core.openai_service import OpenAiService
 from core.context_manager import ContextManager
 from modules.gui.shared_widgets import TOOLTIP_STYLE
@@ -211,12 +212,13 @@ class PrompterApp(QObject):
                 """Handle common transcription notifications."""
                 try:
                     if transcription:
-                        notification_message = (
-                            f"Processed in {format_execution_time(duration)}"
-                        )
-                        self.notification_manager.show_success_notification(
-                            "Transcription completed", notification_message
-                        )
+                        if is_notification_enabled("speech_transcription_success"):
+                            notification_message = (
+                                f"Processed in {format_execution_time(duration)}"
+                            )
+                            self.notification_manager.show_success_notification(
+                                "Transcription completed", notification_message
+                            )
                     else:
                         self.notification_manager.show_info_notification(
                             "No Speech Detected",
@@ -230,16 +232,18 @@ class PrompterApp(QObject):
 
             def _on_recording_started() -> None:
                 """Handle recording started event."""
-                self.notification_manager.show_info_notification(
-                    "Recording Started",
-                    "Click Speech to Text again to stop.",
-                )
+                if is_notification_enabled("speech_recording_start"):
+                    self.notification_manager.show_info_notification(
+                        "Recording Started",
+                        "Click Speech to Text again to stop.",
+                    )
 
             def _on_recording_stopped() -> None:
                 """Handle recording stopped event."""
-                self.notification_manager.show_info_notification(
-                    "Processing Audio", "Transcribing your speech to text"
-                )
+                if is_notification_enabled("speech_recording_stop"):
+                    self.notification_manager.show_info_notification(
+                        "Processing Audio", "Transcribing your speech to text"
+                    )
 
             self.speech_service.set_recording_started_callback(_on_recording_started)
             self.speech_service.set_recording_stopped_callback(_on_recording_stopped)
@@ -463,7 +467,7 @@ class PrompterApp(QObject):
                         print(f"Speech-to-text error: {result.error}")
 
                 if hasattr(self, "menu_coordinator") and self.menu_coordinator:
-                    self.menu_coordinator.execution_completed.emit(result)
+                    self.menu_coordinator.execution_completed.emit(result, "")
 
         except Exception as e:
             error_msg = f"Failed to execute speech-to-text: {e}"

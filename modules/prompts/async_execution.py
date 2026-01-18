@@ -3,8 +3,13 @@ Asynchronous prompt execution using QThread to prevent UI blocking.
 """
 
 import time
+import uuid
 import logging
-from typing import Optional, List
+from dataclasses import dataclass
+from typing import Optional, List, Dict, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from modules.prompts.async_execution import PromptExecutionWorker
 
 try:
     from PyQt5.QtCore import QThread, pyqtSignal, Qt, QTimer
@@ -55,8 +60,22 @@ from core.interfaces import ClipboardManager
 from core.placeholder_service import PlaceholderService
 from core.context_manager import ContextManager
 from modules.utils.notifications import PyQtNotificationManager, format_execution_time
+from modules.utils.notification_config import is_notification_enabled
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ExecutionContext:
+    """Context for tracking a specific execution."""
+
+    execution_id: str
+    worker: "PromptExecutionWorker"
+    item: MenuItem
+    context: Optional[str]
+    start_time: float
+    is_alternative: bool
+    original_input: Optional[str]
 
 
 class PromptExecutionWorker(QThread):
@@ -64,8 +83,8 @@ class PromptExecutionWorker(QThread):
     Worker thread for executing prompts asynchronously to prevent UI blocking.
     """
 
-    # Signal for streaming chunks: (chunk, accumulated, is_final)
-    chunk_received = pyqtSignal(str, str, bool)
+    # Signal for streaming chunks: (chunk, accumulated, is_final, execution_id)
+    chunk_received = pyqtSignal(str, str, bool, str)
 
     # Callbacks for cross-thread communication
     def set_callbacks(self, started_callback, finished_callback, error_callback):
@@ -82,6 +101,7 @@ class PromptExecutionWorker(QThread):
         openai_service: OpenAiService,
         config,
         context_manager: ContextManager,
+        execution_id: str = "",
     ):
         super().__init__()
         self.settings_prompt_provider = settings_prompt_provider
@@ -93,6 +113,7 @@ class PromptExecutionWorker(QThread):
         self.placeholder_service = PlaceholderService(
             clipboard_manager, context_manager
         )
+        self.execution_id = execution_id
 
         # Callbacks for cross-thread communication
         self.started_callback = None
@@ -115,7 +136,7 @@ class PromptExecutionWorker(QThread):
             # Ensure error callback is called for early return so cleanup happens
             logger.warning("Worker run() called with no item - triggering error callback")
             if self.error_callback:
-                self.error_callback("No item to execute", "Unknown", 0)
+                self.error_callback("No item to execute", "Unknown", 0, self.execution_id)
             return
 
         self.start_time = time.time()
@@ -124,7 +145,7 @@ class PromptExecutionWorker(QThread):
         try:
             # Call started callback
             if self.started_callback:
-                self.started_callback(prompt_name)
+                self.started_callback(prompt_name, self.execution_id)
 
             # Check if streaming is enabled via conversation_data
             use_streaming = False
@@ -137,22 +158,25 @@ class PromptExecutionWorker(QThread):
                 result = self._execute_prompt_streaming()
             else:
                 result = self._execute_prompt_sync()
+
+            # Attach execution_id to result
+            result.execution_id = self.execution_id
             execution_time = time.time() - self.start_time
 
             if result.success:
                 if self.finished_callback:
-                    self.finished_callback(result, prompt_name, execution_time)
+                    self.finished_callback(result, prompt_name, execution_time, self.execution_id)
             else:
                 if self.error_callback:
                     self.error_callback(
-                        result.error or "Unknown error", prompt_name, execution_time
+                        result.error or "Unknown error", prompt_name, execution_time, self.execution_id
                     )
 
         except Exception as e:
             execution_time = time.time() - self.start_time
             logger.error("Worker thread exception: %s", e, exc_info=True)
             if self.error_callback:
-                self.error_callback(str(e), prompt_name, execution_time)
+                self.error_callback(str(e), prompt_name, execution_time, self.execution_id)
 
     def _execute_prompt_sync(self) -> ExecutionResult:
         """Execute the prompt synchronously (runs in worker thread)."""
@@ -445,10 +469,10 @@ class PromptExecutionWorker(QThread):
                 messages=processed_messages,
             ):
                 # Emit chunk signal (Qt handles thread safety)
-                self.chunk_received.emit(chunk_text, accumulated, False)
+                self.chunk_received.emit(chunk_text, accumulated, False, self.execution_id)
 
             # Emit final signal
-            self.chunk_received.emit("", accumulated, True)
+            self.chunk_received.emit("", accumulated, True, self.execution_id)
 
             return ExecutionResult(
                 success=True,
@@ -469,6 +493,7 @@ class PromptExecutionWorker(QThread):
 class AsyncPromptExecutionManager:
     """
     Manager for asynchronous prompt execution that keeps the UI responsive.
+    Supports multiple concurrent executions with execution_id tracking.
     """
 
     def __init__(
@@ -492,6 +517,10 @@ class AsyncPromptExecutionManager:
             clipboard_manager, context_manager
         )
 
+        # Multi-execution tracking
+        self._active_executions: Dict[str, ExecutionContext] = {}
+
+        # Legacy single-execution tracking (for backwards compatibility)
         self.worker: Optional[PromptExecutionWorker] = None
         self.is_executing = False
         self.current_item: Optional[MenuItem] = None
@@ -503,43 +532,51 @@ class AsyncPromptExecutionManager:
         )
 
     def is_busy(self) -> bool:
-        """Check if execution is currently in progress."""
-        if self.is_executing:
+        """Check if any execution is currently in progress."""
+        has_active = bool(self._active_executions) or self.is_executing
+        if has_active:
             logger.warning(
                 f"is_busy() returning True - is_executing={self.is_executing}, "
+                f"active_executions={len(self._active_executions)}, "
                 f"worker={self.worker is not None}, "
                 f"worker_running={self.is_worker_still_running()}"
             )
-        return self.is_executing
+        return has_active
+
+    def has_execution(self, execution_id: str) -> bool:
+        """Check if a specific execution is active."""
+        return execution_id in self._active_executions
 
     def execute_prompt_async(
         self, item: MenuItem, context: Optional[str] = None
-    ) -> bool:
+    ) -> Optional[str]:
         """
         Execute a prompt asynchronously.
 
         Returns:
-            True if execution started, False if already executing
+            execution_id if execution started, None if failed
         """
+        # Generate unique execution ID
+        execution_id = str(uuid.uuid4())
+
         logger.info(
             f"execute_prompt_async called - item={item.id if item else None}, "
-            f"current_state: is_executing={self.is_executing}"
+            f"execution_id={execution_id}, active_executions={len(self._active_executions)}"
         )
-        if self.is_executing:
-            return False
 
-        # Create and start worker thread
-        self.worker = PromptExecutionWorker(
+        # Create and start worker thread with execution_id
+        worker = PromptExecutionWorker(
             self.settings_prompt_provider,
             self.clipboard_manager,
             self.notification_manager,
             self.openai_service,
             self.config,
             self.context_manager,
+            execution_id=execution_id,
         )
 
         # Set callbacks for cross-thread communication
-        self.worker.set_callbacks(
+        worker.set_callbacks(
             self._on_execution_started,
             self._on_execution_finished,
             self._on_execution_error,
@@ -547,82 +584,88 @@ class AsyncPromptExecutionManager:
 
         # Connect streaming chunk signal to route through menu coordinator
         if self.prompt_store_service and hasattr(self.prompt_store_service, '_menu_coordinator'):
-            self.worker.chunk_received.connect(
+            worker.chunk_received.connect(
                 self._on_chunk_received,
                 Qt.QueuedConnection
             )
 
-        # Store current execution info for history tracking
-        self.current_item = item
-        self.current_context = context
-        self.is_alternative_execution = bool(
-            item.data and item.data.get("alternative_execution", False)
-        )
+        # Determine if this is alternative execution
+        is_alternative = bool(item.data and item.data.get("alternative_execution", False))
 
         # Capture the original input content before execution starts
-        if self.is_alternative_execution:
-            # For alternative execution, the context contains the transcribed text which should be the input
-            # Use context even if it's empty string - transcription might be legitimately empty
-            self.original_input_content = context if context is not None else ""
+        if is_alternative:
+            original_input = context if context is not None else ""
         elif context is not None:
-            # For regular execution with explicit context
-            self.original_input_content = context
+            original_input = context
         else:
-            # For regular execution, get current clipboard content as input
             try:
-                self.original_input_content = self.clipboard_manager.get_content()
+                original_input = self.clipboard_manager.get_content()
             except Exception:
-                self.original_input_content = ""
+                original_input = ""
+
+        # Create execution context and store it
+        exec_context = ExecutionContext(
+            execution_id=execution_id,
+            worker=worker,
+            item=item,
+            context=context,
+            start_time=time.time(),
+            is_alternative=is_alternative,
+            original_input=original_input,
+        )
+        self._active_executions[execution_id] = exec_context
+
+        # Legacy single-execution tracking (for backwards compatibility)
+        self.worker = worker
+        self.current_item = item
+        self.current_context = context
+        self.is_alternative_execution = is_alternative
+        self.original_input_content = original_input
+        self.is_executing = True
 
         # Set parameters and start
-        self.worker.set_execution_params(item, context)
-        self.worker.start()
+        worker.set_execution_params(item, context)
+        worker.start()
 
-        self.is_executing = True
-        return True
+        return execution_id
 
-    def _on_execution_started(self, prompt_name: str):
+    def _on_execution_started(self, prompt_name: str, execution_id: str = ""):
         """Handle execution started signal."""
         self.is_executing = True
 
-    def _on_chunk_received(self, chunk: str, accumulated: str, is_final: bool):
+    def _on_chunk_received(self, chunk: str, accumulated: str, is_final: bool, execution_id: str = ""):
         """Route streaming chunk signal to menu coordinator."""
         if self.prompt_store_service and hasattr(self.prompt_store_service, '_menu_coordinator'):
             self.prompt_store_service._menu_coordinator.streaming_chunk.emit(
-                chunk, accumulated, is_final
+                chunk, accumulated, is_final, execution_id
             )
 
     def _on_execution_finished(
-        self, result: ExecutionResult, prompt_name: str, execution_time: float
+        self, result: ExecutionResult, prompt_name: str, execution_time: float, execution_id: str = ""
     ):
         """Handle successful execution completion."""
+        # Look up execution context
+        exec_context = self._active_executions.get(execution_id) if execution_id else None
+        current_item = exec_context.item if exec_context else self.current_item
+        original_input = exec_context.original_input if exec_context else self.original_input_content
+        worker = exec_context.worker if exec_context else self.worker
+
         try:
             # Copy response to clipboard
             if result.content:
                 self.clipboard_manager.set_content(result.content)
 
             # Add to history using prompt store service which has proper logic
-            if self.prompt_store_service and self.current_item:
-                # Use the original input content that was captured before execution
-                input_content = self.original_input_content or ""
-
-                # For alternative execution, ensure the transcribed text is recorded as prompt input
-                # This makes it available in "copy input" for prompts, not "copy output" for speech
+            if self.prompt_store_service and current_item:
+                input_content = original_input or ""
                 self.prompt_store_service.add_history_entry(
-                    self.current_item, input_content, result
+                    current_item, input_content, result
                 )
 
             # Get model configuration for display name
             model_config = None
-            if (
-                self.worker
-                and hasattr(self.worker, "item")
-                and self.worker.item
-                and self.worker.item.data
-            ):
-                model_name = (
-                    self.worker.item.data.get("model") or self.config.default_model
-                )
+            if worker and hasattr(worker, "item") and worker.item and worker.item.data:
+                model_name = worker.item.data.get("model") or self.config.default_model
                 if model_name:
                     try:
                         model_config = self.openai_service.get_model_config(model_name)
@@ -630,37 +673,36 @@ class AsyncPromptExecutionManager:
                         pass
 
             # Show success notification
-            model_display = model_config["display_name"] if model_config else "AI"
-            notification_message = f"{model_display} processed in {format_execution_time(execution_time)}".strip()
-
-            self.notification_manager.show_success_notification(
-                f"{prompt_name} completed", notification_message
-            )
+            if is_notification_enabled("prompt_execution_success"):
+                model_display = model_config["display_name"] if model_config else "AI"
+                notification_message = f"{model_display} processed in {format_execution_time(execution_time)}".strip()
+                self.notification_manager.show_success_notification(
+                    f"{prompt_name} completed", notification_message
+                )
 
             # Emit execution completed signal for GUI updates
             if self.prompt_store_service:
-                self.prompt_store_service.emit_execution_completed(result)
+                self.prompt_store_service.emit_execution_completed(result, execution_id)
 
         except Exception as e:
             logger.error("Error in _on_execution_finished: %s", e, exc_info=True)
-            # Fallback notification on clipboard error
             self.notification_manager.show_error_notification(
                 "Execution completed with warning",
                 f"Response generated but failed to copy to clipboard: {str(e)}",
             )
-            # Still emit signal on error to ensure UI updates
             if self.prompt_store_service:
                 error_result = ExecutionResult(
                     success=False,
                     error=f"Post-execution error: {str(e)}",
                     metadata={"action": "execute_prompt"},
+                    execution_id=execution_id,
                 )
-                self.prompt_store_service.emit_execution_completed(error_result)
+                self.prompt_store_service.emit_execution_completed(error_result, execution_id)
         finally:
-            self._cleanup_worker()
+            self._cleanup_execution(execution_id)
 
     def _on_execution_error(
-        self, error_message: str, prompt_name: str, execution_time: float
+        self, error_message: str, prompt_name: str, execution_time: float, execution_id: str = ""
     ):
         """Handle execution error."""
         self.notification_manager.show_error_notification(
@@ -673,101 +715,142 @@ class AsyncPromptExecutionManager:
                 success=False,
                 error=error_message,
                 metadata={"action": "execute_prompt"},
+                execution_id=execution_id,
             )
-            self.prompt_store_service.emit_execution_completed(error_result)
+            self.prompt_store_service.emit_execution_completed(error_result, execution_id)
 
-        self._cleanup_worker()
+        self._cleanup_execution(execution_id)
 
-    def _cleanup_worker(self):
-        """Clean up the worker thread."""
-        # Always ensure state is reset, regardless of how we got here
-        self.is_executing = False
-        self.current_item = None
-        self.current_context = None
-        self.is_alternative_execution = False
-        self.original_input_content = None
+    def _cleanup_execution(self, execution_id: str = ""):
+        """Clean up a specific execution by ID."""
+        # Remove from active executions
+        exec_context = self._active_executions.pop(execution_id, None) if execution_id else None
+        worker = exec_context.worker if exec_context else self.worker
 
-        if self.worker:
+        # Reset legacy state if no more active executions
+        if not self._active_executions:
+            self.is_executing = False
+            self.current_item = None
+            self.current_context = None
+            self.is_alternative_execution = False
+            self.original_input_content = None
+            self.worker = None
+
+        if worker:
             try:
-                # Clear callbacks to prevent any race conditions
-                self.worker.set_callbacks(None, None, None)
+                worker.set_callbacks(None, None, None)
             except Exception:
-                # Ignore callback clearing errors
                 pass
 
-            # Clean shutdown of worker thread
-            if self.worker.isRunning():
-                self.worker.quit()
-                # Use asynchronous cleanup instead of blocking wait()
-                QTimer.singleShot(100, self._finish_worker_cleanup)
-
+            if worker.isRunning():
+                worker.quit()
+                QTimer.singleShot(100, lambda w=worker: self._finish_worker_cleanup_for(w))
             else:
-                self.worker.deleteLater()
-                self.worker = None
+                worker.deleteLater()
 
-    def _finish_worker_cleanup(self):
+    def _finish_worker_cleanup_for(self, worker: PromptExecutionWorker):
         """Complete worker cleanup after thread has had time to quit."""
-        if self.worker:
-            if self.worker.isRunning():
-                # If still running after delay, force cleanup
-                self.worker.terminate()
-                QTimer.singleShot(50, self._force_worker_cleanup)
+        if worker:
+            if worker.isRunning():
+                worker.terminate()
+                QTimer.singleShot(50, lambda w=worker: self._force_worker_cleanup_for(w))
             else:
-                self.worker.deleteLater()
-                self.worker = None
+                worker.deleteLater()
 
-    def _force_worker_cleanup(self):
+    def _force_worker_cleanup_for(self, worker: PromptExecutionWorker):
         """Force cleanup of worker thread."""
-        if self.worker:
-            self.worker.deleteLater()
+        if worker:
+            worker.deleteLater()
+
+    def stop_execution(self, execution_id: Optional[str] = None, silent: bool = False) -> bool:
+        """Stop specific execution by ID, or all if None.
+
+        Args:
+            execution_id: Specific execution to stop, or None for all
+            silent: If True, skip notification and signal emission (caller handles UI)
+        """
+        if execution_id:
+            return self._stop_specific_execution(execution_id, silent)
+
+        # Stop all executions for backward compatibility
+        stopped_any = False
+        for eid in list(self._active_executions.keys()):
+            if self._stop_specific_execution(eid, silent):
+                stopped_any = True
+        return stopped_any
+
+    def _stop_specific_execution(self, execution_id: str, silent: bool = False) -> bool:
+        """Stop and clean up a specific execution."""
+        exec_context = self._active_executions.get(execution_id)
+        if not exec_context:
+            return False
+
+        cancelled_item = exec_context.item
+        worker = exec_context.worker
+
+        # Remove from active executions
+        self._active_executions.pop(execution_id, None)
+
+        # Reset legacy state if this was the current execution
+        if not self._active_executions:
+            self.is_executing = False
+            self.current_item = None
+            self.current_context = None
+            self.is_alternative_execution = False
+            self.original_input_content = None
             self.worker = None
 
-    def stop_execution(self):
-        """Stop any running execution."""
-        was_executing = self.is_executing
-        cancelled_item = self.current_item
+        # Stop the worker
+        if worker and worker.isRunning():
+            worker.quit()
+            QTimer.singleShot(100, lambda w=worker: self._cleanup_worker_for(w))
 
-        # Immediately reset state so is_busy() returns False
-        self.is_executing = False
-        self.current_item = None
-        self.current_context = None
-        self.is_alternative_execution = False
-        self.original_input_content = None
+        # Skip notification and signal if silent mode (caller handles UI)
+        if silent:
+            return True
 
-        if self.worker and self.worker.isRunning():
-            self.worker.quit()
-            # Use asynchronous cleanup for thread resources
-            QTimer.singleShot(100, self._cleanup_worker_resources)
+        # Show notification and emit signal
+        prompt_name = "Prompt"
+        if cancelled_item and cancelled_item.data:
+            prompt_name = cancelled_item.data.get("prompt_name", "Prompt")
 
-        if was_executing:
-            prompt_name = "Prompt"
-            if cancelled_item and cancelled_item.data:
-                prompt_name = cancelled_item.data.get("prompt_name", "Prompt")
-            self.notification_manager.show_warning_notification(
-                f"{prompt_name} cancelled"
+        if is_notification_enabled("prompt_execution_cancel"):
+            self.notification_manager.show_warning_notification(f"{prompt_name} cancelled")
+
+        if self.prompt_store_service:
+            cancel_result = ExecutionResult(
+                success=True,
+                content="",
+                metadata={"action": "execution_cancelled"},
+                execution_id=execution_id,
             )
-            if self.prompt_store_service:
-                cancel_result = ExecutionResult(
-                    success=True,
-                    content="",
-                    metadata={"action": "execution_cancelled"},
-                )
-                self.prompt_store_service.emit_execution_completed(cancel_result)
+            self.prompt_store_service.emit_execution_completed(cancel_result, execution_id)
 
-    def _cleanup_worker_resources(self):
-        """Clean up worker thread resources only (state already reset)."""
-        if self.worker:
-            try:
-                self.worker.set_callbacks(None, None, None)
-            except Exception:
-                pass
-            if self.worker.isRunning():
-                self.worker.quit()
-                if not self.worker.wait(500):
-                    self.worker.terminate()
-                    self.worker.wait(100)
-            self.worker.deleteLater()
-            self.worker = None
+        return True
+
+    def _cleanup_worker_for(self, worker: PromptExecutionWorker):
+        """Clean up worker thread resources (non-blocking)."""
+        if not worker:
+            return
+        try:
+            worker.set_callbacks(None, None, None)
+        except Exception:
+            pass
+        if worker.isRunning():
+            worker.quit()
+            QTimer.singleShot(500, lambda w=worker: self._force_terminate_worker(w))
+        else:
+            worker.deleteLater()
+
+    def _force_terminate_worker(self, worker: PromptExecutionWorker):
+        """Force terminate worker if still running after timeout."""
+        if not worker:
+            return
+        if worker.isRunning():
+            worker.terminate()
+            QTimer.singleShot(100, lambda w=worker: w.deleteLater() if w else None)
+        else:
+            worker.deleteLater()
 
     def force_reset_state(self):
         """Force reset execution state - use when stuck."""
@@ -775,8 +858,13 @@ class AsyncPromptExecutionManager:
             self.stop_execution()
 
     def is_worker_still_running(self) -> bool:
-        """Check if worker thread is actually still running."""
-        return self.worker is not None and self.worker.isRunning()
+        """Check if any worker thread is actually still running."""
+        if self.worker is not None and self.worker.isRunning():
+            return True
+        for exec_context in self._active_executions.values():
+            if exec_context.worker and exec_context.worker.isRunning():
+                return True
+        return False
 
     def get_execution_status(self) -> dict:
         """Get detailed execution status for debugging."""

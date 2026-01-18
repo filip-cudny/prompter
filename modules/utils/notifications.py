@@ -24,29 +24,15 @@ from PyQt5.QtCore import (
 from PyQt5.QtGui import QPainter, QPen, QColor, QPainterPath, QCursor
 
 from modules.gui.icons import create_icon_pixmap
-
-# Notification configuration
-NOTIFICATION_OPACITY = 0.8
-NOTIFICATION_BG_COLOR = "#FFFFFF"
-
-NOTIFICATION_TYPES = {
-    "success": {
-        "icon": "circle-check",
-        "icon_color": "#43803e",
-    },
-    "error": {
-        "icon": "circle-x",
-        "icon_color": "#c94a4a",
-    },
-    "info": {
-        "icon": "circle-check",
-        "icon_color": "#6A7D93",
-    },
-    "warning": {
-        "icon": "circle-alert",
-        "icon_color": "#b8860b",
-    },
-}
+from modules.utils.notification_config import (
+    NOTIFICATION_ICON_MONOCHROME_COLOR,
+    NOTIFICATION_BG_COLOR,
+    NOTIFICATION_OPACITY,
+    NOTIFICATION_TYPES,
+    is_notification_enabled,
+    get_background_color,
+    is_monochromatic_mode,
+)
 
 # Platform-specific configuration
 MACOS_PLATFORM = platform.system() == "Darwin"
@@ -131,12 +117,12 @@ class EnhancedNotificationWidget(QWidget):
 
         if icon_name and icon_color:
             icon_label = QLabel()
-            pixmap = create_icon_pixmap(icon_name, icon_color, size=20)
+            pixmap = create_icon_pixmap(icon_name, icon_color, size=24)
             icon_label.setPixmap(pixmap)
             icon_label.setStyleSheet("""
                 QLabel {
-                    min-width: 20px;
-                    max-width: 20px;
+                    min-width: 24px;
+                    max-width: 24px;
                     background: transparent;
                     border: none;
                 }
@@ -338,12 +324,17 @@ class EnhancedNotificationManager:
         self, title: str, message: str | None = None, duration: int = 2000
     ):
         config = NOTIFICATION_TYPES["success"]
+        icon_color = (
+            NOTIFICATION_ICON_MONOCHROME_COLOR
+            if is_monochromatic_mode()
+            else config["icon_color"]
+        )
         self._display_notification(
             title,
             message,
             config["icon"],
-            config["icon_color"],
-            NOTIFICATION_BG_COLOR,
+            icon_color,
+            get_background_color("success"),
             duration,
         )
 
@@ -351,12 +342,17 @@ class EnhancedNotificationManager:
         self, title: str, message: str | None = None, duration: int = 4000
     ):
         config = NOTIFICATION_TYPES["error"]
+        icon_color = (
+            NOTIFICATION_ICON_MONOCHROME_COLOR
+            if is_monochromatic_mode()
+            else config["icon_color"]
+        )
         self._display_notification(
             title,
             message,
             config["icon"],
-            config["icon_color"],
-            NOTIFICATION_BG_COLOR,
+            icon_color,
+            get_background_color("error"),
             duration,
         )
 
@@ -364,12 +360,17 @@ class EnhancedNotificationManager:
         self, title: str, message: str | None = None, duration: int = 2000
     ):
         config = NOTIFICATION_TYPES["info"]
+        icon_color = (
+            NOTIFICATION_ICON_MONOCHROME_COLOR
+            if is_monochromatic_mode()
+            else config["icon_color"]
+        )
         self._display_notification(
             title,
             message,
             config["icon"],
-            config["icon_color"],
-            NOTIFICATION_BG_COLOR,
+            icon_color,
+            get_background_color("info"),
             duration,
         )
 
@@ -377,12 +378,17 @@ class EnhancedNotificationManager:
         self, title: str, message: str | None = None, duration: int = 3000
     ):
         config = NOTIFICATION_TYPES["warning"]
+        icon_color = (
+            NOTIFICATION_ICON_MONOCHROME_COLOR
+            if is_monochromatic_mode()
+            else config["icon_color"]
+        )
         self._display_notification(
             title,
             message,
             config["icon"],
-            config["icon_color"],
-            NOTIFICATION_BG_COLOR,
+            icon_color,
+            get_background_color("warning"),
             duration,
         )
 

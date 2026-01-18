@@ -29,6 +29,7 @@ from modules.gui.dialog_styles import (
     get_text_edit_content_height,
 )
 from modules.gui.icons import create_icon
+from modules.utils.notification_config import is_notification_enabled
 from modules.gui.shared_widgets import (
     CollapsibleSectionHeader,
     ImageChipWidget,
@@ -375,6 +376,10 @@ class MessageShareDialog(BaseDialog):
         self._execution_signal_connected = False
         self._streaming_signal_connected = False
 
+        # Execution tracking for parallel execution isolation
+        self._current_execution_id: Optional[str] = None
+        self._stop_button_active: Optional[str] = None  # "alt" or "ctrl" - which button is in stop mode
+
         # Tab management
         self._tabs: Dict[str, TabState] = {}
         self._active_tab_id: Optional[str] = None
@@ -696,7 +701,7 @@ class MessageShareDialog(BaseDialog):
             self.context_manager.append_context(text_content)
 
         # Show success notification
-        if self.notification_manager:
+        if self.notification_manager and is_notification_enabled("context_saved"):
             self.notification_manager.show_success_notification("Context Saved")
 
     def _rebuild_image_chips(self):
@@ -1776,9 +1781,13 @@ class MessageShareDialog(BaseDialog):
                 pass
         self._streaming_signal_connected = False
 
-    def _on_streaming_chunk(self, chunk: str, accumulated: str, is_final: bool):
+    def _on_streaming_chunk(self, chunk: str, accumulated: str, is_final: bool, execution_id: str = ""):
         """Handle streaming chunk with adaptive throttling."""
         if not self._waiting_for_result:
+            return
+
+        # Filter by execution_id - only process chunks for this dialog's execution
+        if execution_id and self._current_execution_id and execution_id != self._current_execution_id:
             return
 
         if not self._is_streaming and not is_final:
@@ -1926,14 +1935,19 @@ class MessageShareDialog(BaseDialog):
                 self._update_delete_button_visibility()
                 self._scroll_to_bottom()
 
-            # Disable buttons during execution
-            self.send_show_btn.setEnabled(False)
+            # Transform button to stop mode and disable the other button
+            self._transform_button_to_stop(is_alt_enter=True)
             self.send_copy_btn.setEnabled(False)
 
-        # Execute using the prompt execution handler
+        # Execute using the prompt execution handler and capture execution_id
         for handler in service.execution_service.handlers:
             if handler.can_handle(modified_item):
-                result = handler.execute(modified_item, full_message)
+                if keep_open and hasattr(handler, 'async_manager'):
+                    # Execute async and capture execution_id
+                    execution_id = handler.async_manager.execute_prompt_async(modified_item, full_message)
+                    self._current_execution_id = execution_id
+                else:
+                    result = handler.execute(modified_item, full_message)
                 if not keep_open:
                     self.accept()
                 return
@@ -1993,14 +2007,22 @@ class MessageShareDialog(BaseDialog):
             self.save_section_state("output_collapsed", False)
             self._scroll_to_bottom()
 
-    def _on_execution_result(self, result: ExecutionResult):
+    def _on_execution_result(self, result: ExecutionResult, execution_id: str = ""):
         """Handle execution result for multi-turn conversation."""
         if not self._waiting_for_result:
             return
 
+        # Filter by execution_id - only process results for this dialog's execution
+        if execution_id and self._current_execution_id and execution_id != self._current_execution_id:
+            return
+
         self._waiting_for_result = False
+        self._current_execution_id = None
         self._disconnect_execution_signal()
         self._disconnect_streaming_signal()
+
+        # Revert button to send state
+        self._revert_button_to_send_state()
 
         # Check if streaming already updated the UI
         is_streaming = result.metadata and result.metadata.get("streaming", False)
@@ -2046,6 +2068,79 @@ class MessageShareDialog(BaseDialog):
                 section.text_edit.setMinimumHeight(content_height)
 
         self._scroll_to_bottom()
+
+    def _transform_button_to_stop(self, is_alt_enter: bool):
+        """Transform send button to stop button during execution."""
+        if is_alt_enter:
+            self.send_show_btn.setIcon(create_icon("square", "#f0f0f0", 16))
+            self.send_show_btn.setToolTip("Stop execution (Alt+Enter)")
+            try:
+                self.send_show_btn.clicked.disconnect()
+            except TypeError:
+                pass
+            self.send_show_btn.clicked.connect(self._on_stop_execution)
+            self.send_show_btn.setEnabled(True)
+            self._stop_button_active = "alt"
+        else:
+            self.send_copy_btn.setIcon(create_icon("square", "#f0f0f0", 16))
+            self.send_copy_btn.setToolTip("Stop execution (Ctrl+Enter)")
+            try:
+                self.send_copy_btn.clicked.disconnect()
+            except TypeError:
+                pass
+            self.send_copy_btn.clicked.connect(self._on_stop_execution)
+            self.send_copy_btn.setEnabled(True)
+            self._stop_button_active = "ctrl"
+
+    def _revert_button_to_send_state(self):
+        """Revert stop button back to send button."""
+        if self._stop_button_active == "alt":
+            try:
+                self.send_show_btn.clicked.disconnect()
+            except TypeError:
+                pass
+            self.send_show_btn.clicked.connect(self._on_send_show)
+            self.send_show_btn.setIcon(create_icon("send-horizontal", "#444444", 16))
+            self.send_show_btn.setToolTip("Send & Show Result (Alt+Enter)")
+        elif self._stop_button_active == "ctrl":
+            try:
+                self.send_copy_btn.clicked.disconnect()
+            except TypeError:
+                pass
+            self.send_copy_btn.clicked.connect(self._on_send_copy)
+            self.send_copy_btn.setIcon(create_icon("copy", "#444444", 16))
+            self.send_copy_btn.setToolTip("Send & Copy to Clipboard (Ctrl+Enter)")
+        self._stop_button_active = None
+        self._update_send_buttons_state()
+
+    def _on_stop_execution(self):
+        """Cancel this dialog's execution only."""
+        if not self._current_execution_id:
+            return
+
+        execution_id_to_cancel = self._current_execution_id
+
+        # Set flags BEFORE cancelling to prevent signal handler from processing
+        self._waiting_for_result = False
+        self._current_execution_id = None
+        self._revert_button_to_send_state()
+
+        # Append [cancelled] to existing output content
+        if self._current_turn_number == 1 or not self._output_sections:
+            output_edit = self.output_edit
+        else:
+            output_edit = self._output_sections[-1].text_edit
+
+        current_text = output_edit.toPlainText()
+        if current_text and current_text != "Executing...":
+            output_edit.setPlainText(current_text + "\n\n[cancelled]")
+        else:
+            output_edit.setPlainText("[cancelled]")
+
+        # Cancel the execution after updating UI (silent mode - we handle UI ourselves)
+        service = self._get_prompt_store_service()
+        if service:
+            service.execution_service.cancel_execution(execution_id_to_cancel, silent=True)
 
     def _on_send_copy(self):
         """Ctrl+Enter: Send, copy result to clipboard, close window."""
@@ -2323,15 +2418,21 @@ class MessageShareDialog(BaseDialog):
         )
 
         # Ctrl+Enter: Send, copy result to clipboard, close window
+        # Or stop execution if already executing (ctrl button in stop mode)
         if key in (Qt.Key_Return, Qt.Key_Enter) and (modifiers & Qt.ControlModifier):
-            if has_content:
+            if self._waiting_for_result and self._stop_button_active == "ctrl":
+                self._on_stop_execution()
+            elif has_content and not self._waiting_for_result:
                 self._on_send_copy()
             event.accept()
             return
 
         # Alt+Enter: Send, show result in window, stay open
+        # Or stop execution if already executing (alt button in stop mode)
         if key in (Qt.Key_Return, Qt.Key_Enter) and (modifiers & Qt.AltModifier):
-            if has_content:
+            if self._waiting_for_result and self._stop_button_active == "alt":
+                self._on_stop_execution()
+            elif has_content and not self._waiting_for_result:
                 self._on_send_show()
             event.accept()
             return

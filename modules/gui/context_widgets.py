@@ -791,7 +791,8 @@ class ContextSectionWidget(QWidget):
 
     def _show_copied_notification(self):
         """Show a 'Copied' notification."""
-        if self.notification_manager:
+        from modules.utils.notification_config import is_notification_enabled
+        if self.notification_manager and is_notification_enabled("clipboard_copy"):
             self.notification_manager.show_success_notification("Copied")
 
     def cleanup(self):
@@ -921,8 +922,8 @@ class LastInteractionChip(QWidget):
         self._set_display_text()
         layout.addWidget(self.label)
 
-        # Details button (info icon) at the end
-        self.details_btn = IconButton("info", size=16)
+        # Details button (preview icon) at the end
+        self.details_btn = IconButton("preview", size=16)
         self.details_btn.setStyleSheet(self._icon_btn_style)
         self.details_btn.setCursor(
             Qt.PointingHandCursor if self._enabled else Qt.ArrowCursor
@@ -1164,8 +1165,9 @@ class LastInteractionSectionWidget(QWidget):
 
     def _on_copy(self, chip: LastInteractionChip):
         """Handle copy request from a chip."""
+        from modules.utils.notification_config import is_notification_enabled
         chip.copy_to_clipboard()
-        if self.notification_manager:
+        if self.notification_manager and is_notification_enabled("clipboard_copy"):
             self.notification_manager.show_success_notification("Copied")
 
     def _on_details(self, title: str, content: Optional[str]):
