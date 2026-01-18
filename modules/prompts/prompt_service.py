@@ -145,6 +145,11 @@ class PromptStoreService(PromptStoreServiceProtocol):
             eid = execution_id or (result.execution_id if result else "") or ""
             self._menu_coordinator.execution_completed.emit(result, eid)
 
+    def emit_execution_started(self, execution_id: str) -> None:
+        """Emit execution started signal to notify all listeners."""
+        if self._menu_coordinator:
+            self._menu_coordinator.execution_started.emit(execution_id)
+
     def add_history_entry(
         self, item: MenuItem, input_content: str, result: ExecutionResult
     ) -> None:

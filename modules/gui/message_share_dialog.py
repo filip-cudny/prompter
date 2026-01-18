@@ -380,6 +380,10 @@ class MessageShareDialog(BaseDialog):
         self._current_execution_id: Optional[str] = None
         self._stop_button_active: Optional[str] = None  # "alt" or "ctrl" - which button is in stop mode
 
+        # Global execution state tracking
+        self._disable_for_global_execution = False
+        self._global_execution_signal_connected = False
+
         # Tab management
         self._tabs: Dict[str, TabState] = {}
         self._active_tab_id: Optional[str] = None
@@ -398,6 +402,9 @@ class MessageShareDialog(BaseDialog):
         self.apply_dialog_styles()
         self._load_context()
         self._restore_ui_state()
+
+        # Connect to global execution signals for cross-dialog awareness
+        self._connect_global_execution_signals()
 
         # Focus message input for immediate typing
         self.input_edit.setFocus()
@@ -955,6 +962,7 @@ class MessageShareDialog(BaseDialog):
         # Disconnect from signals if connected
         self._disconnect_execution_signal()
         self._disconnect_streaming_signal()
+        self._disconnect_global_execution_signals()
 
         # Stop streaming if active
         if self._is_streaming:
@@ -1220,7 +1228,7 @@ class MessageShareDialog(BaseDialog):
             self._output_sections[-1].header.set_delete_button_visible(True)
 
     def _update_send_buttons_state(self):
-        """Enable/disable send buttons based on current input content."""
+        """Enable/disable send buttons based on content AND global execution state."""
         # Check current input section (could be original or reply)
         if self._dynamic_sections:
             section = self._dynamic_sections[-1]
@@ -1231,7 +1239,13 @@ class MessageShareDialog(BaseDialog):
             has_images = bool(self._message_images)
 
         has_message = has_text or has_images
-        can_send = has_message and not self._waiting_for_result
+
+        # Disable if: no content, OR this dialog is waiting, OR global execution active
+        can_send = (
+            has_message
+            and not self._waiting_for_result
+            and not self._disable_for_global_execution
+        )
 
         self.send_show_btn.setEnabled(can_send)
         self.send_copy_btn.setEnabled(can_send)
@@ -1781,6 +1795,63 @@ class MessageShareDialog(BaseDialog):
                 pass
         self._streaming_signal_connected = False
 
+    def _connect_global_execution_signals(self):
+        """Connect to global execution state signals for cross-dialog awareness."""
+        if self._global_execution_signal_connected:
+            return
+        service = self._get_prompt_store_service()
+        if service and hasattr(service, "_menu_coordinator"):
+            try:
+                service._menu_coordinator.execution_started.connect(
+                    self._on_global_execution_started
+                )
+                service._menu_coordinator.execution_completed.connect(
+                    self._on_global_execution_completed
+                )
+                self._global_execution_signal_connected = True
+
+                # Check if an execution is already running when dialog opens
+                if service.is_executing():
+                    self._disable_for_global_execution = True
+                    self._update_send_buttons_state()
+            except Exception:
+                pass
+
+    def _disconnect_global_execution_signals(self):
+        """Disconnect from global execution state signals."""
+        if not self._global_execution_signal_connected:
+            return
+        service = self._get_prompt_store_service()
+        if service and hasattr(service, "_menu_coordinator"):
+            try:
+                service._menu_coordinator.execution_started.disconnect(
+                    self._on_global_execution_started
+                )
+            except Exception:
+                pass
+            try:
+                service._menu_coordinator.execution_completed.disconnect(
+                    self._on_global_execution_completed
+                )
+            except Exception:
+                pass
+        self._global_execution_signal_connected = False
+
+    def _on_global_execution_started(self, execution_id: str):
+        """Handle any execution starting globally."""
+        # If this dialog is NOT the one executing, disable its buttons
+        if execution_id != self._current_execution_id:
+            self._disable_for_global_execution = True
+            self._update_send_buttons_state()
+
+    def _on_global_execution_completed(self, result: ExecutionResult, execution_id: str):
+        """Handle any execution completing globally."""
+        # Check if any execution is still running
+        service = self._get_prompt_store_service()
+        if service and not service.is_executing():
+            self._disable_for_global_execution = False
+            self._update_send_buttons_state()
+
     def _on_streaming_chunk(self, chunk: str, accumulated: str, is_final: bool, execution_id: str = ""):
         """Handle streaming chunk with adaptive throttling."""
         if not self._waiting_for_result:
@@ -1942,14 +2013,22 @@ class MessageShareDialog(BaseDialog):
         # Execute using the prompt execution handler and capture execution_id
         for handler in service.execution_service.handlers:
             if handler.can_handle(modified_item):
-                if keep_open and hasattr(handler, 'async_manager'):
-                    # Execute async and capture execution_id
+                if hasattr(handler, 'async_manager'):
+                    # Always use async execution so it's cancellable via context menu
                     execution_id = handler.async_manager.execute_prompt_async(modified_item, full_message)
-                    self._current_execution_id = execution_id
+
+                    if keep_open:
+                        # Stay open and track execution for result display
+                        self._current_execution_id = execution_id
+                    else:
+                        # Close dialog immediately - execution continues in background
+                        # Cancellable via context menu like normal context menu executions
+                        self.accept()
                 else:
-                    result = handler.execute(modified_item, full_message)
-                if not keep_open:
-                    self.accept()
+                    # Fallback for handlers without async_manager
+                    handler.execute(modified_item, full_message)
+                    if not keep_open:
+                        self.accept()
                 return
 
         # Fallback: use execution callback
