@@ -179,9 +179,13 @@ class NotificationsPanel(SettingsPanelBase):
             icon_btn.clicked.connect(self._on_icon_color_changed)
             self._icon_color_buttons[color_type] = icon_btn
 
-            row_layout.addWidget(QLabel("Background:"))
+            bg_label = QLabel("background:")
+            bg_label.setStyleSheet(f"color: {COLOR_TEXT};")
+            row_layout.addWidget(bg_label)
             row_layout.addWidget(bg_btn)
-            row_layout.addWidget(QLabel("Icon:"))
+            icon_label = QLabel("icon:")
+            icon_label.setStyleSheet(f"color: {COLOR_TEXT};")
+            row_layout.addWidget(icon_label)
             row_layout.addWidget(icon_btn)
             row_layout.addStretch()
 

@@ -761,6 +761,7 @@ class ContextSectionWidget(QWidget):
         """
         try:
             from PyQt5.QtWidgets import QApplication
+
             clipboard = QApplication.clipboard()
             mime_data = clipboard.mimeData()
             if mime_data:
@@ -785,6 +786,7 @@ class ContextSectionWidget(QWidget):
     def _show_copied_notification(self):
         """Show a 'Copied' notification."""
         from modules.utils.notification_config import is_notification_enabled
+
         if self.notification_manager and is_notification_enabled("clipboard_copy"):
             self.notification_manager.show_success_notification("Copied")
 
@@ -1187,6 +1189,7 @@ class LastInteractionSectionWidget(QWidget):
     def _on_copy(self, chip: LastInteractionChip):
         """Handle copy request from a chip."""
         from modules.utils.notification_config import is_notification_enabled
+
         chip.copy_to_clipboard()
         if self.notification_manager and is_notification_enabled("clipboard_copy"):
             self.notification_manager.show_success_notification("Copied")
@@ -1499,7 +1502,7 @@ class SettingsHeaderWidget(QWidget):
         self.settings_btn = IconButton("settings", size=18)
         self.settings_btn.setStyleSheet(self._btn_style)
         self.settings_btn.setCursor(Qt.PointingHandCursor)
-        self.settings_btn.setToolTip("Settings...")
+        self.settings_btn.setToolTip("Settings")
         self.settings_btn.clicked.connect(self._on_settings_clicked)
         layout.addWidget(self.settings_btn)
 
