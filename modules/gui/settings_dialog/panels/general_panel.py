@@ -18,9 +18,8 @@ from modules.gui.dialog_styles import (
     COLOR_DIALOG_BG,
     COLOR_TEXT,
     COLOR_TEXT_EDIT_BG,
-    SVG_CHEVRON_DOWN,
-    SVG_CHEVRON_UP,
 )
+from modules.gui.icons import SVG_CHEVRON_DOWN, SVG_CHEVRON_UP
 from modules.utils.config import ConfigService
 from ..settings_panel_base import SettingsPanelBase
 
