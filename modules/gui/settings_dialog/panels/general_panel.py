@@ -127,11 +127,12 @@ class GeneralPanel(SettingsPanelBase):
         current_default = settings_data.get("default_model", "")
 
         if config.models:
-            for model_key, model_config in config.models.items():
-                display_name = model_config.get("display_name", model_key)
-                self._model_combo.addItem(display_name, model_key)
+            for model in config.models:
+                model_id = model.get("id")
+                display_name = model.get("display_name", model_id)
+                self._model_combo.addItem(display_name, model_id)
 
-                if model_key == current_default:
+                if model_id == current_default:
                     self._model_combo.setCurrentIndex(self._model_combo.count() - 1)
 
     def _load_debounce_value(self):

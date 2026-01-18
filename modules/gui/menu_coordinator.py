@@ -424,11 +424,13 @@ class PyQtMenuCoordinator(QObject):
         # Get default model display name
         config = ConfigService().get_config()
         default_model_display_name = config.default_model
-        if config.models and config.default_model in config.models:
-            default_model_config = config.models[config.default_model]
-            default_model_display_name = default_model_config.get(
-                "display_name", config.default_model
-            )
+        if config.models and config.default_model:
+            for model in config.models:
+                if model.get("id") == config.default_model:
+                    default_model_display_name = model.get(
+                        "display_name", config.default_model
+                    )
+                    break
 
         # Get active prompt display name
         active_prompt_display_name = "None"
@@ -575,20 +577,21 @@ class PyQtMenuCoordinator(QObject):
             submenu_items = []
 
             # Add model selection items
-            for model_key, model_config in config.models.items():
-                is_default = model_key == config.default_model
+            for model in config.models:
+                model_id = model.get("id")
+                is_default = model_id == config.default_model
 
-                def make_set_default_model_action(key, model_config):
+                def make_set_default_model_action(mid, model_config):
                     def set_default_model():
                         try:
                             config_service = ConfigService()
-                            config_service.update_default_model(key)
+                            config_service.update_default_model(mid)
 
                             # Show confirmation through execution result
                             result = ExecutionResult(
                                 success=True,
-                                content=f"Default model set to: {model_config.get('display_name', key)}",
-                                metadata={"action": "set_default_model", "model": key},
+                                content=f"Default model set to: {model_config.get('display_name', mid)}",
+                                metadata={"action": "set_default_model", "model": mid},
                             )
                             self.execution_completed.emit(result, "")
                             self._invalidate_cache()
@@ -596,22 +599,22 @@ class PyQtMenuCoordinator(QObject):
                             result = ExecutionResult(
                                 success=False,
                                 content=f"Error setting default model: {str(e)}",
-                                metadata={"action": "set_default_model", "model": key},
+                                metadata={"action": "set_default_model", "model": mid},
                             )
                             self.execution_completed.emit(result, "")
 
                     return set_default_model
 
                 # Add checkmark for default model
-                label = model_config.get("display_name", model_key)
+                label = model.get("display_name", model_id)
                 if is_default:
                     label = f"✓ {label}"
 
                 submenu_item = MenuItem(
-                    id=f"set_default_model_{model_key}",
+                    id=f"set_default_model_{model_id}",
                     label=label,
                     item_type=MenuItemType.SYSTEM,
-                    action=make_set_default_model_action(model_key, model_config),
+                    action=make_set_default_model_action(model_id, model),
                     enabled=True,
                     separator_after=False,
                 )

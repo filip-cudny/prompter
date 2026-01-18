@@ -141,12 +141,13 @@ class ModelsPanel(SettingsPanelBase):
         self._model_editor.clear()
 
         settings_data = self._config_service.get_settings_data()
-        models = settings_data.get("models", {})
+        models = settings_data.get("models", [])
 
-        for key, config in models.items():
-            display_name = config.get("display_name", key)
+        for model in models:
+            model_id = model.get("id")
+            display_name = model.get("display_name", model_id)
             item = QListWidgetItem(display_name)
-            item.setData(Qt.UserRole, key)
+            item.setData(Qt.UserRole, model_id)
             self._model_list.addItem(item)
 
         self._update_button_states()
@@ -157,11 +158,13 @@ class ModelsPanel(SettingsPanelBase):
 
         current = self._model_list.currentItem()
         if current:
-            model_key = current.data(Qt.UserRole)
+            model_id = current.data(Qt.UserRole)
             settings_data = self._config_service.get_settings_data()
-            models = settings_data.get("models", {})
-            if model_key in models:
-                self._model_editor.load_model(model_key, models[model_key])
+            models = settings_data.get("models", [])
+            for model in models:
+                if model.get("id") == model_id:
+                    self._model_editor.load_model(model_id, model)
+                    break
 
     def _update_button_states(self):
         """Update enabled state of buttons based on selection."""
@@ -182,19 +185,14 @@ class ModelsPanel(SettingsPanelBase):
         if not result:
             return
 
-        key, config = result
-        original_key = self._model_editor.get_original_key()
-
-        if original_key and original_key != key:
-            self._config_service.delete_model(original_key, persist=False)
-
-        self._config_service.update_model(key, config, persist=False)
+        model_id, config = result
+        self._config_service.update_model(model_id, config, persist=False)
         self._load_models()
         self.mark_dirty()
 
         for i in range(self._model_list.count()):
             item = self._model_list.item(i)
-            if item.data(Qt.UserRole) == key:
+            if item.data(Qt.UserRole) == model_id:
                 self._model_list.setCurrentItem(item)
                 break
 
@@ -202,8 +200,8 @@ class ModelsPanel(SettingsPanelBase):
         """Handle delete model request."""
         current = self._model_list.currentItem()
         if current:
-            model_key = current.data(Qt.UserRole)
-            self._config_service.delete_model(model_key, persist=False)
+            model_id = current.data(Qt.UserRole)
+            self._config_service.delete_model(model_id, persist=False)
             self._load_models()
             self.mark_dirty()
 
