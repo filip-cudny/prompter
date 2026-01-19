@@ -25,6 +25,16 @@ class ClipboardError(PromptStoreError):
     pass
 
 
+class ClipboardUnavailableError(ClipboardError):
+    """Raised when clipboard content is empty or cannot be accessed.
+
+    This is a "soft" error that should be shown as a warning to the user,
+    not a hard execution failure.
+    """
+
+    pass
+
+
 class ConfigurationError(PromptStoreError):
     """Raised when configuration is invalid or missing."""
 

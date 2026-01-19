@@ -2,7 +2,6 @@
 
 from typing import Optional
 
-from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (
     QHBoxLayout,
     QPushButton,
@@ -38,7 +37,8 @@ SETTINGS_DIALOG_SIZE = (800, 600)
 SETTINGS_MIN_SIZE = (700, 500)
 
 
-SAVE_BTN_STYLE = f"""
+SAVE_BTN_STYLE = (
+    f"""
     QPushButton {{
         background-color: {COLOR_BUTTON_BG};
         color: {COLOR_TEXT};
@@ -53,7 +53,9 @@ SAVE_BTN_STYLE = f"""
         background-color: {COLOR_DIALOG_BG};
         color: #666666;
     }}
-""" + TOOLTIP_STYLE
+"""
+    + TOOLTIP_STYLE
+)
 
 
 CATEGORIES = [

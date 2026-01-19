@@ -54,11 +54,12 @@ except ImportError:
     # Fallback type hint
     ChatCompletionMessageParam = dict
 
-from core.models import ExecutionResult, MenuItem
+from core.models import ExecutionResult, MenuItem, ErrorCode
 from core.openai_service import OpenAiService
 from core.interfaces import ClipboardManager
 from core.placeholder_service import PlaceholderService
 from core.context_manager import ContextManager
+from core.exceptions import ClipboardUnavailableError
 from modules.utils.notifications import PyQtNotificationManager, format_execution_time
 from modules.utils.notification_config import is_notification_enabled
 
@@ -252,58 +253,67 @@ class PromptExecutionWorker(QThread):
             # Check for multi-turn conversation data
             conversation_data = self.item.data.get("conversation_data")
 
-            if conversation_data:
-                # Multi-turn conversation mode
-                processed_messages = self._build_conversation_messages(
-                    prompt_id, messages, conversation_data
+            try:
+                if conversation_data:
+                    # Multi-turn conversation mode
+                    processed_messages = self._build_conversation_messages(
+                        prompt_id, messages, conversation_data
+                    )
+                else:
+                    # Single-turn mode (original logic)
+                    processed_messages: List[ChatCompletionMessageParam] = []
+                    processed_messages = self.placeholder_service.process_messages(
+                        messages, self.context
+                    )
+
+                    # Check for working_images in item.data (from MessageShareDialog)
+                    # These are temporary images not saved to persistent context
+                    working_images = self.item.data.get("working_images", [])
+                    if working_images and processed_messages:
+                        # Add working images to the last message (user message)
+                        last_message = processed_messages[-1]
+                        last_content = last_message.get("content", "")
+
+                        # Build content array with text and images
+                        message_content = []
+
+                        # Handle existing content (could be string or list)
+                        if isinstance(last_content, str):
+                            if last_content.strip():
+                                message_content.append(
+                                    {"type": "text", "text": last_content}
+                                )
+                        elif isinstance(last_content, list):
+                            message_content.extend(last_content)
+
+                        # Add working images
+                        for img in working_images:
+                            img_data = img.get("data", "")
+                            media_type = img.get("media_type", "image/png")
+                            if img_data:
+                                message_content.append(
+                                    {
+                                        "type": "image_url",
+                                        "image_url": {
+                                            "url": f"data:{media_type};base64,{img_data}"
+                                        },
+                                    }
+                                )
+
+                        # Update the last message with combined content
+                        if message_content:
+                            processed_messages[-1] = {
+                                "role": last_message.get("role", "user"),
+                                "content": message_content,
+                            }
+            except ClipboardUnavailableError as e:
+                return ExecutionResult(
+                    success=False,
+                    error=str(e),
+                    error_code=ErrorCode.CLIPBOARD_ERROR,
+                    execution_time=time.time() - start_time,
+                    metadata={"action": "execute_prompt"},
                 )
-            else:
-                # Single-turn mode (original logic)
-                processed_messages: List[ChatCompletionMessageParam] = []
-                processed_messages = self.placeholder_service.process_messages(
-                    messages, self.context
-                )
-
-                # Check for working_images in item.data (from MessageShareDialog)
-                # These are temporary images not saved to persistent context
-                working_images = self.item.data.get("working_images", [])
-                if working_images and processed_messages:
-                    # Add working images to the last message (user message)
-                    last_message = processed_messages[-1]
-                    last_content = last_message.get("content", "")
-
-                    # Build content array with text and images
-                    message_content = []
-
-                    # Handle existing content (could be string or list)
-                    if isinstance(last_content, str):
-                        if last_content.strip():
-                            message_content.append(
-                                {"type": "text", "text": last_content}
-                            )
-                    elif isinstance(last_content, list):
-                        message_content.extend(last_content)
-
-                    # Add working images
-                    for img in working_images:
-                        img_data = img.get("data", "")
-                        media_type = img.get("media_type", "image/png")
-                        if img_data:
-                            message_content.append(
-                                {
-                                    "type": "image_url",
-                                    "image_url": {
-                                        "url": f"data:{media_type};base64,{img_data}"
-                                    },
-                                }
-                            )
-
-                    # Update the last message with combined content
-                    if message_content:
-                        processed_messages[-1] = {
-                            "role": last_message.get("role", "user"),
-                            "content": message_content,
-                        }
 
             if not processed_messages:
                 return ExecutionResult(
@@ -466,14 +476,23 @@ class PromptExecutionWorker(QThread):
             # Check for multi-turn conversation data
             conversation_data = self.item.data.get("conversation_data")
 
-            if conversation_data:
-                processed_messages = self._build_conversation_messages(
-                    prompt_id, messages, conversation_data
-                )
-            else:
-                processed_messages: List[ChatCompletionMessageParam] = []
-                processed_messages = self.placeholder_service.process_messages(
-                    messages, self.context
+            try:
+                if conversation_data:
+                    processed_messages = self._build_conversation_messages(
+                        prompt_id, messages, conversation_data
+                    )
+                else:
+                    processed_messages: List[ChatCompletionMessageParam] = []
+                    processed_messages = self.placeholder_service.process_messages(
+                        messages, self.context
+                    )
+            except ClipboardUnavailableError as e:
+                return ExecutionResult(
+                    success=False,
+                    error=str(e),
+                    error_code=ErrorCode.CLIPBOARD_ERROR,
+                    execution_time=time.time() - start_time,
+                    metadata={"action": "execute_prompt", "streaming": True},
                 )
 
             if not processed_messages:
