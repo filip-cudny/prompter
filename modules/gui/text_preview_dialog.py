@@ -1,9 +1,9 @@
 """Text preview dialog for displaying and editing content."""
 
-from typing import List, Optional
+from typing import Optional
 
 from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QApplication, QScrollArea, QFrame, QWidget
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtCore import Qt
 
 from modules.gui.base_dialog import BaseDialog
 from modules.gui.context_widgets import IconButton
@@ -15,19 +15,12 @@ from modules.gui.dialog_styles import (
     apply_wrap_state,
     create_singleton_dialog_manager,
 )
-from modules.gui.shared_widgets import create_text_edit, TOOLTIP_STYLE
+from modules.gui.shared_widgets import create_text_edit, ICON_BTN_STYLE
+from modules.gui.undo_redo_functions import TextEditUndoHelper
 from core.interfaces import ClipboardManager
 
 # Singleton dialog manager for this module
 _show_dialog = create_singleton_dialog_manager()
-
-_icon_btn_style = """
-    QPushButton {
-        background: transparent;
-        border: none;
-        padding: 2px;
-    }
-""" + TOOLTIP_STYLE
 
 
 def show_preview_dialog(
@@ -60,18 +53,8 @@ class TextPreviewDialog(BaseDialog):
         self.setWindowTitle(title)
 
         self._clipboard_manager = clipboard_manager
-
-        # Undo/redo state
-        self._undo_stack: List[str] = []
-        self._redo_stack: List[str] = []
-        self._last_text: str = content or ""
         self._wrapped: bool = True  # Default wrapped state
-
-        # Debounce timer for text changes
-        self._text_change_timer = QTimer()
-        self._text_change_timer.setSingleShot(True)
-        self._text_change_timer.setInterval(100)
-        self._text_change_timer.timeout.connect(self._save_text_state)
+        self._undo_helper: Optional[TextEditUndoHelper] = None
 
         self._setup_ui(content)
         self.apply_dialog_styles()
@@ -105,27 +88,27 @@ class TextPreviewDialog(BaseDialog):
         # Wrap toggle button (before undo/redo)
         self.wrap_btn = IconButton("chevrons-down-up", size=18)
         self.wrap_btn.setToolTip("Toggle wrap/expand")
-        self.wrap_btn.setStyleSheet(_icon_btn_style)
+        self.wrap_btn.setStyleSheet(ICON_BTN_STYLE)
         self.wrap_btn.clicked.connect(self._toggle_wrap)
         toolbar.addWidget(self.wrap_btn)
 
         self.undo_btn = IconButton("undo", size=18)
         self.undo_btn.setToolTip("Undo (Ctrl+Z)")
-        self.undo_btn.setStyleSheet(_icon_btn_style)
+        self.undo_btn.setStyleSheet(ICON_BTN_STYLE)
         self.undo_btn.clicked.connect(self._undo)
         self.undo_btn.setEnabled(False)
         toolbar.addWidget(self.undo_btn)
 
         self.redo_btn = IconButton("redo", size=18)
         self.redo_btn.setToolTip("Redo (Ctrl+Shift+Z)")
-        self.redo_btn.setStyleSheet(_icon_btn_style)
+        self.redo_btn.setStyleSheet(ICON_BTN_STYLE)
         self.redo_btn.clicked.connect(self._redo)
         self.redo_btn.setEnabled(False)
         toolbar.addWidget(self.redo_btn)
 
         self.copy_btn = IconButton("copy", size=18)
         self.copy_btn.setToolTip("Copy all (Ctrl+Shift+C)")
-        self.copy_btn.setStyleSheet(_icon_btn_style)
+        self.copy_btn.setStyleSheet(ICON_BTN_STYLE)
         self.copy_btn.clicked.connect(self._copy_all)
         toolbar.addWidget(self.copy_btn)
 
@@ -134,8 +117,16 @@ class TextPreviewDialog(BaseDialog):
         # Editable text area - stretch=1 makes it fill available space
         self.text_edit = create_text_edit(min_height=100)
         self.text_edit.setPlainText(content or "")
-        self.text_edit.textChanged.connect(self._on_text_changed)
         content_layout.addWidget(self.text_edit, 1)  # stretch=1 to fill space
+
+        # Initialize undo helper after text_edit is created
+        self._undo_helper = TextEditUndoHelper(
+            self.text_edit,
+            self._update_undo_redo_buttons,
+            debounce_ms=100,
+        )
+        self._undo_helper.initialize(content or "")
+        self.text_edit.textChanged.connect(self._undo_helper.schedule_save)
 
         self.scroll_area.setWidget(content_container)
         layout.addWidget(self.scroll_area)
@@ -156,55 +147,18 @@ class TextPreviewDialog(BaseDialog):
         self.save_geometry_to_state()
         super().closeEvent(event)
 
-    def _on_text_changed(self):
-        """Handle text changes - debounce state saving."""
-        self._text_change_timer.start()
-
-    def _save_text_state(self):
-        """Save state if text has changed."""
-        current_text = self.text_edit.toPlainText()
-        if current_text != self._last_text:
-            self._undo_stack.append(self._last_text)
-            self._redo_stack.clear()
-            self._last_text = current_text
-            self._update_undo_redo_buttons()
-
     def _undo(self):
         """Undo last change."""
-        if not self._undo_stack:
-            return
-
-        # Save current state to redo stack
-        self._redo_stack.append(self.text_edit.toPlainText())
-
-        # Restore previous state
-        previous_text = self._undo_stack.pop()
-        self.text_edit.blockSignals(True)
-        self.text_edit.setPlainText(previous_text)
-        self._last_text = previous_text
-        self.text_edit.blockSignals(False)
-        self._update_undo_redo_buttons()
+        self._undo_helper.undo()
 
     def _redo(self):
         """Redo last undone change."""
-        if not self._redo_stack:
-            return
+        self._undo_helper.redo()
 
-        # Save current state to undo stack
-        self._undo_stack.append(self.text_edit.toPlainText())
-
-        # Restore redo state
-        redo_text = self._redo_stack.pop()
-        self.text_edit.blockSignals(True)
-        self.text_edit.setPlainText(redo_text)
-        self._last_text = redo_text
-        self.text_edit.blockSignals(False)
-        self._update_undo_redo_buttons()
-
-    def _update_undo_redo_buttons(self):
+    def _update_undo_redo_buttons(self, can_undo: bool, can_redo: bool):
         """Update undo/redo button states."""
-        self.undo_btn.setEnabled(len(self._undo_stack) > 0)
-        self.redo_btn.setEnabled(len(self._redo_stack) > 0)
+        self.undo_btn.setEnabled(can_undo)
+        self.redo_btn.setEnabled(can_redo)
 
     def _toggle_wrap(self):
         """Toggle wrap/expand state."""
