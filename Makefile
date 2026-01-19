@@ -1,7 +1,7 @@
 # Prompter Makefile
 # Background process management for the Prompter application
 
-.PHONY: help install setup start stop restart status logs logs-follow logs-debug start-debug debug clean clean-all autostart-macos autostart-linux info
+.PHONY: help install setup start stop restart status logs logs-follow logs-debug start-debug debug clean clean-all autostart-macos autostart-linux info test
 
 PYTHON := python3
 VENV_DIR := .venv
@@ -263,6 +263,9 @@ info: ## Show system information
 	@echo "PID file: $(PID_FILE)"
 	@echo "Log file: $(LOG_FILE)"
 	@echo "Error log: $(ERROR_LOG)"
+
+test: ## Run tests with pytest
+	@$(VENV_PYTHON) -m pytest
 
 # Default target
 all: help

@@ -1,7 +1,6 @@
 """Message share dialog for sending custom messages to prompts."""
 
 import time
-from dataclasses import dataclass
 from typing import Optional, Callable, List, Dict
 
 from PyQt5.QtWidgets import (
@@ -14,9 +13,9 @@ from PyQt5.QtWidgets import (
     QScrollArea,
     QFrame,
 )
-from PyQt5.QtCore import Qt, QTimer, QEvent, pyqtSignal, QSize
+from PyQt5.QtCore import Qt, QTimer, QEvent, QSize
 
-from core.models import MenuItem, ExecutionResult
+from core.models import MenuItem
 from core.context_manager import ContextManager, ContextItem, ContextItemType
 from modules.gui.base_dialog import BaseDialog
 from modules.gui.dialog_styles import (
@@ -37,216 +36,19 @@ from modules.gui.shared_widgets import (
     TEXT_EDIT_MIN_HEIGHT,
 )
 
+# Import from extracted modules
+from modules.gui.message_share_data import (
+    ContextSectionState,
+    PromptInputState,
+    OutputState,
+    ConversationTurn,
+    TabState,
+)
+from modules.gui.conversation_tab_bar import ConversationTabBar
+from modules.gui.execution_handler import ExecutionHandler
+from modules.gui.conversation_manager import ConversationManager
+
 _open_dialogs: Dict[str, "MessageShareDialog"] = {}
-
-
-@dataclass
-class ContextSectionState:
-    """Snapshot of context section state for undo/redo."""
-
-    images: List[ContextItem]
-    text: str
-
-
-@dataclass
-class PromptInputState:
-    """Snapshot of prompt input section state for undo/redo."""
-
-    text: str
-
-
-@dataclass
-class OutputState:
-    """Snapshot of output section state for undo/redo."""
-
-    text: str
-
-
-@dataclass
-class ConversationTurn:
-    """Single turn in multi-turn conversation."""
-
-    turn_number: int
-    message_text: str
-    message_images: List[ContextItem]
-    output_text: Optional[str] = None
-    is_complete: bool = False
-
-
-@dataclass
-class TabState:
-    """Complete state of a conversation tab."""
-
-    tab_id: str
-    tab_name: str
-
-    # Context section
-    context_images: List[ContextItem]
-    context_text: str
-    context_undo_stack: List[ContextSectionState]
-    context_redo_stack: List[ContextSectionState]
-    last_context_text: str
-
-    # Message/Input section
-    message_images: List[ContextItem]
-    message_text: str
-    input_undo_stack: List[PromptInputState]
-    input_redo_stack: List[PromptInputState]
-    last_input_text: str
-
-    # Output section
-    output_text: str
-    output_section_shown: bool
-    output_undo_stack: List[OutputState]
-    output_redo_stack: List[OutputState]
-    last_output_text: str
-
-    # Multi-turn conversation
-    conversation_turns: List[ConversationTurn]
-    current_turn_number: int
-    dynamic_sections_data: List[Dict]  # Serialized reply sections
-    output_sections_data: List[Dict]  # Serialized output sections
-
-    # Execution state
-    waiting_for_result: bool
-    is_streaming: bool
-    streaming_accumulated: str
-
-    # UI collapsed/wrapped states
-    context_collapsed: bool
-    input_collapsed: bool
-    output_collapsed: bool
-    context_wrapped: bool
-    input_wrapped: bool
-    output_wrapped: bool
-
-
-class ConversationTabBar(QWidget):
-    """Custom tab bar for conversation tabs."""
-
-    tab_selected = pyqtSignal(str)  # Emits tab_id
-    tab_close_requested = pyqtSignal(str)  # Emits tab_id
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self._tabs: Dict[str, QWidget] = {}  # tab_id -> tab button widget
-        self._tab_order: List[str] = []  # Ordered list of tab IDs
-        self._active_tab_id: Optional[str] = None
-
-        self._layout = QHBoxLayout(self)
-        self._layout.setContentsMargins(0, 0, 0, 0)
-        self._layout.setSpacing(4)
-        self._layout.addStretch()
-
-    def add_tab(self, tab_id: str, name: str):
-        """Add a new tab to the bar."""
-        if tab_id in self._tabs:
-            return
-
-        tab_widget = self._create_tab_widget(tab_id, name)
-        self._tabs[tab_id] = tab_widget
-        self._tab_order.append(tab_id)
-
-        # Insert before the stretch
-        self._layout.insertWidget(self._layout.count() - 1, tab_widget)
-
-    def remove_tab(self, tab_id: str):
-        """Remove a tab from the bar."""
-        if tab_id not in self._tabs:
-            return
-
-        tab_widget = self._tabs.pop(tab_id)
-        self._tab_order.remove(tab_id)
-        tab_widget.setParent(None)
-        tab_widget.deleteLater()
-
-    def set_active_tab(self, tab_id: str):
-        """Set the active tab visually."""
-        if tab_id not in self._tabs:
-            return
-
-        self._active_tab_id = tab_id
-
-        for tid, widget in self._tabs.items():
-            is_active = tid == tab_id
-            widget.setProperty("active", is_active)
-            widget.style().unpolish(widget)
-            widget.style().polish(widget)
-            if hasattr(widget, "label"):
-                font = widget.label.font()
-                font.setWeight(63 if is_active else 50)  # DemiBold : Normal
-                widget.label.setFont(font)
-
-    def get_tab_count(self) -> int:
-        """Get the number of tabs."""
-        return len(self._tabs)
-
-    def get_tab_ids(self) -> List[str]:
-        """Get ordered list of tab IDs."""
-        return list(self._tab_order)
-
-    def _create_tab_widget(self, tab_id: str, name: str) -> QWidget:
-        """Create a tab button widget."""
-        tab = QWidget()
-        tab.setProperty("active", False)
-        tab.setStyleSheet("""
-            QWidget {
-                background: transparent;
-                border: none;
-                border-bottom: 2px solid transparent;
-                padding: 4px 8px 2px 8px;
-            }
-            QWidget:hover {
-                background: rgba(255, 255, 255, 0.05);
-            }
-            QWidget[active="true"] {
-                border-bottom: 2px solid #888888;
-            }
-        """)
-
-        layout = QHBoxLayout(tab)
-        layout.setContentsMargins(6, 4, 4, 4)
-        layout.setSpacing(6)
-
-        # Tab label
-        label = QLabel(name)
-        label.setStyleSheet("border: none; background: transparent; color: #cccccc;")
-        label.setCursor(Qt.PointingHandCursor)
-        layout.addWidget(label)
-
-        # Close button
-        close_btn = QPushButton()
-        close_btn.setIcon(create_icon("delete", "#888888", 14))
-        close_btn.setIconSize(QSize(14, 14))
-        close_btn.setFixedSize(18, 18)
-        close_btn.setStyleSheet("""
-            QPushButton {
-                background: transparent;
-                border: none;
-                border-radius: 9px;
-                padding: 0;
-                margin: 0;
-            }
-            QPushButton:hover {
-                background: #555555;
-            }
-        """)
-        close_btn.clicked.connect(lambda: self.tab_close_requested.emit(tab_id))
-        layout.addWidget(close_btn)
-
-        # Store tab_id on the widget for click handling
-        tab.tab_id = tab_id
-        tab.label = label
-
-        # Make the tab clickable
-        tab.mousePressEvent = lambda e, tid=tab_id: self._on_tab_clicked(tid)
-        label.mousePressEvent = lambda e, tid=tab_id: self._on_tab_clicked(tid)
-
-        return tab
-
-    def _on_tab_clicked(self, tab_id: str):
-        """Handle tab click."""
-        self.tab_selected.emit(tab_id)
 
 
 def show_message_share_dialog(
@@ -319,7 +121,6 @@ class MessageShareDialog(BaseDialog):
         super().__init__(parent)
         self.menu_item = menu_item
         self.execution_callback = execution_callback
-        self._waiting_for_result = False
         self._prompt_store_service = prompt_store_service
         self.context_manager = context_manager
         self.clipboard_manager = clipboard_manager
@@ -361,28 +162,11 @@ class MessageShareDialog(BaseDialog):
         self._text_change_timer.setInterval(TEXT_CHANGE_DEBOUNCE_MS)
         self._text_change_timer.timeout.connect(self._save_text_states)
 
-        # Streaming state
-        self._is_streaming = False
-        self._streaming_accumulated = ""
+        # Initialize execution handler
+        self._execution_handler = ExecutionHandler(self)
 
-        # Throttling for UI updates during streaming (60fps max)
-        self._streaming_throttle_timer = QTimer()
-        self._streaming_throttle_timer.setSingleShot(True)
-        self._streaming_throttle_timer.setInterval(16)
-        self._streaming_throttle_timer.timeout.connect(self._flush_streaming_update)
-        self._last_ui_update_time = 0
-
-        # Signal connection tracking to prevent duplicate connections
-        self._execution_signal_connected = False
-        self._streaming_signal_connected = False
-
-        # Execution tracking for parallel execution isolation
-        self._current_execution_id: Optional[str] = None
-        self._stop_button_active: Optional[str] = None  # "alt" or "ctrl" - which button is in stop mode
-
-        # Global execution state tracking
-        self._disable_for_global_execution = False
-        self._global_execution_signal_connected = False
+        # Initialize conversation manager
+        self._conversation_manager = ConversationManager(self)
 
         # Tab management
         self._tabs: Dict[str, TabState] = {}
@@ -404,10 +188,30 @@ class MessageShareDialog(BaseDialog):
         self._restore_ui_state()
 
         # Connect to global execution signals for cross-dialog awareness
-        self._connect_global_execution_signals()
+        self._execution_handler.connect_global_execution_signals()
 
         # Focus message input for immediate typing
         self.input_edit.setFocus()
+
+    # --- Properties for backward compatibility ---
+
+    @property
+    def _waiting_for_result(self) -> bool:
+        return self._execution_handler.is_waiting
+
+    @property
+    def _is_streaming(self) -> bool:
+        return self._execution_handler.is_streaming
+
+    @property
+    def _current_execution_id(self) -> Optional[str]:
+        return self._execution_handler.current_execution_id
+
+    @property
+    def _disable_for_global_execution(self) -> bool:
+        return self._execution_handler.is_disabled_for_global
+
+    # --- UI Setup ---
 
     def _setup_ui(self):
         """Set up the dialog UI with three collapsible sections."""
@@ -960,15 +764,8 @@ class MessageShareDialog(BaseDialog):
 
     def closeEvent(self, event):
         """Save geometry on close and disconnect signals."""
-        # Disconnect from signals if connected
-        self._disconnect_execution_signal()
-        self._disconnect_streaming_signal()
-        self._disconnect_global_execution_signals()
-
-        # Stop streaming if active
-        if self._is_streaming:
-            self._streaming_throttle_timer.stop()
-            self._is_streaming = False
+        # Clean up execution handler
+        self._execution_handler.cleanup()
 
         # BaseDialog handles geometry save
         super().closeEvent(event)
@@ -1165,110 +962,23 @@ class MessageShareDialog(BaseDialog):
             content_height = get_text_edit_content_height(section.text_edit)
             section.text_edit.setMinimumHeight(content_height)
 
-    # --- Section deletion ---
+    # --- Section deletion (delegated to ConversationManager) ---
 
     def _delete_section(self, section: QWidget):
         """Delete a single dynamic section (only the one clicked)."""
-        # Handle Message section deletion
-        if section in self._dynamic_sections:
-            if section != self._dynamic_sections[-1]:
-                return  # Only allow deleting last message
-
-            # Remove only the message section
-            self._dynamic_sections.remove(section)
-            section.setParent(None)
-            section.deleteLater()
-
-        # Handle Output section deletion
-        elif section in self._output_sections:
-            if section != self._output_sections[-1]:
-                return  # Only allow deleting last output
-
-            # Remove only the output section
-            self._output_sections.remove(section)
-            section.setParent(None)
-            section.deleteLater()
-
-        # Remove corresponding turn from conversation history
-        turn_number = getattr(section, 'turn_number', None)
-        if turn_number is not None:
-            self._conversation_turns = [
-                t for t in self._conversation_turns
-                if t.turn_number != turn_number
-            ]
-
-        # Update section numbering and delete button visibility
-        self._renumber_sections()
-        self._update_delete_button_visibility()
-
-        # Show reply button if we have output to reply to
-        if self._output_section_shown or self._output_sections:
-            self.reply_btn.setVisible(True)
-
-        self._update_send_buttons_state()
+        self._conversation_manager.delete_section(section)
 
     def _update_delete_button_visibility(self):
         """Show delete button only on the absolute last section (bottom-most)."""
-        # Hide delete on all dynamic sections
-        for section in self._dynamic_sections:
-            section.header.set_delete_button_visible(False)
-        for section in self._output_sections:
-            section.header.set_delete_button_visible(False)
-
-        # Determine which section is at the bottom
-        # Sections alternate: Message -> Output -> Message -> Output
-        # Message #N has turn_number = N+1, Output #N has turn_number = N
-        # When user clicks Reply after Output #N, Message #N is created (turn N+1)
-        # So if both exist, compare turn numbers to find the bottom one
-
-        if self._dynamic_sections and self._output_sections:
-            msg_turn = self._dynamic_sections[-1].turn_number
-            out_turn = self._output_sections[-1].turn_number
-            # Message section's turn_number is the turn it was created FOR
-            # Output section's turn_number is the turn it displays results FOR
-            # If msg_turn > out_turn, message is at the bottom (user is typing reply)
-            # If out_turn >= msg_turn, output is at the bottom (just received response)
-            if msg_turn > out_turn:
-                self._dynamic_sections[-1].header.set_delete_button_visible(True)
-            else:
-                self._output_sections[-1].header.set_delete_button_visible(True)
-        elif self._dynamic_sections:
-            self._dynamic_sections[-1].header.set_delete_button_visible(True)
-        elif self._output_sections:
-            self._output_sections[-1].header.set_delete_button_visible(True)
+        self._conversation_manager.update_delete_button_visibility()
 
     def _renumber_sections(self):
         """Update section headers to reflect correct visual numbering."""
-        self.input_header.set_title("Message #1")
-        self.output_header.set_title("Output #1")
-
-        for idx, section in enumerate(self._dynamic_sections):
-            section.header.set_title(f"Message #{idx + 2}")
-
-        for idx, section in enumerate(self._output_sections):
-            section.header.set_title(f"Output #{idx + 2}")
+        self._conversation_manager.renumber_sections()
 
     def _has_empty_conversation_sections(self) -> bool:
-        """Check if there are empty sections in conversation history (excluding current input).
-
-        This prevents errors from having gaps in the conversation.
-        """
-        if self._output_section_shown and not self.output_edit.toPlainText().strip():
-            return True
-
-        for section in self._output_sections:
-            if not section.text_edit.toPlainText().strip():
-                return True
-
-        for section in self._dynamic_sections[:-1]:
-            if not section.text_edit.toPlainText().strip() and not section.turn_images:
-                return True
-
-        if self._dynamic_sections or self._output_section_shown:
-            if not self.input_edit.toPlainText().strip() and not self._message_images:
-                return True
-
-        return False
+        """Check if there are empty sections in conversation history (excluding current input)."""
+        return self._conversation_manager.has_empty_conversation_sections()
 
     def _update_send_buttons_state(self):
         """Enable/disable send buttons based on content AND global execution state."""
@@ -1453,7 +1163,7 @@ class MessageShareDialog(BaseDialog):
             # Execution state
             waiting_for_result=self._waiting_for_result,
             is_streaming=self._is_streaming,
-            streaming_accumulated=self._streaming_accumulated,
+            streaming_accumulated=self._execution_handler._streaming_accumulated,
             # UI collapsed/wrapped states
             context_collapsed=self.context_header.is_collapsed(),
             input_collapsed=self.input_header.is_collapsed(),
@@ -1517,14 +1227,9 @@ class MessageShareDialog(BaseDialog):
         self._current_turn_number = state.current_turn_number
 
         # Restore dynamic sections
-        self._restore_dynamic_sections(
+        self._conversation_manager.restore_dynamic_sections(
             state.dynamic_sections_data, state.output_sections_data
         )
-
-        # Restore execution state
-        self._waiting_for_result = state.waiting_for_result
-        self._is_streaming = state.is_streaming
-        self._streaming_accumulated = state.streaming_accumulated
 
         # Restore UI collapsed/wrapped states
         self._restore_section_ui_states(state)
@@ -1543,66 +1248,7 @@ class MessageShareDialog(BaseDialog):
 
     def _clear_dynamic_sections(self):
         """Remove all dynamic reply and output sections from layout."""
-        for section in self._dynamic_sections:
-            self.sections_layout.removeWidget(section)
-            section.setParent(None)
-            section.deleteLater()
-        self._dynamic_sections.clear()
-
-        for section in self._output_sections:
-            self.sections_layout.removeWidget(section)
-            section.setParent(None)
-            section.deleteLater()
-        self._output_sections.clear()
-
-    def _restore_dynamic_sections(
-        self, reply_data: List[Dict], output_data: List[Dict]
-    ):
-        """Recreate dynamic sections from serialized data."""
-        # Recreate reply sections
-        for data in reply_data:
-            section = self._create_reply_section(data["turn_number"])
-            section.text_edit.setPlainText(data["text"])
-            section.undo_stack = list(data["undo_stack"])
-            section.redo_stack = list(data["redo_stack"])
-            section.last_text = data["last_text"]
-
-            # Restore images
-            for img_data in data.get("images", []):
-                section.turn_images.append(
-                    ContextItem(
-                        item_type=ContextItemType.IMAGE,
-                        data=img_data["data"],
-                        media_type=img_data["media_type"],
-                    )
-                )
-            self._rebuild_reply_image_chips(section)
-
-            # Restore collapsed/wrapped state
-            if data.get("collapsed", False):
-                section.toggle_fn()
-            section.header.set_wrap_state(data.get("wrapped", True))
-
-            self._dynamic_sections.append(section)
-            self.sections_layout.addWidget(section)
-            section.text_edit.installEventFilter(self)
-
-        # Recreate output sections
-        for data in output_data:
-            section = self._create_dynamic_output_section(data["turn_number"])
-            section.text_edit.setPlainText(data["text"])
-            section.undo_stack = list(data["undo_stack"])
-            section.redo_stack = list(data["redo_stack"])
-            section.last_text = data["last_text"]
-
-            # Restore collapsed/wrapped state
-            if data.get("collapsed", False):
-                section.toggle_fn()
-            section.header.set_wrap_state(data.get("wrapped", True))
-
-            self._output_sections.append(section)
-            self.sections_layout.addWidget(section)
-            section.text_edit.installEventFilter(self)
+        self._conversation_manager.clear_dynamic_sections()
 
     def _restore_section_ui_states(self, state: TabState):
         """Restore collapsed and wrapped states for main sections."""
@@ -1696,11 +1342,6 @@ class MessageShareDialog(BaseDialog):
         # Reset multi-turn conversation state
         self._conversation_turns.clear()
         self._current_turn_number = 0
-
-        # Reset execution state
-        self._waiting_for_result = False
-        self._is_streaming = False
-        self._streaming_accumulated = ""
 
         # Reset UI states
         self.context_text_edit.show()
@@ -1800,356 +1441,7 @@ class MessageShareDialog(BaseDialog):
         self._tab_bar.remove_tab(tab_id)
         self._update_tab_bar_visibility()
 
-    # --- Execution ---
-
-    def _get_prompt_store_service(self):
-        """Get the prompt store service for execution."""
-        return self._prompt_store_service
-
-    def _connect_execution_signal(self):
-        """Connect to execution completed signal."""
-        if self._execution_signal_connected:
-            return
-        service = self._get_prompt_store_service()
-        if service and hasattr(service, "_menu_coordinator"):
-            try:
-                service._menu_coordinator.execution_completed.connect(
-                    self._on_execution_result
-                )
-                self._execution_signal_connected = True
-            except Exception:
-                pass
-
-    def _disconnect_execution_signal(self):
-        """Disconnect from execution completed signal."""
-        if not self._execution_signal_connected:
-            return
-        service = self._get_prompt_store_service()
-        if service and hasattr(service, "_menu_coordinator"):
-            try:
-                service._menu_coordinator.execution_completed.disconnect(
-                    self._on_execution_result
-                )
-            except Exception:
-                pass
-        self._execution_signal_connected = False
-
-    def _connect_streaming_signal(self):
-        """Connect to streaming chunk signal for live updates."""
-        if self._streaming_signal_connected:
-            return
-        service = self._get_prompt_store_service()
-        if service and hasattr(service, "_menu_coordinator"):
-            try:
-                service._menu_coordinator.streaming_chunk.connect(
-                    self._on_streaming_chunk
-                )
-                self._streaming_signal_connected = True
-            except Exception:
-                pass
-
-    def _disconnect_streaming_signal(self):
-        """Disconnect from streaming chunk signal."""
-        if not self._streaming_signal_connected:
-            return
-        service = self._get_prompt_store_service()
-        if service and hasattr(service, "_menu_coordinator"):
-            try:
-                service._menu_coordinator.streaming_chunk.disconnect(
-                    self._on_streaming_chunk
-                )
-            except Exception:
-                pass
-        self._streaming_signal_connected = False
-
-    def _connect_global_execution_signals(self):
-        """Connect to global execution state signals for cross-dialog awareness."""
-        if self._global_execution_signal_connected:
-            return
-        service = self._get_prompt_store_service()
-        if service and hasattr(service, "_menu_coordinator"):
-            try:
-                service._menu_coordinator.execution_started.connect(
-                    self._on_global_execution_started
-                )
-                service._menu_coordinator.execution_completed.connect(
-                    self._on_global_execution_completed
-                )
-                self._global_execution_signal_connected = True
-
-                # Check if an execution is already running when dialog opens
-                if service.is_executing():
-                    self._disable_for_global_execution = True
-                    self._update_send_buttons_state()
-            except Exception:
-                pass
-
-    def _disconnect_global_execution_signals(self):
-        """Disconnect from global execution state signals."""
-        if not self._global_execution_signal_connected:
-            return
-        service = self._get_prompt_store_service()
-        if service and hasattr(service, "_menu_coordinator"):
-            try:
-                service._menu_coordinator.execution_started.disconnect(
-                    self._on_global_execution_started
-                )
-            except Exception:
-                pass
-            try:
-                service._menu_coordinator.execution_completed.disconnect(
-                    self._on_global_execution_completed
-                )
-            except Exception:
-                pass
-        self._global_execution_signal_connected = False
-
-    def _on_global_execution_started(self, execution_id: str):
-        """Handle any execution starting globally."""
-        # If this dialog is NOT the one executing, disable its buttons
-        if execution_id != self._current_execution_id:
-            self._disable_for_global_execution = True
-            self._update_send_buttons_state()
-
-    def _on_global_execution_completed(self, result: ExecutionResult, execution_id: str):
-        """Handle any execution completing globally."""
-        # Check if any execution is still running
-        service = self._get_prompt_store_service()
-        if service and not service.is_executing():
-            self._disable_for_global_execution = False
-            self._update_send_buttons_state()
-
-    def _on_streaming_chunk(self, chunk: str, accumulated: str, is_final: bool, execution_id: str = ""):
-        """Handle streaming chunk with adaptive throttling."""
-        if not self._waiting_for_result:
-            return
-
-        # Filter by execution_id - only process chunks for this dialog's execution
-        if execution_id and self._current_execution_id and execution_id != self._current_execution_id:
-            return
-
-        if not self._is_streaming and not is_final:
-            self._is_streaming = True
-            self._streaming_accumulated = ""
-
-        self._streaming_accumulated = accumulated
-
-        if is_final:
-            self._flush_streaming_update()
-            self._is_streaming = False
-            self._streaming_throttle_timer.stop()
-            return
-
-        # Adaptive throttling
-        current_time = time.time() * 1000
-        time_since_update = current_time - self._last_ui_update_time
-
-        # Small chunks or enough time passed - update immediately
-        if len(chunk) < 10 or time_since_update >= 16:
-            self._flush_streaming_update()
-        elif not self._streaming_throttle_timer.isActive():
-            self._streaming_throttle_timer.start()
-
-    def _flush_streaming_update(self):
-        """Update UI with accumulated streaming text."""
-        if not self._streaming_accumulated:
-            return
-
-        self._last_ui_update_time = time.time() * 1000
-
-        # Get correct output text edit based on turn number
-        if self._current_turn_number == 1 or not self._output_sections:
-            output_edit = self.output_edit
-        else:
-            output_edit = self._output_sections[-1].text_edit
-
-        # Update text without triggering undo stack
-        output_edit.blockSignals(True)
-        output_edit.setPlainText(self._streaming_accumulated)
-        cursor = output_edit.textCursor()
-        cursor.movePosition(cursor.End)
-        output_edit.setTextCursor(cursor)
-        output_edit.blockSignals(False)
-
-    def _execute_with_message(self, message: str, keep_open: bool = False, regenerate: bool = False):
-        """Execute the prompt with conversation history.
-
-        Uses working context (images + text) from dialog, NOT from persistent storage.
-        Context is sent with the prompt but NOT saved to context_manager.
-
-        Args:
-            message: The message to use as input (ignored if dynamic sections exist)
-            keep_open: If True, keep dialog open and show result
-            regenerate: If True, reuse existing output section instead of creating new one
-        """
-        # Get current input from reply section if exists, otherwise original input
-        if self._dynamic_sections:
-            section = self._dynamic_sections[-1]
-            msg_text = section.text_edit.toPlainText()
-            msg_images = list(section.turn_images)
-        else:
-            msg_text = message
-            msg_images = list(self._message_images)
-
-        # Validate message has content
-        if not msg_text.strip() and not msg_images:
-            return
-
-        # Get the prompt store service
-        service = self._get_prompt_store_service()
-        if not service:
-            if keep_open:
-                self._expand_output_section()
-                self.output_edit.setPlainText("Error: Prompt service not available")
-            return
-
-        # Record turn in conversation history
-        if self._current_turn_number == 0:
-            self._current_turn_number = 1
-
-        turn = ConversationTurn(
-            turn_number=self._current_turn_number,
-            message_text=msg_text,
-            message_images=msg_images,
-        )
-        self._conversation_turns.append(turn)
-
-        # Build conversation data for API
-        conv_data = self._build_conversation_data()
-
-        # Enable streaming for "Send & Show" mode
-        if keep_open:
-            conv_data["use_streaming"] = True
-
-        # For backward compatibility, also build full_message for single-turn case
-        working_context_text = self.context_text_edit.toPlainText().strip()
-        full_message = msg_text
-        if len(self._conversation_turns) == 1 and working_context_text:
-            full_message = (
-                f"<context>\n{working_context_text}\n</context>\n\n{msg_text}"
-            )
-
-        # Create a modified menu item with conversation data
-        modified_item = MenuItem(
-            id=self.menu_item.id,
-            label=self.menu_item.label,
-            item_type=self.menu_item.item_type,
-            action=self.menu_item.action,
-            data={
-                **(self.menu_item.data or {}),
-                "custom_context": full_message,
-                "conversation_data": conv_data,
-                "skip_clipboard_copy": keep_open,
-            },
-            enabled=self.menu_item.enabled,
-        )
-
-        if keep_open:
-            # Connect to receive result and streaming chunks
-            self._waiting_for_result = True
-            self._connect_execution_signal()
-            self._connect_streaming_signal()
-
-            status_text = "Regenerating..." if regenerate else "Executing..."
-
-            # Create output section for this turn
-            if self._current_turn_number == 1:
-                # First turn uses existing output section
-                self._expand_output_section()
-                self.output_edit.setPlainText(status_text)
-                # Set expanded mode and update height after text is set
-                self.output_header.set_wrap_state(False)
-                content_height = get_text_edit_content_height(self.output_edit)
-                self.output_edit.setMinimumHeight(content_height)
-            elif regenerate and self._output_sections:
-                # Regenerating - reuse existing output section
-                output_section = self._output_sections[-1]
-                output_section.text_edit.blockSignals(True)
-                output_section.text_edit.setPlainText(status_text)
-                output_section.text_edit.blockSignals(False)
-                # Set expanded mode
-                output_section.header.set_wrap_state(False)
-                content_height = get_text_edit_content_height(output_section.text_edit)
-                output_section.text_edit.setMinimumHeight(content_height)
-            else:
-                # Subsequent turns create new output section
-                output_section = self._create_dynamic_output_section(
-                    self._current_turn_number
-                )
-                self._output_sections.append(output_section)
-                self.sections_layout.addWidget(output_section)
-                output_section.text_edit.installEventFilter(self)
-                output_section.text_edit.setPlainText(status_text)
-                # Set expanded mode and update height after text is set
-                output_section.header.set_wrap_state(False)
-                content_height = get_text_edit_content_height(output_section.text_edit)
-                output_section.text_edit.setMinimumHeight(content_height)
-                self._renumber_sections()
-                self._update_delete_button_visibility()
-                self._scroll_to_bottom()
-
-            # Transform button to stop mode and disable the other button
-            self._transform_button_to_stop(is_alt_enter=True)
-            self.send_copy_btn.setEnabled(False)
-
-        # Execute using the prompt execution handler and capture execution_id
-        for handler in service.execution_service.handlers:
-            if handler.can_handle(modified_item):
-                if hasattr(handler, 'async_manager'):
-                    # Always use async execution so it's cancellable via context menu
-                    execution_id = handler.async_manager.execute_prompt_async(modified_item, full_message)
-
-                    if keep_open:
-                        # Stay open and track execution for result display
-                        self._current_execution_id = execution_id
-                    else:
-                        # Close dialog immediately - execution continues in background
-                        # Cancellable via context menu like normal context menu executions
-                        self.accept()
-                else:
-                    # Fallback for handlers without async_manager
-                    handler.execute(modified_item, full_message)
-                    if not keep_open:
-                        self.accept()
-                return
-
-        # Fallback: use execution callback
-        if self.execution_callback:
-            if self.menu_item.data:
-                self.menu_item.data["custom_context"] = full_message
-            self.execution_callback(self.menu_item, False)
-            if not keep_open:
-                self.accept()
-
-    def _build_conversation_data(self) -> dict:
-        """Build conversation history for API."""
-        context_text = self.context_text_edit.toPlainText().strip()
-        context_images = [
-            {"data": img.data, "media_type": img.media_type or "image/png"}
-            for img in self._current_images
-        ]
-
-        turns = []
-        for i, turn in enumerate(self._conversation_turns):
-            turn_data = {
-                "role": "user",
-                "text": turn.message_text,
-                "images": [
-                    {"data": img.data, "media_type": img.media_type or "image/png"}
-                    for img in turn.message_images
-                ],
-            }
-            # First turn includes context
-            if i == 0:
-                turn_data["context_text"] = context_text
-                turn_data["context_images"] = context_images
-
-            turns.append(turn_data)
-
-            if turn.is_complete and turn.output_text:
-                turns.append({"role": "assistant", "text": turn.output_text})
-
-        return {"turns": turns}
+    # --- Execution (delegated to ExecutionHandler) ---
 
     def _expand_output_section(self):
         """Expand output section - add to layout if first time."""
@@ -2168,141 +1460,6 @@ class MessageShareDialog(BaseDialog):
             self.save_section_state("output_collapsed", False)
             self._scroll_to_bottom()
 
-    def _on_execution_result(self, result: ExecutionResult, execution_id: str = ""):
-        """Handle execution result for multi-turn conversation."""
-        if not self._waiting_for_result:
-            return
-
-        # Filter by execution_id - only process results for this dialog's execution
-        if execution_id and self._current_execution_id and execution_id != self._current_execution_id:
-            return
-
-        self._waiting_for_result = False
-        self._current_execution_id = None
-        self._disconnect_execution_signal()
-        self._disconnect_streaming_signal()
-
-        # Revert button to send state
-        self._revert_button_to_send_state()
-
-        # Check if streaming already updated the UI
-        is_streaming = result.metadata and result.metadata.get("streaming", False)
-
-        # Mark the current turn as complete and store output
-        if self._conversation_turns:
-            self._conversation_turns[-1].output_text = (
-                result.content if result.success else None
-            )
-            self._conversation_turns[-1].is_complete = True
-
-        # Show Reply button now that we have output
-        self.reply_btn.setVisible(True)
-        self.reply_btn.setIcon(create_icon("message-square-reply", "#f0f0f0", 16))
-
-        # Update send buttons state
-        self._update_send_buttons_state()
-
-        # Get the correct output text edit based on turn number
-        if self._current_turn_number == 1 or not self._output_sections:
-            output_edit = self.output_edit  # Original output section
-        else:
-            output_edit = self._output_sections[-1].text_edit
-
-        # Only update text if NOT streaming (streaming already did it) or on error
-        if not is_streaming or not result.success:
-            if result.success and result.content:
-                output_edit.setPlainText(result.content)
-            elif result.error:
-                output_edit.setPlainText(f"Error: {result.error}")
-            else:
-                output_edit.setPlainText("No output received")
-
-        # Update height for expanded output sections (streaming blocks signals)
-        if self._current_turn_number == 1 or not self._output_sections:
-            if not self.output_header.is_wrapped():
-                content_height = get_text_edit_content_height(self.output_edit)
-                self.output_edit.setMinimumHeight(content_height)
-        else:
-            section = self._output_sections[-1]
-            if not section.header.is_wrapped():
-                content_height = get_text_edit_content_height(section.text_edit)
-                section.text_edit.setMinimumHeight(content_height)
-
-        self._scroll_to_bottom()
-
-    def _transform_button_to_stop(self, is_alt_enter: bool):
-        """Transform send button to stop button during execution."""
-        if is_alt_enter:
-            self.send_show_btn.setIcon(create_icon("square", "#f0f0f0", 16))
-            self.send_show_btn.setToolTip("Stop execution (Alt+Enter)")
-            try:
-                self.send_show_btn.clicked.disconnect()
-            except TypeError:
-                pass
-            self.send_show_btn.clicked.connect(self._on_stop_execution)
-            self.send_show_btn.setEnabled(True)
-            self._stop_button_active = "alt"
-        else:
-            self.send_copy_btn.setIcon(create_icon("square", "#f0f0f0", 16))
-            self.send_copy_btn.setToolTip("Stop execution (Ctrl+Enter)")
-            try:
-                self.send_copy_btn.clicked.disconnect()
-            except TypeError:
-                pass
-            self.send_copy_btn.clicked.connect(self._on_stop_execution)
-            self.send_copy_btn.setEnabled(True)
-            self._stop_button_active = "ctrl"
-
-    def _revert_button_to_send_state(self):
-        """Revert stop button back to send button."""
-        if self._stop_button_active == "alt":
-            try:
-                self.send_show_btn.clicked.disconnect()
-            except TypeError:
-                pass
-            self.send_show_btn.clicked.connect(self._on_send_show)
-            self.send_show_btn.setIcon(create_icon("send-horizontal", "#444444", 16))
-            self.send_show_btn.setToolTip("Send & Show Result (Alt+Enter)")
-        elif self._stop_button_active == "ctrl":
-            try:
-                self.send_copy_btn.clicked.disconnect()
-            except TypeError:
-                pass
-            self.send_copy_btn.clicked.connect(self._on_send_copy)
-            self.send_copy_btn.setIcon(create_icon("copy", "#444444", 16))
-            self.send_copy_btn.setToolTip("Send & Copy to Clipboard (Ctrl+Enter)")
-        self._stop_button_active = None
-        self._update_send_buttons_state()
-
-    def _on_stop_execution(self):
-        """Cancel this dialog's execution only."""
-        if not self._current_execution_id:
-            return
-
-        execution_id_to_cancel = self._current_execution_id
-
-        # Set flags BEFORE cancelling to prevent signal handler from processing
-        self._waiting_for_result = False
-        self._current_execution_id = None
-        self._revert_button_to_send_state()
-
-        # Append [cancelled] to existing output content
-        if self._current_turn_number == 1 or not self._output_sections:
-            output_edit = self.output_edit
-        else:
-            output_edit = self._output_sections[-1].text_edit
-
-        current_text = output_edit.toPlainText()
-        if current_text and current_text != "Executing...":
-            output_edit.setPlainText(current_text + "\n\n[cancelled]")
-        else:
-            output_edit.setPlainText("[cancelled]")
-
-        # Cancel the execution after updating UI (silent mode - we handle UI ourselves)
-        service = self._get_prompt_store_service()
-        if service:
-            service.execution_service.cancel_execution(execution_id_to_cancel, silent=True)
-
     def _on_send_copy(self):
         """Ctrl+Enter: Send, copy result to clipboard, close window."""
         message = self.input_edit.toPlainText()
@@ -2310,7 +1467,7 @@ class MessageShareDialog(BaseDialog):
         if not has_content:
             self.close()
             return
-        self._execute_with_message(message, keep_open=False)
+        self._execution_handler.execute_with_message(message, keep_open=False)
 
     def _on_send_show(self):
         """Alt+Enter: Send, show result in window, stay open. Or regenerate."""
@@ -2323,25 +1480,11 @@ class MessageShareDialog(BaseDialog):
         has_content = bool(message.strip()) or bool(self._message_images)
         if not has_content:
             return
-        self._execute_with_message(message, keep_open=True)
+        self._execution_handler.execute_with_message(message, keep_open=True)
 
     def _is_regenerate_mode(self) -> bool:
         """Check if dialog is in regenerate mode (can regenerate last output)."""
-        if self._waiting_for_result:
-            return False
-
-        if not self._conversation_turns or not self._conversation_turns[-1].is_complete:
-            return False
-
-        if not self._dynamic_sections:
-            return True
-
-        if self._output_sections:
-            msg_turn = self._dynamic_sections[-1].turn_number
-            out_turn = self._output_sections[-1].turn_number
-            return out_turn >= msg_turn
-
-        return False
+        return self._conversation_manager.is_regenerate_mode()
 
     def _regenerate_last_output(self):
         """Regenerate the last AI output by re-executing the last message."""
@@ -2372,13 +1515,13 @@ class MessageShareDialog(BaseDialog):
         # Hide reply button during regeneration
         self.reply_btn.setVisible(False)
 
-        self._execute_with_message(message_text, keep_open=True, regenerate=True)
+        self._execution_handler.execute_with_message(message_text, keep_open=True, regenerate=True)
 
     def _on_reply(self):
         """Add new input section for reply."""
         self._current_turn_number += 1
         visual_number = len(self._dynamic_sections) + 2
-        section = self._create_reply_section(visual_number)
+        section = self._conversation_manager.create_reply_section(visual_number)
         section.turn_number = self._current_turn_number
         self._dynamic_sections.append(section)
         self.sections_layout.addWidget(section)
@@ -2392,236 +1535,19 @@ class MessageShareDialog(BaseDialog):
 
     def _create_reply_section(self, turn_number: int) -> QWidget:
         """Create input section for a reply turn (displayed as Message)."""
-        container = QWidget()
-        layout = QVBoxLayout(container)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(4)
-
-        header = CollapsibleSectionHeader(
-            f"Message #{turn_number}",
-            show_save_button=False,
-            show_undo_redo=True,
-            show_delete_button=True,
-            show_wrap_button=True,
-        )
-        layout.addWidget(header)
-
-        # Images container
-        images_container = QWidget()
-        images_container.setStyleSheet("background: transparent;")
-        images_layout = QHBoxLayout(images_container)
-        images_layout.setContentsMargins(0, 0, 0, 4)
-        images_layout.setSpacing(6)
-        images_layout.addStretch()
-        images_container.hide()
-        layout.addWidget(images_container)
-
-        text_edit = create_text_edit(
-            placeholder="Type your message...\n(Ctrl+Enter: Close & get result to clipboard | Alt+Enter: Send & show | Ctrl+V: Paste image)"
-        )
-        text_edit.textChanged.connect(self._update_send_buttons_state)
-        layout.addWidget(text_edit)
-
-        apply_section_size_policy(container, expanding=True, widget=text_edit)
-
-        # Store references as attributes on container
-        container.header = header
-        container.text_edit = text_edit
-        container.images_container = images_container
-        container.images_layout = images_layout
-        container.turn_images = []
-        container.image_chips = []
-        container.turn_number = turn_number
-
-        # Undo/redo stacks for this section
-        container.undo_stack = []
-        container.redo_stack = []
-        container.last_text = ""
-
-        # Connect undo/redo signals
-        header.undo_requested.connect(lambda s=container: self._undo_dynamic_section(s))
-        header.redo_requested.connect(lambda s=container: self._redo_dynamic_section(s))
-
-        # Connect delete signal
-        header.delete_requested.connect(lambda s=container: self._delete_section(s))
-
-        # Connect text changes for debounced state saving and height update
-        text_edit.textChanged.connect(
-            lambda s=container: self._schedule_dynamic_state_save(s)
-        )
-        text_edit.textChanged.connect(
-            lambda s=container: self._update_dynamic_section_height(s)
-        )
-
-        # Wrap toggle function
-        def toggle_wrap(c=container, h=header, te=text_edit):
-            is_wrapped = h.is_wrapped()
-            new_wrapped = not is_wrapped
-            h.set_wrap_state(new_wrapped)
-            if new_wrapped:
-                te.setMinimumHeight(TEXT_EDIT_MIN_HEIGHT)
-            else:
-                content_height = get_text_edit_content_height(te)
-                te.setMinimumHeight(content_height)
-
-        header.wrap_requested.connect(toggle_wrap)
-
-        # Toggle function for collapse/expand
-        def toggle_section(c=container, h=header, te=text_edit, ic=images_container):
-            is_visible = te.isVisible()
-            te.setVisible(not is_visible)
-            ic.setVisible(not is_visible and bool(c.turn_images))
-            h.set_collapsed(is_visible)
-            # Update size policy based on collapsed state
-            if is_visible:  # Will be collapsed
-                c.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
-            else:  # Will be expanded
-                c.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
-
-        header.toggle_requested.connect(toggle_section)
-        container.toggle_fn = toggle_section
-
-        return container
+        return self._conversation_manager.create_reply_section(turn_number)
 
     def _create_dynamic_output_section(self, turn_number: int) -> QWidget:
         """Create output section for a conversation turn."""
-        container = QWidget()
-        layout = QVBoxLayout(container)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(4)
-
-        header = CollapsibleSectionHeader(
-            f"Output #{turn_number}",
-            show_save_button=False,
-            show_undo_redo=True,
-            show_delete_button=True,
-            show_wrap_button=True,
-        )
-        layout.addWidget(header)
-
-        text_edit = create_text_edit(placeholder="Output will appear here...")
-        layout.addWidget(text_edit)
-
-        apply_section_size_policy(container, expanding=True, widget=text_edit)
-
-        # Store references
-        container.header = header
-        container.text_edit = text_edit
-        container.turn_number = turn_number
-
-        # Undo/redo stacks for this section
-        container.undo_stack = []
-        container.redo_stack = []
-        container.last_text = ""
-
-        # Connect undo/redo signals
-        header.undo_requested.connect(lambda s=container: self._undo_dynamic_section(s))
-        header.redo_requested.connect(lambda s=container: self._redo_dynamic_section(s))
-
-        # Connect delete signal
-        header.delete_requested.connect(lambda s=container: self._delete_section(s))
-
-        # Connect text changes for debounced state saving and height update
-        text_edit.textChanged.connect(
-            lambda s=container: self._schedule_dynamic_state_save(s)
-        )
-        text_edit.textChanged.connect(
-            lambda s=container: self._update_dynamic_section_height(s)
-        )
-
-        # Wrap toggle function
-        def toggle_wrap(c=container, h=header, te=text_edit):
-            is_wrapped = h.is_wrapped()
-            new_wrapped = not is_wrapped
-            h.set_wrap_state(new_wrapped)
-            if new_wrapped:
-                te.setMinimumHeight(TEXT_EDIT_MIN_HEIGHT)
-            else:
-                content_height = get_text_edit_content_height(te)
-                te.setMinimumHeight(content_height)
-
-        header.wrap_requested.connect(toggle_wrap)
-
-        # Toggle function for collapse/expand
-        def toggle_section(c=container, h=header, te=text_edit):
-            is_visible = te.isVisible()
-            te.setVisible(not is_visible)
-            h.set_collapsed(is_visible)
-            # Update size policy based on collapsed state
-            if is_visible:  # Will be collapsed
-                c.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
-            else:  # Will be expanded
-                c.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
-
-        header.toggle_requested.connect(toggle_section)
-        container.toggle_fn = toggle_section
-
-        return container
+        return self._conversation_manager.create_dynamic_output_section(turn_number)
 
     def _rebuild_reply_image_chips(self, section: QWidget):
         """Rebuild image chips for a reply section."""
-        # Clear existing chips
-        for chip in section.image_chips:
-            chip.deleteLater()
-        section.image_chips.clear()
-
-        while section.images_layout.count():
-            section.images_layout.takeAt(0)
-
-        if not section.turn_images:
-            section.images_container.hide()
-            return
-
-        section.images_container.show()
-
-        for idx, item in enumerate(section.turn_images):
-            chip = ImageChipWidget(
-                index=idx,
-                image_number=idx + 1,
-                image_data=item.data or "",
-                media_type=item.media_type or "image/png",
-            )
-            chip.delete_requested.connect(
-                lambda i, s=section: self._on_reply_image_delete(s, i)
-            )
-            chip.copy_requested.connect(
-                lambda i, s=section: self._on_reply_image_copy(s, i)
-            )
-            section.image_chips.append(chip)
-            section.images_layout.addWidget(chip)
-
-        section.images_layout.addStretch()
-
-    def _on_reply_image_delete(self, section: QWidget, index: int):
-        """Handle reply image delete request."""
-        if 0 <= index < len(section.turn_images):
-            del section.turn_images[index]
-            self._rebuild_reply_image_chips(section)
-            self._update_send_buttons_state()
-
-    def _on_reply_image_copy(self, section: QWidget, index: int):
-        """Handle reply image copy request."""
-        if 0 <= index < len(section.image_chips):
-            section.image_chips[index].copy_to_clipboard()
+        self._conversation_manager.rebuild_reply_image_chips(section)
 
     def _paste_image_to_reply(self, section: QWidget) -> bool:
         """Paste image to reply section."""
-        if not self.clipboard_manager or not self.clipboard_manager.has_image():
-            return False
-
-        image_data = self.clipboard_manager.get_image_data()
-        if image_data:
-            base64_data, media_type = image_data
-            new_image = ContextItem(
-                item_type=ContextItemType.IMAGE,
-                data=base64_data,
-                media_type=media_type,
-            )
-            section.turn_images.append(new_image)
-            self._rebuild_reply_image_chips(section)
-            self._update_send_buttons_state()
-            return True
-        return False
+        return self._conversation_manager.paste_image_to_reply(section)
 
     # --- Event handling ---
 
@@ -2641,8 +1567,8 @@ class MessageShareDialog(BaseDialog):
         # Ctrl+Enter: Send, copy result to clipboard, close window
         # Or stop execution if already executing (ctrl button in stop mode)
         if key in (Qt.Key_Return, Qt.Key_Enter) and (modifiers & Qt.ControlModifier):
-            if self._waiting_for_result and self._stop_button_active == "ctrl":
-                self._on_stop_execution()
+            if self._waiting_for_result and self._execution_handler._stop_button_active == "ctrl":
+                self._execution_handler.stop_execution()
             elif has_content and not self._waiting_for_result:
                 self._on_send_copy()
             event.accept()
@@ -2650,8 +1576,8 @@ class MessageShareDialog(BaseDialog):
 
         # Alt+Enter: Send & show, OR regenerate, OR stop execution
         if key in (Qt.Key_Return, Qt.Key_Enter) and (modifiers & Qt.AltModifier):
-            if self._waiting_for_result and self._stop_button_active == "alt":
-                self._on_stop_execution()
+            if self._waiting_for_result and self._execution_handler._stop_button_active == "alt":
+                self._execution_handler.stop_execution()
             elif is_regenerate and not self._waiting_for_result:
                 self._regenerate_last_output()
             elif has_content and not self._waiting_for_result:
