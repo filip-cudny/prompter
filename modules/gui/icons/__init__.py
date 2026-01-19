@@ -25,7 +25,7 @@ from .constants import (
     ICON_COLOR_NORMAL,
 )
 from .loader import get_available_icons, get_svg_content, get_svg_data_url, get_svg_path
-from .renderer import create_icon, create_icon_pixmap
+from .renderer import create_icon, create_icon_pixmap, create_composite_icon
 
 SVG_CHEVRON_DOWN = get_svg_path("chevron-down")
 SVG_CHEVRON_UP = get_svg_path("chevron-up")
@@ -33,6 +33,7 @@ SVG_CHEVRON_UP = get_svg_path("chevron-up")
 __all__ = [
     "create_icon",
     "create_icon_pixmap",
+    "create_composite_icon",
     "get_svg_path",
     "get_svg_content",
     "get_svg_data_url",

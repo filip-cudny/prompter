@@ -28,6 +28,7 @@ class HistoryService:
         success: bool = True,
         error: Optional[str] = None,
         is_conversation: bool = False,
+        prompt_name: Optional[str] = None,
     ) -> None:
         """Add a new history entry."""
         entry = HistoryEntry(
@@ -40,6 +41,7 @@ class HistoryService:
             success=success,
             error=error,
             is_conversation=is_conversation,
+            prompt_name=prompt_name,
         )
         self._history.append(entry)
         self._notify_change()
