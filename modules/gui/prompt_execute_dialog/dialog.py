@@ -1115,6 +1115,9 @@ class PromptExecuteDialog(BaseDialog):
             section.redo_stack.clear()
             section.last_text = current
             self._update_dynamic_section_buttons(section)
+            turn = self._find_turn_for_output_section(section)
+            if turn and turn.output_versions:
+                turn.output_versions[turn.current_version_index] = current
 
     def _update_dynamic_section_buttons(self, section: QWidget):
         """Update undo/redo buttons for a dynamic section."""
@@ -1255,8 +1258,28 @@ class PromptExecuteDialog(BaseDialog):
             self._output_undo_stack.append(state)
             self._output_redo_stack.clear()
             self._last_output_text = current_output
+            if self._conversation_turns:
+                turn = self._conversation_turns[0]
+                if turn.output_versions:
+                    turn.output_versions[turn.current_version_index] = current_output
 
         self._update_undo_redo_buttons()
+
+    def _sync_all_outputs_to_versions(self):
+        """Sync all output text edits to turn.output_versions arrays."""
+        if not self._conversation_turns:
+            return
+
+        # Sync Output #1 (turn 1)
+        turn1 = self._conversation_turns[0]
+        if turn1.output_versions:
+            turn1.output_versions[turn1.current_version_index] = self.output_edit.toPlainText()
+
+        # Sync dynamic output sections (turns > 1)
+        for section in self._output_sections:
+            turn = self._find_turn_for_output_section(section)
+            if turn and turn.output_versions:
+                turn.output_versions[turn.current_version_index] = section.text_edit.toPlainText()
 
     # --- Tab Management ---
 
@@ -1639,6 +1662,7 @@ class PromptExecuteDialog(BaseDialog):
 
     def _on_send_copy(self):
         """Ctrl+Enter: Send, copy result to clipboard, close window."""
+        self._sync_all_outputs_to_versions()
         message = self.input_edit.toPlainText()
         has_content = bool(message.strip()) or bool(self._message_images)
         if not has_content:
@@ -1653,6 +1677,7 @@ class PromptExecuteDialog(BaseDialog):
             self._regenerate_last_output()
             return
 
+        self._sync_all_outputs_to_versions()
         message = self.input_edit.toPlainText()
         has_content = bool(message.strip()) or bool(self._message_images)
         if not has_content:
@@ -1687,6 +1712,7 @@ class PromptExecuteDialog(BaseDialog):
 
         existing_versions = list(last_turn.output_versions)
         existing_version_undo_states = list(last_turn.version_undo_states)
+        existing_version_index = last_turn.current_version_index
 
         # Read current text from UI (may have been edited by user)
         if self._dynamic_sections and turn_number > 1:
@@ -1709,6 +1735,7 @@ class PromptExecuteDialog(BaseDialog):
         # Store version history to restore after turn is recreated
         self._pending_version_history = existing_versions
         self._pending_version_undo_states = existing_version_undo_states
+        self._pending_version_index = existing_version_index
 
         self._execution_handler.execute_with_message(message_text, keep_open=True, regenerate=True)
 

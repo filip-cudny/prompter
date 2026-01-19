@@ -325,6 +325,9 @@ class ExecutionHandler:
         if hasattr(dialog, '_pending_version_undo_states'):
             turn.version_undo_states = dialog._pending_version_undo_states
             delattr(dialog, '_pending_version_undo_states')
+        if hasattr(dialog, '_pending_version_index'):
+            turn.current_version_index = dialog._pending_version_index
+            delattr(dialog, '_pending_version_index')
 
         dialog._conversation_turns.append(turn)
 
