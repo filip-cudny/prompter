@@ -5,9 +5,9 @@ from typing import Optional
 from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QApplication, QScrollArea, QFrame, QWidget
 from PyQt5.QtCore import Qt
 
-from modules.gui.base_dialog import BaseDialog
-from modules.gui.context_widgets import IconButton
-from modules.gui.dialog_styles import (
+from modules.gui.shared.base_dialog import BaseDialog
+from modules.gui.shared.context_widgets import IconButton
+from modules.gui.shared.dialog_styles import (
     SCROLL_CONTENT_MARGINS,
     SCROLL_CONTENT_SPACING,
     SMALL_DIALOG_SIZE,
@@ -15,8 +15,8 @@ from modules.gui.dialog_styles import (
     apply_wrap_state,
     create_singleton_dialog_manager,
 )
-from modules.gui.shared_widgets import create_text_edit, ICON_BTN_STYLE
-from modules.gui.undo_redo_functions import TextEditUndoHelper
+from modules.gui.shared.widgets import create_text_edit, ICON_BTN_STYLE
+from modules.gui.shared.undo_redo import TextEditUndoHelper
 from core.interfaces import ClipboardManager
 
 # Singleton dialog manager for this module

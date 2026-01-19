@@ -1,4 +1,4 @@
-"""Data classes for MessageShareDialog state management."""
+"""Data classes for PromptExecuteDialog state management."""
 
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict

@@ -1,17 +1,17 @@
-"""Execution handler for MessageShareDialog."""
+"""Execution handler for PromptExecuteDialog."""
 
 import time
-from typing import Optional, Callable, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 
 from PyQt5.QtCore import QTimer
 
 from core.models import MenuItem, ExecutionResult
-from modules.gui.icons import create_icon, create_composite_icon
-from modules.gui.dialog_styles import get_text_edit_content_height
-from modules.gui.message_share_data import OutputVersionState
+from modules.gui.icons import create_icon
+from modules.gui.shared.dialog_styles import get_text_edit_content_height
+from modules.gui.prompt_execute_dialog.data import OutputVersionState
 
 if TYPE_CHECKING:
-    from modules.gui.message_share_dialog import MessageShareDialog
+    from modules.gui.prompt_execute_dialog.dialog import PromptExecuteDialog
 
 
 class ExecutionHandler:
@@ -25,7 +25,7 @@ class ExecutionHandler:
     - Global execution tracking for cross-dialog awareness
     """
 
-    def __init__(self, dialog: "MessageShareDialog"):
+    def __init__(self, dialog: "PromptExecuteDialog"):
         self.dialog = dialog
 
         # Execution state
@@ -310,7 +310,7 @@ class ExecutionHandler:
         if dialog._current_turn_number == 0:
             dialog._current_turn_number = 1
 
-        from modules.gui.message_share_data import ConversationTurn
+        from modules.gui.prompt_execute_dialog.data import ConversationTurn
 
         turn = ConversationTurn(
             turn_number=dialog._current_turn_number,

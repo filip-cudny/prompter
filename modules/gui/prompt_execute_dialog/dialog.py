@@ -1,6 +1,5 @@
-"""Message share dialog for sending custom messages to prompts."""
+"""Prompt execute dialog for sending custom messages to prompts."""
 
-import time
 from typing import Optional, Callable, List, Dict
 
 from PyQt5.QtWidgets import (
@@ -8,7 +7,6 @@ from PyQt5.QtWidgets import (
     QHBoxLayout,
     QPushButton,
     QWidget,
-    QLabel,
     QSizePolicy,
     QScrollArea,
     QFrame,
@@ -17,8 +15,8 @@ from PyQt5.QtCore import Qt, QTimer, QEvent, QSize
 
 from core.models import MenuItem
 from core.context_manager import ContextManager, ContextItem, ContextItemType
-from modules.gui.base_dialog import BaseDialog
-from modules.gui.dialog_styles import (
+from modules.gui.shared.base_dialog import BaseDialog
+from modules.gui.shared.dialog_styles import (
     DIALOG_SHOW_DELAY_MS,
     QWIDGETSIZE_MAX,
     SCROLL_CONTENT_MARGINS,
@@ -29,16 +27,15 @@ from modules.gui.dialog_styles import (
 )
 from modules.gui.icons import create_icon, create_composite_icon
 from modules.utils.notification_config import is_notification_enabled
-from modules.gui.shared_widgets import (
+from modules.gui.shared.widgets import (
     CollapsibleSectionHeader,
     ImageChipWidget,
     create_text_edit,
     TEXT_EDIT_MIN_HEIGHT,
 )
-from modules.gui.undo_redo_functions import perform_undo, perform_redo
+from modules.gui.shared.undo_redo import perform_undo, perform_redo
 
-# Import from extracted modules
-from modules.gui.message_share_data import (
+from modules.gui.prompt_execute_dialog.data import (
     ContextSectionState,
     PromptInputState,
     OutputState,
@@ -46,14 +43,14 @@ from modules.gui.message_share_data import (
     ConversationTurn,
     TabState,
 )
-from modules.gui.conversation_tab_bar import ConversationTabBar
-from modules.gui.execution_handler import ExecutionHandler
-from modules.gui.conversation_manager import ConversationManager
+from modules.gui.prompt_execute_dialog.tab_bar import ConversationTabBar
+from modules.gui.prompt_execute_dialog.execution_handler import ExecutionHandler
+from modules.gui.prompt_execute_dialog.conversation_manager import ConversationManager
 
-_open_dialogs: Dict[str, "MessageShareDialog"] = {}
+_open_dialogs: Dict[str, "PromptExecuteDialog"] = {}
 
 
-def show_message_share_dialog(
+def show_prompt_execute_dialog(
     menu_item: MenuItem,
     execution_callback: Callable[[MenuItem, bool], None],
     prompt_store_service=None,
@@ -61,7 +58,7 @@ def show_message_share_dialog(
     clipboard_manager=None,
     notification_manager=None,
 ):
-    """Show the message share dialog.
+    """Show the prompt execute dialog.
 
     Args:
         menu_item: The prompt menu item to execute
@@ -88,7 +85,7 @@ def show_message_share_dialog(
             _open_dialogs[window_key].activateWindow()
             return
 
-        dialog = MessageShareDialog(
+        dialog = PromptExecuteDialog(
             menu_item,
             execution_callback,
             prompt_store_service,
@@ -105,10 +102,10 @@ def show_message_share_dialog(
     QTimer.singleShot(DIALOG_SHOW_DELAY_MS, create_and_show)
 
 
-class MessageShareDialog(BaseDialog):
+class PromptExecuteDialog(BaseDialog):
     """Dialog for typing a message to send to a prompt."""
 
-    STATE_KEY = "message_share_dialog"
+    STATE_KEY = "prompt_execute_dialog"
 
     def __init__(
         self,

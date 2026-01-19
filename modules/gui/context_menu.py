@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import QMenu, QAction, QApplication, QWidgetAction, QLabel,
 from PyQt5.QtCore import Qt, QPoint, QTimer, QObject, QEvent
 from PyQt5.QtGui import QCursor
 from core.models import MenuItem, MenuItemType
-from modules.gui.shared_widgets import TOOLTIP_STYLE
+from modules.gui.shared import TOOLTIP_STYLE
 from modules.gui.icons import DISABLED_OPACITY
 import sip
 import platform
@@ -1073,8 +1073,8 @@ class PyQtContextMenu(QObject):
                         clipboard_manager = prompt_store_service.clipboard_manager
 
                 # Open message share dialog
-                from modules.gui.message_share_dialog import show_message_share_dialog
-                show_message_share_dialog(
+                from modules.gui.prompt_execute_dialog import show_prompt_execute_dialog
+                show_prompt_execute_dialog(
                     self._menu_item,
                     self._context_menu.execution_callback,
                     prompt_store_service=prompt_store_service,

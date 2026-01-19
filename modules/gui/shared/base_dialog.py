@@ -12,7 +12,7 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from modules.gui.dialog_styles import (
+from modules.gui.shared.dialog_styles import (
     DEFAULT_DIALOG_SIZE,
     DIALOG_SHOW_DELAY_MS,
     MIN_DIALOG_SIZE,

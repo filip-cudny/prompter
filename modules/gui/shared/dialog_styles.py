@@ -62,7 +62,8 @@ TOOLTIP_STYLE = f"""
     }}
 """
 
-_SVG_DIR = os.path.join(os.path.dirname(__file__), "icons", "svg")
+# SVG paths - note: icons/ is a sibling directory to shared/
+_SVG_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "icons", "svg")
 _SVG_CHEVRON_DOWN_PATH = os.path.join(_SVG_DIR, "chevron-down.svg")
 _SVG_CHEVRON_UP_PATH = os.path.join(_SVG_DIR, "chevron-up.svg")
 
