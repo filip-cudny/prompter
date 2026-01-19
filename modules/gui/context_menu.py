@@ -377,7 +377,7 @@ class PyQtContextMenu(QObject):
         if not self.menu:
             return 0
 
-        from modules.gui.context_widgets import (
+        from modules.gui.shared.context_widgets import (
             ContextSectionWidget,
             LastInteractionSectionWidget,
         )
@@ -657,7 +657,7 @@ class PyQtContextMenu(QObject):
         self, menu: QMenu, item: MenuItem
     ) -> Optional[QAction]:
         """Create a context section widget action."""
-        from modules.gui.context_widgets import ContextSectionWidget
+        from modules.gui.shared.context_widgets import ContextSectionWidget
 
         context_manager = item.data.get("context_manager") if item.data else None
         if not context_manager:
@@ -679,7 +679,7 @@ class PyQtContextMenu(QObject):
         self, menu: QMenu, item: MenuItem
     ) -> Optional[QAction]:
         """Create a last interaction section widget action."""
-        from modules.gui.context_widgets import LastInteractionSectionWidget
+        from modules.gui.shared.context_widgets import LastInteractionSectionWidget
 
         history_service = item.data.get("history_service") if item.data else None
         if not history_service:
@@ -701,7 +701,7 @@ class PyQtContextMenu(QObject):
         self, menu: QMenu, item: MenuItem
     ) -> Optional[QAction]:
         """Create a settings section widget action with model and prompt chips."""
-        from modules.gui.context_widgets import SettingsSectionWidget
+        from modules.gui.shared.context_widgets import SettingsSectionWidget
 
         if not item.data:
             return None
@@ -733,7 +733,7 @@ class PyQtContextMenu(QObject):
         """Create a custom menu item with hover effects."""
         from PyQt5.QtWidgets import QHBoxLayout, QGraphicsOpacityEffect
         from modules.gui.icons import create_icon_pixmap, ICON_COLOR_NORMAL, ICON_COLOR_DISABLED
-        from modules.gui.context_widgets import IconButton
+        from modules.gui.shared.context_widgets import IconButton
 
         class ClickableMenuItem(QWidget):
             def __init__(self, text, menu_item, context_menu):

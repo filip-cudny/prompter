@@ -5,7 +5,7 @@ from typing import Optional
 from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QScrollArea, QFrame
 
-from modules.gui.dialog_styles import COLOR_DIALOG_BG, COLOR_TEXT
+from modules.gui.shared.dialog_styles import COLOR_DIALOG_BG, COLOR_TEXT
 
 
 class SettingsPanelBase(QWidget):

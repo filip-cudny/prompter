@@ -21,8 +21,8 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from modules.gui.context_widgets import IconButton
-from modules.gui.dialog_styles import (
+from modules.gui.shared.context_widgets import IconButton
+from modules.gui.shared.dialog_styles import (
     COLOR_BORDER,
     COLOR_BUTTON_BG,
     COLOR_BUTTON_HOVER,

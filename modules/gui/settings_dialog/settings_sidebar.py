@@ -5,7 +5,7 @@ from typing import List, Optional, Tuple
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QListWidget, QListWidgetItem
 
-from modules.gui.dialog_styles import (
+from modules.gui.shared.dialog_styles import (
     COLOR_DIALOG_BG,
     COLOR_TEXT,
     COLOR_SELECTION,
