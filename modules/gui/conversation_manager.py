@@ -163,6 +163,7 @@ class ConversationManager:
             show_undo_redo=True,
             show_delete_button=True,
             show_wrap_button=True,
+            show_version_nav=True,
         )
         layout.addWidget(header)
 
@@ -191,6 +192,14 @@ class ConversationManager:
 
         # Connect delete signal
         header.delete_requested.connect(lambda s=container: self.delete_section(s))
+
+        # Connect version navigation signals
+        header.version_prev_requested.connect(
+            lambda s=container: dialog._on_version_prev_dynamic(s)
+        )
+        header.version_next_requested.connect(
+            lambda s=container: dialog._on_version_next_dynamic(s)
+        )
 
         # Connect text changes for debounced state saving and height update
         text_edit.textChanged.connect(
@@ -506,3 +515,13 @@ class ConversationManager:
             dialog._output_sections.append(section)
             dialog.sections_layout.addWidget(section)
             section.text_edit.installEventFilter(dialog)
+
+            # Restore version display from corresponding ConversationTurn
+            turn_number = data["turn_number"]
+            for turn in dialog._conversation_turns:
+                if turn.turn_number == turn_number and turn.output_versions:
+                    section.header.set_version_info(
+                        turn.current_version_index + 1,
+                        len(turn.output_versions)
+                    )
+                    break

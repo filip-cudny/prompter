@@ -1,9 +1,18 @@
 """Data classes for MessageShareDialog state management."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Optional, Dict
 
 from core.context_manager import ContextItem
+
+
+@dataclass
+class OutputVersionState:
+    """Undo/redo state for a single output version."""
+
+    undo_stack: List[str] = field(default_factory=list)
+    redo_stack: List[str] = field(default_factory=list)
+    last_text: str = ""
 
 
 @dataclass
@@ -37,6 +46,9 @@ class ConversationTurn:
     message_images: List[ContextItem]
     output_text: Optional[str] = None
     is_complete: bool = False
+    output_versions: List[str] = field(default_factory=list)
+    current_version_index: int = 0
+    version_undo_states: List[OutputVersionState] = field(default_factory=list)
 
 
 @dataclass
