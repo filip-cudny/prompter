@@ -97,6 +97,7 @@ class HistoryEntry:
     success: bool = True
     error: Optional[str] = None
     is_conversation: bool = False
+    prompt_name: Optional[str] = None
 
 
 @dataclass

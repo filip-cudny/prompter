@@ -159,6 +159,11 @@ class CollapsibleSectionHeader(QWidget):
             "Expand section" if collapsed else "Collapse section"
         )
 
+    def set_title(self, title: str):
+        """Update the section title."""
+        self._title = title
+        self.title_label.setText(title)
+
     def set_undo_redo_enabled(self, can_undo: bool, can_redo: bool):
         """Update undo/redo button enabled states."""
         if self.undo_btn:

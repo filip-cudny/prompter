@@ -28,7 +28,7 @@ from modules.gui.dialog_styles import (
     apply_section_size_policy,
     get_text_edit_content_height,
 )
-from modules.gui.icons import create_icon
+from modules.gui.icons import create_icon, create_composite_icon
 from modules.utils.notification_config import is_notification_enabled
 from modules.gui.shared_widgets import (
     CollapsibleSectionHeader,
@@ -504,7 +504,7 @@ class MessageShareDialog(BaseDialog):
 
         # Header with collapse toggle, wrap button, and undo/redo (NO save button)
         self.input_header = CollapsibleSectionHeader(
-            "Message",
+            "Message #1",
             show_save_button=False,
             show_undo_redo=True,
             show_wrap_button=True,
@@ -528,7 +528,7 @@ class MessageShareDialog(BaseDialog):
 
         # Text edit area
         self.input_edit = create_text_edit(
-            placeholder="Type your message...\n(Ctrl+Enter: Send & copy | Alt+Enter: Send & show | Ctrl+V: Paste image)"
+            placeholder="Type your message...\n(Ctrl+Enter: Close & get result to clipboard | Alt+Enter: Send & show | Ctrl+V: Paste image)"
         )
         self.input_edit.setToolTip("Type and send message with prompt")
         self.input_edit.textChanged.connect(self._on_input_text_changed)
@@ -547,7 +547,7 @@ class MessageShareDialog(BaseDialog):
 
         # Header with collapse toggle, wrap button, and undo/redo (NO save button)
         self.output_header = CollapsibleSectionHeader(
-            "Output",
+            "Output #1",
             show_save_button=False,
             show_undo_redo=True,
             show_wrap_button=True,
@@ -646,8 +646,9 @@ class MessageShareDialog(BaseDialog):
 
         # Send & Copy button (Ctrl+Enter) - default
         self.send_copy_btn = QPushButton()
-        self.send_copy_btn.setIcon(create_icon("copy", "#444444", 16))
-        self.send_copy_btn.setToolTip("Send & Copy to Clipboard (Ctrl+Enter)")
+        self.send_copy_btn.setIcon(create_composite_icon("delete", "copy", "#444444", 16, "&", 4))
+        self.send_copy_btn.setIconSize(QSize(48, 16))
+        self.send_copy_btn.setToolTip("Execute, close, get result to clipboard (Ctrl+Enter)")
         self.send_copy_btn.clicked.connect(self._on_send_copy)
         self.send_copy_btn.setDefault(True)
         self.send_copy_btn.setEnabled(False)  # Disabled until message has content
@@ -1188,7 +1189,16 @@ class MessageShareDialog(BaseDialog):
             section.setParent(None)
             section.deleteLater()
 
-        # Update delete button visibility on remaining sections
+        # Remove corresponding turn from conversation history
+        turn_number = getattr(section, 'turn_number', None)
+        if turn_number is not None:
+            self._conversation_turns = [
+                t for t in self._conversation_turns
+                if t.turn_number != turn_number
+            ]
+
+        # Update section numbering and delete button visibility
+        self._renumber_sections()
         self._update_delete_button_visibility()
 
         # Show reply button if we have output to reply to
@@ -1227,6 +1237,39 @@ class MessageShareDialog(BaseDialog):
         elif self._output_sections:
             self._output_sections[-1].header.set_delete_button_visible(True)
 
+    def _renumber_sections(self):
+        """Update section headers to reflect correct visual numbering."""
+        self.input_header.set_title("Message #1")
+        self.output_header.set_title("Output #1")
+
+        for idx, section in enumerate(self._dynamic_sections):
+            section.header.set_title(f"Message #{idx + 2}")
+
+        for idx, section in enumerate(self._output_sections):
+            section.header.set_title(f"Output #{idx + 2}")
+
+    def _has_empty_conversation_sections(self) -> bool:
+        """Check if there are empty sections in conversation history (excluding current input).
+
+        This prevents errors from having gaps in the conversation.
+        """
+        if self._output_section_shown and not self.output_edit.toPlainText().strip():
+            return True
+
+        for section in self._output_sections:
+            if not section.text_edit.toPlainText().strip():
+                return True
+
+        for section in self._dynamic_sections[:-1]:
+            if not section.text_edit.toPlainText().strip() and not section.turn_images:
+                return True
+
+        if self._dynamic_sections or self._output_section_shown:
+            if not self.input_edit.toPlainText().strip() and not self._message_images:
+                return True
+
+        return False
+
     def _update_send_buttons_state(self):
         """Enable/disable send buttons based on content AND global execution state."""
         # Check current input section (could be original or reply)
@@ -1240,20 +1283,44 @@ class MessageShareDialog(BaseDialog):
 
         has_message = has_text or has_images
 
-        # Disable if: no content, OR this dialog is waiting, OR global execution active
+        # Check if in regenerate mode
+        is_regenerate = self._is_regenerate_mode()
+
+        # Check for empty sections in conversation history
+        has_conversation_error = self._has_empty_conversation_sections()
+
         can_send = (
             has_message
+            and not has_conversation_error
             and not self._waiting_for_result
             and not self._disable_for_global_execution
         )
 
-        self.send_show_btn.setEnabled(can_send)
+        can_act = (
+            (has_message or is_regenerate)
+            and not has_conversation_error
+            and not self._waiting_for_result
+            and not self._disable_for_global_execution
+        )
+
+        self.send_show_btn.setEnabled(can_act)
         self.send_copy_btn.setEnabled(can_send)
 
-        # Update icon colors based on enabled state
-        icon_color = "#f0f0f0" if can_send else "#444444"
-        self.send_show_btn.setIcon(create_icon("send-horizontal", icon_color, 16))
-        self.send_copy_btn.setIcon(create_icon("copy", icon_color, 16))
+        # Update send_show_btn icon and tooltip based on mode
+        if is_regenerate:
+            # Regenerate mode - show redo icon
+            icon_color = "#f0f0f0" if can_act else "#444444"
+            self.send_show_btn.setIcon(create_icon("refresh-cw", icon_color, 16))
+            self.send_show_btn.setToolTip("Regenerate (Alt+Enter)")
+        else:
+            # Normal send mode
+            icon_color = "#f0f0f0" if can_act else "#444444"
+            self.send_show_btn.setIcon(create_icon("send-horizontal", icon_color, 16))
+            self.send_show_btn.setToolTip("Send & Show Result (Alt+Enter)")
+
+        # Update copy button icon
+        copy_icon_color = "#f0f0f0" if can_send else "#444444"
+        self.send_copy_btn.setIcon(create_composite_icon("delete", "copy", copy_icon_color, 16, "&", 4))
 
     def _on_context_text_changed(self):
         """Handle context text changes - debounce state saving."""
@@ -1904,7 +1971,7 @@ class MessageShareDialog(BaseDialog):
         output_edit.setTextCursor(cursor)
         output_edit.blockSignals(False)
 
-    def _execute_with_message(self, message: str, keep_open: bool = False):
+    def _execute_with_message(self, message: str, keep_open: bool = False, regenerate: bool = False):
         """Execute the prompt with conversation history.
 
         Uses working context (images + text) from dialog, NOT from persistent storage.
@@ -1913,6 +1980,7 @@ class MessageShareDialog(BaseDialog):
         Args:
             message: The message to use as input (ignored if dynamic sections exist)
             keep_open: If True, keep dialog open and show result
+            regenerate: If True, reuse existing output section instead of creating new one
         """
         # Get current input from reply section if exists, otherwise original input
         if self._dynamic_sections:
@@ -1982,15 +2050,27 @@ class MessageShareDialog(BaseDialog):
             self._connect_execution_signal()
             self._connect_streaming_signal()
 
+            status_text = "Regenerating..." if regenerate else "Executing..."
+
             # Create output section for this turn
             if self._current_turn_number == 1:
                 # First turn uses existing output section
                 self._expand_output_section()
-                self.output_edit.setPlainText("Executing...")
+                self.output_edit.setPlainText(status_text)
                 # Set expanded mode and update height after text is set
                 self.output_header.set_wrap_state(False)
                 content_height = get_text_edit_content_height(self.output_edit)
                 self.output_edit.setMinimumHeight(content_height)
+            elif regenerate and self._output_sections:
+                # Regenerating - reuse existing output section
+                output_section = self._output_sections[-1]
+                output_section.text_edit.blockSignals(True)
+                output_section.text_edit.setPlainText(status_text)
+                output_section.text_edit.blockSignals(False)
+                # Set expanded mode
+                output_section.header.set_wrap_state(False)
+                content_height = get_text_edit_content_height(output_section.text_edit)
+                output_section.text_edit.setMinimumHeight(content_height)
             else:
                 # Subsequent turns create new output section
                 output_section = self._create_dynamic_output_section(
@@ -1999,11 +2079,12 @@ class MessageShareDialog(BaseDialog):
                 self._output_sections.append(output_section)
                 self.sections_layout.addWidget(output_section)
                 output_section.text_edit.installEventFilter(self)
-                output_section.text_edit.setPlainText("Executing...")
+                output_section.text_edit.setPlainText(status_text)
                 # Set expanded mode and update height after text is set
                 output_section.header.set_wrap_state(False)
                 content_height = get_text_edit_content_height(output_section.text_edit)
                 output_section.text_edit.setMinimumHeight(content_height)
+                self._renumber_sections()
                 self._update_delete_button_visibility()
                 self._scroll_to_bottom()
 
@@ -2232,22 +2313,79 @@ class MessageShareDialog(BaseDialog):
         self._execute_with_message(message, keep_open=False)
 
     def _on_send_show(self):
-        """Alt+Enter: Send, show result in window, stay open."""
+        """Alt+Enter: Send, show result in window, stay open. Or regenerate."""
+        # Check if in regenerate mode first
+        if self._is_regenerate_mode():
+            self._regenerate_last_output()
+            return
+
         message = self.input_edit.toPlainText()
         has_content = bool(message.strip()) or bool(self._message_images)
         if not has_content:
             return
         self._execute_with_message(message, keep_open=True)
 
+    def _is_regenerate_mode(self) -> bool:
+        """Check if dialog is in regenerate mode (can regenerate last output)."""
+        if self._waiting_for_result:
+            return False
+
+        if not self._conversation_turns or not self._conversation_turns[-1].is_complete:
+            return False
+
+        if not self._dynamic_sections:
+            return True
+
+        if self._output_sections:
+            msg_turn = self._dynamic_sections[-1].turn_number
+            out_turn = self._output_sections[-1].turn_number
+            return out_turn >= msg_turn
+
+        return False
+
+    def _regenerate_last_output(self):
+        """Regenerate the last AI output by re-executing the last message."""
+        if not self._conversation_turns:
+            return
+
+        last_turn = self._conversation_turns[-1]
+        if not last_turn.is_complete:
+            return
+
+        turn_number = last_turn.turn_number
+
+        # Read current text from UI (may have been edited by user)
+        if self._dynamic_sections and turn_number > 1:
+            section = self._dynamic_sections[-1]
+            message_text = section.text_edit.toPlainText()
+        else:
+            message_text = self.input_edit.toPlainText()
+
+        # Remove last turn from history - will be re-added by _execute_with_message
+        self._conversation_turns.pop()
+
+        # For turn 1, set to 0 so _execute_with_message increments to 1
+        # For turn 2+, keep current turn number so it reuses existing output section
+        if turn_number == 1:
+            self._current_turn_number = 0
+
+        # Hide reply button during regeneration
+        self.reply_btn.setVisible(False)
+
+        self._execute_with_message(message_text, keep_open=True, regenerate=True)
+
     def _on_reply(self):
         """Add new input section for reply."""
         self._current_turn_number += 1
-        section = self._create_reply_section(self._current_turn_number)
+        visual_number = len(self._dynamic_sections) + 2
+        section = self._create_reply_section(visual_number)
+        section.turn_number = self._current_turn_number
         self._dynamic_sections.append(section)
         self.sections_layout.addWidget(section)
         section.text_edit.installEventFilter(self)
         self.reply_btn.setVisible(False)
         section.text_edit.setFocus()
+        self._renumber_sections()
         self._update_delete_button_visibility()
         self._update_send_buttons_state()
         self._scroll_to_bottom()
@@ -2279,7 +2417,7 @@ class MessageShareDialog(BaseDialog):
         layout.addWidget(images_container)
 
         text_edit = create_text_edit(
-            placeholder="Type your message...\n(Ctrl+Enter: Send & copy | Alt+Enter: Send & show | Ctrl+V: Paste image)"
+            placeholder="Type your message...\n(Ctrl+Enter: Close & get result to clipboard | Alt+Enter: Send & show | Ctrl+V: Paste image)"
         )
         text_edit.textChanged.connect(self._update_send_buttons_state)
         layout.addWidget(text_edit)
@@ -2497,6 +2635,9 @@ class MessageShareDialog(BaseDialog):
             self._message_images
         )
 
+        # Check if in regenerate mode
+        is_regenerate = self._is_regenerate_mode()
+
         # Ctrl+Enter: Send, copy result to clipboard, close window
         # Or stop execution if already executing (ctrl button in stop mode)
         if key in (Qt.Key_Return, Qt.Key_Enter) and (modifiers & Qt.ControlModifier):
@@ -2507,11 +2648,12 @@ class MessageShareDialog(BaseDialog):
             event.accept()
             return
 
-        # Alt+Enter: Send, show result in window, stay open
-        # Or stop execution if already executing (alt button in stop mode)
+        # Alt+Enter: Send & show, OR regenerate, OR stop execution
         if key in (Qt.Key_Return, Qt.Key_Enter) and (modifiers & Qt.AltModifier):
             if self._waiting_for_result and self._stop_button_active == "alt":
                 self._on_stop_execution()
+            elif is_regenerate and not self._waiting_for_result:
+                self._regenerate_last_output()
             elif has_content and not self._waiting_for_result:
                 self._on_send_show()
             event.accept()

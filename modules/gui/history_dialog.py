@@ -39,11 +39,30 @@ class ClickableLabel(QLabel):
     def __init__(self, text: str = "", parent: Optional[QWidget] = None):
         super().__init__(text, parent)
         self.setCursor(Qt.PointingHandCursor)
+        self._hover = False
+        self._clickable = True
+
+    def set_clickable(self, clickable: bool):
+        self._clickable = clickable
+        self.setCursor(Qt.PointingHandCursor if clickable else Qt.ArrowCursor)
 
     def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton:
+        if event.button() == Qt.LeftButton and self._clickable:
             self.clicked.emit()
         super().mousePressEvent(event)
+
+    def enterEvent(self, event):
+        if self._clickable:
+            self._hover = True
+            self.setStyleSheet(self.styleSheet() + "QLabel { text-decoration: underline; }")
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        if self._clickable:
+            self._hover = False
+            style = self.styleSheet().replace("QLabel { text-decoration: underline; }", "")
+            self.setStyleSheet(style)
+        super().leaveEvent(event)
 
 
 def show_history_dialog(
@@ -107,6 +126,15 @@ class HistoryEntryWidget(QWidget):
         QLabel {
             color: #888888;
             font-size: 11px;
+            background: transparent;
+        }
+    """
+
+    _prompt_name_style = """
+        QLabel {
+            color: #ffffff;
+            font-size: 11px;
+            font-weight: bold;
             background: transparent;
         }
     """
@@ -219,6 +247,11 @@ class HistoryEntryWidget(QWidget):
         timestamp_label.setStyleSheet(self._timestamp_style)
         header_row.addWidget(timestamp_label)
 
+        if self.entry.prompt_name:
+            prompt_name_label = QLabel(self.entry.prompt_name)
+            prompt_name_label.setStyleSheet(self._prompt_name_style)
+            header_row.addWidget(prompt_name_label)
+
         header_row.addStretch()
         main_layout.addLayout(header_row)
 
@@ -242,7 +275,7 @@ class HistoryEntryWidget(QWidget):
                 input_text_label.setToolTip(self.entry.input_content)
         else:
             input_text_label.setStyleSheet(self._truncated_text_empty_style)
-            input_text_label.setCursor(Qt.ArrowCursor)
+            input_text_label.set_clickable(False)
         self._input_text_label = input_text_label
         input_row.addWidget(input_text_label)
 
@@ -284,7 +317,7 @@ class HistoryEntryWidget(QWidget):
                 output_text_label.setToolTip(self.entry.output_content)
         else:
             output_text_label.setStyleSheet(self._truncated_text_empty_style)
-            output_text_label.setCursor(Qt.ArrowCursor)
+            output_text_label.set_clickable(False)
         self._output_text_label = output_text_label
         output_row.addWidget(output_text_label)
 

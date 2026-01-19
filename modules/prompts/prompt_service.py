@@ -173,6 +173,7 @@ class PromptStoreService(PromptStoreServiceProtocol):
                     prompt_id=item.data.get("prompt_id"),
                     success=True,
                     is_conversation=is_conversation,
+                    prompt_name=item.data.get("prompt_name"),
                 )
             elif not result.success:
                 self.history_service.add_entry(
@@ -183,6 +184,7 @@ class PromptStoreService(PromptStoreServiceProtocol):
                     success=False,
                     error=result.error,
                     is_conversation=is_conversation,
+                    prompt_name=item.data.get("prompt_name") if item.data else None,
                 )
 
     def get_active_prompt(self) -> Optional[MenuItem]:
