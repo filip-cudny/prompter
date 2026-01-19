@@ -8,6 +8,7 @@ from PyQt5.QtCore import QTimer
 from core.models import MenuItem, ExecutionResult
 from modules.gui.icons import create_icon, create_composite_icon
 from modules.gui.dialog_styles import get_text_edit_content_height
+from modules.gui.message_share_data import OutputVersionState
 
 if TYPE_CHECKING:
     from modules.gui.message_share_dialog import MessageShareDialog
@@ -316,6 +317,15 @@ class ExecutionHandler:
             message_text=msg_text,
             message_images=msg_images,
         )
+
+        # Restore version history for regeneration
+        if hasattr(dialog, '_pending_version_history'):
+            turn.output_versions = dialog._pending_version_history
+            delattr(dialog, '_pending_version_history')
+        if hasattr(dialog, '_pending_version_undo_states'):
+            turn.version_undo_states = dialog._pending_version_undo_states
+            delattr(dialog, '_pending_version_undo_states')
+
         dialog._conversation_turns.append(turn)
 
         # Build conversation data for API
@@ -459,7 +469,12 @@ class ExecutionHandler:
 
             turns.append(turn_data)
 
-            if turn.is_complete and turn.output_text:
+            if turn.is_complete and turn.output_versions:
+                # Use the currently selected version
+                selected_text = turn.output_versions[turn.current_version_index]
+                turns.append({"role": "assistant", "text": selected_text})
+            elif turn.is_complete and turn.output_text:
+                # Fallback for backward compatibility
                 turns.append({"role": "assistant", "text": turn.output_text})
 
         return {"turns": turns}
@@ -522,10 +537,46 @@ class ExecutionHandler:
 
         # Mark the current turn as complete and store output
         if dialog._conversation_turns:
-            dialog._conversation_turns[-1].output_text = (
-                result.content if result.success else None
-            )
-            dialog._conversation_turns[-1].is_complete = True
+            turn = dialog._conversation_turns[-1]
+            output_text = result.content if result.success else None
+            turn.output_text = output_text
+            turn.is_complete = True
+
+            # Append to version history
+            if output_text:
+                turn.output_versions.append(output_text)
+                turn.current_version_index = len(turn.output_versions) - 1
+                # Create a fresh undo state for the new version
+                turn.version_undo_states.append(OutputVersionState(
+                    undo_stack=[],
+                    redo_stack=[],
+                    last_text=output_text
+                ))
+
+            # Update version display in UI
+            if turn.turn_number == 1 or not dialog._output_sections:
+                dialog.output_header.set_version_info(
+                    turn.current_version_index + 1,
+                    len(turn.output_versions)
+                )
+                # Sync undo state for Output #1
+                if turn.output_versions:
+                    dialog._output_undo_stack.clear()
+                    dialog._output_redo_stack.clear()
+                    dialog._last_output_text = output_text or ""
+                    dialog._update_undo_redo_buttons()
+            else:
+                section = dialog._output_sections[-1]
+                section.header.set_version_info(
+                    turn.current_version_index + 1,
+                    len(turn.output_versions)
+                )
+                # Sync undo state for dynamic section
+                if turn.output_versions:
+                    section.undo_stack.clear()
+                    section.redo_stack.clear()
+                    section.last_text = output_text or ""
+                    dialog._update_dynamic_section_buttons(section)
 
         # Show Reply button now that we have output
         dialog.reply_btn.setVisible(True)

@@ -41,6 +41,7 @@ from modules.gui.message_share_data import (
     ContextSectionState,
     PromptInputState,
     OutputState,
+    OutputVersionState,
     ConversationTurn,
     TabState,
 )
@@ -355,12 +356,15 @@ class MessageShareDialog(BaseDialog):
             show_save_button=False,
             show_undo_redo=True,
             show_wrap_button=True,
+            show_version_nav=True,
             hint_text="",
         )
         self.output_header.toggle_requested.connect(self._toggle_output_section)
         self.output_header.wrap_requested.connect(self._toggle_output_wrap)
         self.output_header.undo_requested.connect(self._undo_output)
         self.output_header.redo_requested.connect(self._redo_output)
+        self.output_header.version_prev_requested.connect(self._on_version_prev_output1)
+        self.output_header.version_next_requested.connect(self._on_version_next_output1)
         section_layout.addWidget(self.output_header)
 
         # Text edit area
@@ -874,6 +878,12 @@ class MessageShareDialog(BaseDialog):
         self._output_redo_stack.append(self._get_output_state())
         state = self._output_undo_stack.pop()
         self._restore_output_state(state)
+
+        if self._conversation_turns:
+            turn = self._conversation_turns[0]
+            if turn.output_versions:
+                turn.output_versions[turn.current_version_index] = state.text
+
         self._update_undo_redo_buttons()
 
     def _redo_output(self):
@@ -883,7 +893,151 @@ class MessageShareDialog(BaseDialog):
         self._output_undo_stack.append(self._get_output_state())
         state = self._output_redo_stack.pop()
         self._restore_output_state(state)
+
+        if self._conversation_turns:
+            turn = self._conversation_turns[0]
+            if turn.output_versions:
+                turn.output_versions[turn.current_version_index] = state.text
+
         self._update_undo_redo_buttons()
+
+    # --- Version Navigation for Output #1 ---
+
+    def _save_current_version_undo_state(self, turn: ConversationTurn):
+        """Save current undo/redo state for the active version."""
+        if not turn.output_versions:
+            return
+        idx = turn.current_version_index
+        while len(turn.version_undo_states) <= idx:
+            turn.version_undo_states.append(OutputVersionState())
+        turn.version_undo_states[idx].undo_stack = list(self._output_undo_stack)
+        turn.version_undo_states[idx].redo_stack = list(self._output_redo_stack)
+        turn.version_undo_states[idx].last_text = self._last_output_text
+
+    def _restore_version_undo_state(self, turn: ConversationTurn):
+        """Restore undo/redo state for the active version."""
+        idx = turn.current_version_index
+        if idx < len(turn.version_undo_states):
+            state = turn.version_undo_states[idx]
+            self._output_undo_stack = list(state.undo_stack)
+            self._output_redo_stack = list(state.redo_stack)
+            self._last_output_text = state.last_text
+        else:
+            self._output_undo_stack.clear()
+            self._output_redo_stack.clear()
+            self._last_output_text = turn.output_versions[idx] if turn.output_versions else ""
+        self._update_undo_redo_buttons()
+
+    def _on_version_prev_output1(self):
+        """Navigate to previous version for Output #1."""
+        if not self._conversation_turns:
+            return
+        turn = self._conversation_turns[0]
+        if turn.current_version_index <= 0:
+            return
+        current_text = self.output_edit.toPlainText()
+        turn.output_versions[turn.current_version_index] = current_text
+        self._save_current_version_undo_state(turn)
+        turn.current_version_index -= 1
+        self._apply_version_to_output1(turn)
+
+    def _on_version_next_output1(self):
+        """Navigate to next version for Output #1."""
+        if not self._conversation_turns:
+            return
+        turn = self._conversation_turns[0]
+        if turn.current_version_index >= len(turn.output_versions) - 1:
+            return
+        current_text = self.output_edit.toPlainText()
+        turn.output_versions[turn.current_version_index] = current_text
+        self._save_current_version_undo_state(turn)
+        turn.current_version_index += 1
+        self._apply_version_to_output1(turn)
+
+    def _apply_version_to_output1(self, turn: ConversationTurn):
+        """Apply the current version to Output #1."""
+        text = turn.output_versions[turn.current_version_index]
+        turn.output_text = text
+        self.output_edit.blockSignals(True)
+        self.output_edit.setPlainText(text)
+        self.output_edit.blockSignals(False)
+        self.output_header.set_version_info(
+            turn.current_version_index + 1,
+            len(turn.output_versions)
+        )
+        self._restore_version_undo_state(turn)
+
+    # --- Version Navigation for Dynamic Output Sections ---
+
+    def _save_dynamic_version_undo_state(self, section: QWidget, turn: ConversationTurn):
+        """Save current undo/redo state for the active version in dynamic section."""
+        if not turn.output_versions:
+            return
+        idx = turn.current_version_index
+        while len(turn.version_undo_states) <= idx:
+            turn.version_undo_states.append(OutputVersionState())
+        turn.version_undo_states[idx].undo_stack = list(section.undo_stack)
+        turn.version_undo_states[idx].redo_stack = list(section.redo_stack)
+        turn.version_undo_states[idx].last_text = section.last_text
+
+    def _restore_dynamic_version_undo_state(self, section: QWidget, turn: ConversationTurn):
+        """Restore undo/redo state for the active version in dynamic section."""
+        idx = turn.current_version_index
+        if idx < len(turn.version_undo_states):
+            state = turn.version_undo_states[idx]
+            section.undo_stack = list(state.undo_stack)
+            section.redo_stack = list(state.redo_stack)
+            section.last_text = state.last_text
+        else:
+            section.undo_stack.clear()
+            section.redo_stack.clear()
+            section.last_text = turn.output_versions[idx] if turn.output_versions else ""
+        self._update_dynamic_section_buttons(section)
+
+    def _find_turn_for_output_section(self, section: QWidget) -> ConversationTurn:
+        """Find the ConversationTurn that corresponds to a dynamic output section."""
+        turn_number = getattr(section, "turn_number", None)
+        if turn_number is None:
+            return None
+        for turn in self._conversation_turns:
+            if turn.turn_number == turn_number:
+                return turn
+        return None
+
+    def _on_version_prev_dynamic(self, section: QWidget):
+        """Navigate to previous version for a dynamic output section."""
+        turn = self._find_turn_for_output_section(section)
+        if not turn or turn.current_version_index <= 0:
+            return
+        current_text = section.text_edit.toPlainText()
+        turn.output_versions[turn.current_version_index] = current_text
+        self._save_dynamic_version_undo_state(section, turn)
+        turn.current_version_index -= 1
+        self._apply_version_to_dynamic(section, turn)
+
+    def _on_version_next_dynamic(self, section: QWidget):
+        """Navigate to next version for a dynamic output section."""
+        turn = self._find_turn_for_output_section(section)
+        if not turn or turn.current_version_index >= len(turn.output_versions) - 1:
+            return
+        current_text = section.text_edit.toPlainText()
+        turn.output_versions[turn.current_version_index] = current_text
+        self._save_dynamic_version_undo_state(section, turn)
+        turn.current_version_index += 1
+        self._apply_version_to_dynamic(section, turn)
+
+    def _apply_version_to_dynamic(self, section: QWidget, turn: ConversationTurn):
+        """Apply the current version to a dynamic output section."""
+        text = turn.output_versions[turn.current_version_index]
+        turn.output_text = text
+        section.text_edit.blockSignals(True)
+        section.text_edit.setPlainText(text)
+        section.text_edit.blockSignals(False)
+        section.header.set_version_info(
+            turn.current_version_index + 1,
+            len(turn.output_versions)
+        )
+        self._restore_dynamic_version_undo_state(section, turn)
 
     # --- Common undo/redo ---
 
@@ -915,6 +1069,11 @@ class MessageShareDialog(BaseDialog):
         section.text_edit.setPlainText(previous)
         section.text_edit.blockSignals(False)
         section.last_text = previous
+
+        turn = self._find_turn_for_output_section(section)
+        if turn and turn.output_versions:
+            turn.output_versions[turn.current_version_index] = previous
+
         self._update_dynamic_section_buttons(section)
 
     def _redo_dynamic_section(self, section: QWidget):
@@ -928,6 +1087,11 @@ class MessageShareDialog(BaseDialog):
         section.text_edit.setPlainText(next_state)
         section.text_edit.blockSignals(False)
         section.last_text = next_state
+
+        turn = self._find_turn_for_output_section(section)
+        if turn and turn.output_versions:
+            turn.output_versions[turn.current_version_index] = next_state
+
         self._update_dynamic_section_buttons(section)
 
     def _schedule_dynamic_state_save(self, section: QWidget):
@@ -1231,6 +1395,14 @@ class MessageShareDialog(BaseDialog):
             state.dynamic_sections_data, state.output_sections_data
         )
 
+        # Restore version display for Output #1
+        if self._conversation_turns and self._conversation_turns[0].output_versions:
+            turn = self._conversation_turns[0]
+            self.output_header.set_version_info(
+                turn.current_version_index + 1,
+                len(turn.output_versions)
+            )
+
         # Restore UI collapsed/wrapped states
         self._restore_section_ui_states(state)
 
@@ -1342,6 +1514,9 @@ class MessageShareDialog(BaseDialog):
         # Reset multi-turn conversation state
         self._conversation_turns.clear()
         self._current_turn_number = 0
+
+        # Reset version display for Output #1
+        self.output_header.set_version_info(0, 0)
 
         # Reset UI states
         self.context_text_edit.show()
@@ -1497,6 +1672,20 @@ class MessageShareDialog(BaseDialog):
 
         turn_number = last_turn.turn_number
 
+        if last_turn.output_versions:
+            if turn_number == 1 or not self._output_sections:
+                current_output_text = self.output_edit.toPlainText()
+                last_turn.output_versions[last_turn.current_version_index] = current_output_text
+                self._save_current_version_undo_state(last_turn)
+            else:
+                section = self._output_sections[-1]
+                current_output_text = section.text_edit.toPlainText()
+                last_turn.output_versions[last_turn.current_version_index] = current_output_text
+                self._save_dynamic_version_undo_state(section, last_turn)
+
+        existing_versions = list(last_turn.output_versions)
+        existing_version_undo_states = list(last_turn.version_undo_states)
+
         # Read current text from UI (may have been edited by user)
         if self._dynamic_sections and turn_number > 1:
             section = self._dynamic_sections[-1]
@@ -1514,6 +1703,10 @@ class MessageShareDialog(BaseDialog):
 
         # Hide reply button during regeneration
         self.reply_btn.setVisible(False)
+
+        # Store version history to restore after turn is recreated
+        self._pending_version_history = existing_versions
+        self._pending_version_undo_states = existing_version_undo_states
 
         self._execution_handler.execute_with_message(message_text, keep_open=True, regenerate=True)
 

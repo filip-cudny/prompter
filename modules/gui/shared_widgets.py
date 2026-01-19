@@ -49,6 +49,8 @@ class CollapsibleSectionHeader(QWidget):
     redo_requested = pyqtSignal()
     delete_requested = pyqtSignal()
     wrap_requested = pyqtSignal()
+    version_prev_requested = pyqtSignal()
+    version_next_requested = pyqtSignal()
 
     def __init__(
         self,
@@ -57,6 +59,7 @@ class CollapsibleSectionHeader(QWidget):
         show_undo_redo: bool = False,
         show_delete_button: bool = False,
         show_wrap_button: bool = False,
+        show_version_nav: bool = False,
         hint_text: str = "",
         parent: Optional[QWidget] = None,
     ):
@@ -100,6 +103,39 @@ class CollapsibleSectionHeader(QWidget):
         btn_layout = QHBoxLayout(btn_container)
         btn_layout.setContentsMargins(0, 0, 0, 0)
         btn_layout.setSpacing(2)
+
+        # Version navigation (optional) - shown only when multiple versions exist
+        self.version_container = None
+        self.version_prev_btn = None
+        self.version_label = None
+        self.version_next_btn = None
+        if show_version_nav:
+            self.version_container = QWidget()
+            self.version_container.setStyleSheet("background: transparent;")
+            version_layout = QHBoxLayout(self.version_container)
+            version_layout.setContentsMargins(0, 0, 8, 0)
+            version_layout.setSpacing(2)
+
+            self.version_prev_btn = IconButton("chevron-left", size=16)
+            self.version_prev_btn.setToolTip("Previous version")
+            self.version_prev_btn.setStyleSheet(ICON_BTN_STYLE)
+            self.version_prev_btn.clicked.connect(lambda: self.version_prev_requested.emit())
+            self.version_prev_btn.setEnabled(False)
+            version_layout.addWidget(self.version_prev_btn)
+
+            self.version_label = QLabel("1 of 1")
+            self.version_label.setStyleSheet("QLabel { color: #888888; font-size: 11px; }")
+            version_layout.addWidget(self.version_label)
+
+            self.version_next_btn = IconButton("chevron-right", size=16)
+            self.version_next_btn.setToolTip("Next version")
+            self.version_next_btn.setStyleSheet(ICON_BTN_STYLE)
+            self.version_next_btn.clicked.connect(lambda: self.version_next_requested.emit())
+            self.version_next_btn.setEnabled(False)
+            version_layout.addWidget(self.version_next_btn)
+
+            self.version_container.hide()
+            btn_layout.addWidget(self.version_container)
 
         # Wrap button (optional) - placed before undo/redo
         self.wrap_btn = None
@@ -205,6 +241,25 @@ class CollapsibleSectionHeader(QWidget):
     def is_collapsed(self) -> bool:
         """Return current collapsed state."""
         return self._collapsed
+
+    def set_version_info(self, current: int, total: int):
+        """Update version display. Shows only when total > 1.
+
+        Args:
+            current: Current version number (1-indexed)
+            total: Total number of versions
+        """
+        if not self.version_container:
+            return
+
+        if total <= 1:
+            self.version_container.hide()
+            return
+
+        self.version_container.show()
+        self.version_label.setText(f"{current} of {total}")
+        self.version_prev_btn.setEnabled(current > 1)
+        self.version_next_btn.setEnabled(current < total)
 
 
 class ImageChipWidget(QWidget):

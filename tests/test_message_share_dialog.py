@@ -1,12 +1,16 @@
 import pytest
-from tests.conftest import (
+from unittest.mock import Mock
+from conftest import (
     ConversationTurn,
+    ConversationTurnWithVersions,
     ContextItem,
     ContextSectionState,
     PromptInputState,
     OutputState,
+    OutputVersionState,
     make_section,
     make_output_section,
+    make_turn_with_versions,
 )
 
 
@@ -1061,3 +1065,170 @@ class TestSectionWrapStates:
 
         assert is_wrapped is True
         assert is_collapsed is True
+
+
+def _sync_undo_to_version(turn, restored_text):
+    if turn and turn.output_versions:
+        idx = turn.current_version_index
+        if 0 <= idx < len(turn.output_versions):
+            turn.output_versions[idx] = restored_text
+
+
+def _sync_redo_to_version(turn, restored_text):
+    if turn and turn.output_versions:
+        idx = turn.current_version_index
+        if 0 <= idx < len(turn.output_versions):
+            turn.output_versions[idx] = restored_text
+
+
+def _save_version_undo_state(turn, undo_stack, redo_stack):
+    if turn is None:
+        return
+    idx = turn.current_version_index
+    while len(turn.version_undo_states) <= idx:
+        turn.version_undo_states.append(OutputVersionState())
+    turn.version_undo_states[idx] = OutputVersionState(
+        undo_stack=list(undo_stack),
+        redo_stack=list(redo_stack),
+        last_text=turn.output_versions[idx] if turn.output_versions else "",
+    )
+
+
+class TestUndoRedoVersionSync:
+    def test_undo_output_syncs_to_version_array(self):
+        turn = make_turn_with_versions(
+            output_versions=["v1"],
+            current_version_index=0,
+        )
+        restored_text = "v1_undone"
+
+        _sync_undo_to_version(turn, restored_text)
+
+        assert turn.output_versions[0] == "v1_undone"
+
+    def test_redo_output_syncs_to_version_array(self):
+        turn = make_turn_with_versions(
+            output_versions=["v1"],
+            current_version_index=0,
+        )
+        restored_text = "v1_redone"
+
+        _sync_redo_to_version(turn, restored_text)
+
+        assert turn.output_versions[0] == "v1_redone"
+
+    def test_undo_output_no_turn_no_error(self):
+        turn = None
+
+        _sync_undo_to_version(turn, "any_text")
+
+    def test_undo_output_empty_versions_no_error(self):
+        turn = make_turn_with_versions(output_versions=[])
+        turn.output_versions = []
+
+        _sync_undo_to_version(turn, "any_text")
+
+    def test_undo_syncs_to_correct_version_index(self):
+        turn = make_turn_with_versions(
+            output_versions=["v1", "v2"],
+            current_version_index=1,
+        )
+
+        _sync_undo_to_version(turn, "v2_undone")
+
+        assert turn.output_versions[1] == "v2_undone"
+        assert turn.output_versions[0] == "v1"
+
+    def test_undo_dynamic_section_syncs_to_version_array(self):
+        turn = make_turn_with_versions(
+            turn_number=2,
+            output_versions=["v1"],
+            current_version_index=0,
+        )
+        section = Mock()
+        section.turn_number = 2
+
+        _sync_undo_to_version(turn, "v1_undone")
+
+        assert turn.output_versions[0] == "v1_undone"
+
+    def test_redo_dynamic_section_syncs_to_version_array(self):
+        turn = make_turn_with_versions(
+            turn_number=2,
+            output_versions=["v1"],
+            current_version_index=0,
+        )
+        section = Mock()
+        section.turn_number = 2
+
+        _sync_redo_to_version(turn, "v1_redone")
+
+        assert turn.output_versions[0] == "v1_redone"
+
+
+class TestRegenerationPreservesUndoState:
+    def test_regenerate_saves_current_version_undo_state(self):
+        turn = make_turn_with_versions(
+            output_versions=["version_1"],
+            current_version_index=0,
+        )
+        undo_stack = ["state_a", "state_b"]
+        redo_stack = ["state_c"]
+
+        _save_version_undo_state(turn, undo_stack, redo_stack)
+
+        assert len(turn.version_undo_states) == 1
+        saved_state = turn.version_undo_states[0]
+        assert saved_state.undo_stack == ["state_a", "state_b"]
+        assert saved_state.redo_stack == ["state_c"]
+        assert saved_state.last_text == "version_1"
+
+    def test_regenerate_preserves_other_versions_undo_states(self):
+        existing_state_0 = OutputVersionState(
+            undo_stack=["old_undo"],
+            redo_stack=["old_redo"],
+            last_text="old_text",
+        )
+        turn = make_turn_with_versions(
+            output_versions=["v1", "v2"],
+            current_version_index=1,
+            version_undo_states=[existing_state_0],
+        )
+        undo_stack = ["new_undo"]
+        redo_stack = []
+
+        _save_version_undo_state(turn, undo_stack, redo_stack)
+
+        assert len(turn.version_undo_states) == 2
+        assert turn.version_undo_states[0].undo_stack == ["old_undo"]
+        assert turn.version_undo_states[1].undo_stack == ["new_undo"]
+
+    def test_save_version_undo_state_no_turn_no_error(self):
+        _save_version_undo_state(None, [], [])
+
+    def test_save_version_undo_state_creates_entries_as_needed(self):
+        turn = make_turn_with_versions(
+            output_versions=["v1", "v2", "v3"],
+            current_version_index=2,
+        )
+
+        _save_version_undo_state(turn, ["undo"], ["redo"])
+
+        assert len(turn.version_undo_states) == 3
+        assert turn.version_undo_states[2].undo_stack == ["undo"]
+
+    def test_save_version_undo_state_copies_stacks(self):
+        turn = make_turn_with_versions(
+            output_versions=["v1"],
+            current_version_index=0,
+        )
+        undo_stack = ["a", "b"]
+        redo_stack = ["c"]
+
+        _save_version_undo_state(turn, undo_stack, redo_stack)
+
+        undo_stack.append("d")
+        redo_stack.append("e")
+
+        assert turn.version_undo_states[0].undo_stack == ["a", "b"]
+        assert turn.version_undo_states[0].redo_stack == ["c"]

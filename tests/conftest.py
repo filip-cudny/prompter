@@ -144,3 +144,40 @@ def mock_output_section():
     def _make(turn_number: int, text: str = ""):
         return make_output_section(turn_number, text)
     return _make
+
+
+@dataclass
+class OutputVersionState:
+    undo_stack: List[str] = field(default_factory=list)
+    redo_stack: List[str] = field(default_factory=list)
+    last_text: str = ""
+
+
+def make_turn_with_versions(
+    turn_number: int = 1,
+    message_text: str = "test message",
+    output_versions: List[str] = None,
+    current_version_index: int = 0,
+    version_undo_states: List[OutputVersionState] = None,
+    is_complete: bool = True,
+) -> "ConversationTurnWithVersions":
+    return ConversationTurnWithVersions(
+        turn_number=turn_number,
+        message_text=message_text,
+        output_versions=output_versions if output_versions else ["output"],
+        current_version_index=current_version_index,
+        version_undo_states=version_undo_states if version_undo_states else [],
+        is_complete=is_complete,
+    )
+
+
+@dataclass
+class ConversationTurnWithVersions:
+    turn_number: int
+    message_text: str
+    message_images: List = field(default_factory=list)
+    output_text: Optional[str] = None
+    is_complete: bool = False
+    output_versions: List[str] = field(default_factory=list)
+    current_version_index: int = 0
+    version_undo_states: List[OutputVersionState] = field(default_factory=list)
