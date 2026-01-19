@@ -17,8 +17,8 @@ from PyQt5.QtCore import Qt, QTimer, QEvent, pyqtSignal
 
 from core.context_manager import ContextManager, ContextItem, ContextItemType
 from modules.utils.notification_config import is_notification_enabled
-from modules.gui.base_dialog import BaseDialog
-from modules.gui.dialog_styles import (
+from modules.gui.shared.base_dialog import BaseDialog
+from modules.gui.shared.dialog_styles import (
     DEFAULT_WRAPPED_HEIGHT,
     DIALOG_CONTENT_MARGINS,
     SCROLL_CONTENT_MARGINS,
@@ -27,12 +27,12 @@ from modules.gui.dialog_styles import (
     apply_wrap_state,
     create_singleton_dialog_manager,
 )
-from modules.gui.shared_widgets import (
+from modules.gui.shared.widgets import (
     CollapsibleSectionHeader,
     ImageChipWidget,
     create_text_edit,
 )
-from modules.gui.undo_redo_functions import perform_undo, perform_redo
+from modules.gui.shared.undo_redo import perform_undo, perform_redo
 
 logger = logging.getLogger(__name__)
 

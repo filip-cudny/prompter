@@ -1,25 +1,24 @@
-"""Conversation management for MessageShareDialog."""
+"""Conversation management for PromptExecuteDialog."""
 
-from typing import List, Dict, Optional, TYPE_CHECKING
+from typing import List, Dict, TYPE_CHECKING
 
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QSizePolicy
-from PyQt5.QtCore import QTimer
 
 from core.context_manager import ContextItem, ContextItemType
-from modules.gui.dialog_styles import (
+from modules.gui.shared.dialog_styles import (
     apply_section_size_policy,
     get_text_edit_content_height,
 )
-from modules.gui.shared_widgets import (
+from modules.gui.shared.widgets import (
     CollapsibleSectionHeader,
     ImageChipWidget,
     create_text_edit,
     TEXT_EDIT_MIN_HEIGHT,
 )
-from modules.gui.message_share_data import ConversationTurn, TabState
+from modules.gui.prompt_execute_dialog.data import ConversationTurn, TabState
 
 if TYPE_CHECKING:
-    from modules.gui.message_share_dialog import MessageShareDialog
+    from modules.gui.prompt_execute_dialog.dialog import PromptExecuteDialog
 
 
 class ConversationManager:
@@ -32,7 +31,7 @@ class ConversationManager:
     - Validation of conversation state
     """
 
-    def __init__(self, dialog: "MessageShareDialog"):
+    def __init__(self, dialog: "PromptExecuteDialog"):
         self.dialog = dialog
 
     # --- Section Creation ---

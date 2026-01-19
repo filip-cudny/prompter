@@ -33,7 +33,7 @@ from modules.utils.notifications import PyQtNotificationManager
 from modules.utils.notification_config import is_notification_enabled
 from core.openai_service import OpenAiService
 from core.context_manager import ContextManager
-from modules.gui.shared_widgets import TOOLTIP_STYLE
+from modules.gui.shared import TOOLTIP_STYLE
 from modules.utils.keymap_actions import initialize_global_action_registry
 
 

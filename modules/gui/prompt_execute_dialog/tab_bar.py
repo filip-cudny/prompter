@@ -1,4 +1,4 @@
-"""Conversation tab bar widget for MessageShareDialog."""
+"""Conversation tab bar widget for PromptExecuteDialog."""
 
 from typing import Dict, List, Optional
 

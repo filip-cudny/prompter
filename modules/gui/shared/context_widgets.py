@@ -19,7 +19,7 @@ from PyQt5.QtCore import Qt, pyqtSignal, QByteArray, QBuffer, QSize, QPoint
 from PyQt5.QtGui import QImage
 
 from core.context_manager import ContextManager, ContextItemType
-from modules.gui.dialog_styles import TOOLTIP_STYLE
+from modules.gui.shared.dialog_styles import TOOLTIP_STYLE
 from modules.gui.icons import (
     create_icon,
     ICON_COLOR_NORMAL,

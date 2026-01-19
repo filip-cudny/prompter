@@ -17,9 +17,9 @@ from PyQt5.QtCore import Qt, pyqtSignal
 
 from core.interfaces import ClipboardManager
 from core.models import HistoryEntry, HistoryEntryType
-from modules.gui.base_dialog import BaseDialog
-from modules.gui.context_widgets import IconButton
-from modules.gui.dialog_styles import (
+from modules.gui.shared.base_dialog import BaseDialog
+from modules.gui.shared.context_widgets import IconButton
+from modules.gui.shared.dialog_styles import (
     COMBOBOX_STYLE,
     SCROLL_CONTENT_MARGINS,
     SCROLL_CONTENT_SPACING,

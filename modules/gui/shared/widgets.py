@@ -15,10 +15,10 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, pyqtSignal, QByteArray, QBuffer, QTimer
 from PyQt5.QtGui import QFont, QImage
 
-from modules.gui.context_widgets import IconButton
-from modules.gui.dialog_styles import TOOLTIP_STYLE
+from modules.gui.shared.context_widgets import IconButton
+from modules.gui.shared.dialog_styles import TOOLTIP_STYLE
 from modules.gui.icons import ICON_COLOR_NORMAL
-from modules.gui.undo_redo_functions import TextEditUndoHelper
+from modules.gui.shared.undo_redo import TextEditUndoHelper
 from modules.utils.notification_config import is_notification_enabled
 
 logger = logging.getLogger(__name__)

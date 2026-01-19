@@ -1,11 +1,11 @@
-"""Image chip management for MessageShareDialog sections."""
+"""Image chip management for dialog sections."""
 
 from typing import List, Optional, Callable
 
 from PyQt5.QtWidgets import QWidget, QHBoxLayout
 
 from core.context_manager import ContextItem, ContextItemType
-from modules.gui.shared_widgets import ImageChipWidget
+from modules.gui.shared.widgets import ImageChipWidget
 
 
 class SectionImageHandler:
