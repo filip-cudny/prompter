@@ -775,7 +775,7 @@ class PyQtMenuEventHandler:
             if prompt_name:
                 error_message = f"{result.error}\n({prompt_name})"
 
-            # Show warning for NO_ACTIVE_PROMPT and EXECUTION_IN_PROGRESS, error for others
+            # Show warning for NO_ACTIVE_PROMPT, EXECUTION_IN_PROGRESS, and CLIPBOARD_ERROR; error for others
             if result.error_code == ErrorCode.NO_ACTIVE_PROMPT:
                 self.notification_manager.show_warning_notification(
                     "No Active Prompt",
@@ -787,6 +787,11 @@ class PyQtMenuEventHandler:
                         "Prompt execution in progress",
                         "Please wait for the current prompt to complete",
                     )
+            elif result.error_code == ErrorCode.CLIPBOARD_ERROR:
+                self.notification_manager.show_warning_notification(
+                    "Clipboard Unavailable",
+                    "Copy some text to clipboard and try again",
+                )
             else:
                 self.notification_manager.show_error_notification(
                     "Execution Failed",

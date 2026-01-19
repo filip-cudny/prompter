@@ -7,6 +7,7 @@ from abc import ABC, abstractmethod
 
 from core.interfaces import ClipboardManager
 from core.context_manager import ContextManager
+from core.exceptions import ClipboardUnavailableError
 
 logger = logging.getLogger(__name__)
 
@@ -45,10 +46,14 @@ class ClipboardPlaceholderProcessor(PlaceholderProcessor):
             return context
 
         try:
-            return self.clipboard_manager.get_content()
+            content = self.clipboard_manager.get_content()
+            if not content or not content.strip():
+                raise ClipboardUnavailableError("Clipboard is empty")
+            return content
+        except ClipboardUnavailableError:
+            raise
         except Exception as e:
-            logger.warning("Failed to get clipboard content: %s", e)
-            return ""
+            raise ClipboardUnavailableError(f"Clipboard unavailable: {e}")
 
 
 class ContextPlaceholderProcessor(PlaceholderProcessor):
@@ -169,6 +174,8 @@ class PlaceholderService:
                         placeholder_pattern, replacement_value
                     )
                     logger.debug("Processed placeholder: %s", placeholder_name)
+                except ClipboardUnavailableError:
+                    raise
                 except Exception as e:
                     logger.error(
                         "Failed to process placeholder %s: %s", placeholder_name, e

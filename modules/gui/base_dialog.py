@@ -3,11 +3,17 @@
 from typing import List, Tuple, Union
 
 from PyQt5.QtCore import Qt, QEvent, QTimer
-from PyQt5.QtWidgets import QDialog, QFrame, QScrollArea, QSizePolicy, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import (
+    QDialog,
+    QFrame,
+    QScrollArea,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
+)
 
 from modules.gui.dialog_styles import (
     DEFAULT_DIALOG_SIZE,
-    DIALOG_CONTENT_MARGINS,
     DIALOG_SHOW_DELAY_MS,
     MIN_DIALOG_SIZE,
     SCROLL_CONTENT_MARGINS,
@@ -31,6 +37,8 @@ class BaseDialog(QDialog):
     - Call apply_dialog_styles() in __init__ if using standard styling
     - Call restore_geometry_from_state() after setting up the UI
     """
+
+    _focus_in_progress = False
 
     # Override in subclass for state persistence key
     STATE_KEY: str = "base_dialog"
@@ -139,7 +147,9 @@ class BaseDialog(QDialog):
             container: Section container for size policy
             expanding: If True, use Expanding policy when visible; else Maximum
         """
-        widgets = content_widgets if isinstance(content_widgets, list) else [content_widgets]
+        widgets = (
+            content_widgets if isinstance(content_widgets, list) else [content_widgets]
+        )
         is_visible = any(w.isVisible() for w in widgets)
 
         for widget in widgets:
@@ -175,7 +185,11 @@ class BaseDialog(QDialog):
         """
         collapsed = self.get_section_state(f"{section_key}_collapsed", False)
         if collapsed:
-            widgets = content_widgets if isinstance(content_widgets, list) else [content_widgets]
+            widgets = (
+                content_widgets
+                if isinstance(content_widgets, list)
+                else [content_widgets]
+            )
             for widget in widgets:
                 widget.hide()
             header.set_collapsed(True)
@@ -194,15 +208,16 @@ class BaseDialog(QDialog):
             QEvent.FocusIn,
             QEvent.MouseButtonPress,
         ):
-            # Immediate raise
-            self.raise_()
-            self.activateWindow()
-            # Delayed raise to override context menu's focus restoration
-            QTimer.singleShot(DIALOG_SHOW_DELAY_MS, self._ensure_focus)
+            if not BaseDialog._focus_in_progress:
+                BaseDialog._focus_in_progress = True
+                self.raise_()
+                self.activateWindow()
+                QTimer.singleShot(DIALOG_SHOW_DELAY_MS, self._clear_focus_guard)
         return super().event(event)
 
-    def _ensure_focus(self):
-        """Ensure dialog stays focused after context menu cleanup."""
+    def _clear_focus_guard(self):
+        """Clear the focus guard after focus operations complete."""
+        BaseDialog._focus_in_progress = False
         if self.isVisible():
             self.raise_()
             self.activateWindow()
