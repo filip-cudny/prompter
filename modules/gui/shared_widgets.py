@@ -18,6 +18,7 @@ from PyQt5.QtGui import QFont, QImage
 from modules.gui.context_widgets import IconButton
 from modules.gui.dialog_styles import TOOLTIP_STYLE
 from modules.gui.icons import ICON_COLOR_NORMAL
+from modules.gui.undo_redo_functions import TextEditUndoHelper
 from modules.utils.notification_config import is_notification_enabled
 
 logger = logging.getLogger(__name__)
@@ -507,17 +508,7 @@ class ExpandableTextSection(QWidget):
         self._collapsed = False
         self._wrapped = True  # Default: wrapped (height limited)
         self._title = title
-
-        # Undo/redo state
-        self._undo_stack: list = []
-        self._redo_stack: list = []
-        self._last_text = ""
-
-        # Text change debounce timer
-        self._text_change_timer = QTimer()
-        self._text_change_timer.setSingleShot(True)
-        self._text_change_timer.setInterval(500)
-        self._text_change_timer.timeout.connect(self._save_text_state)
+        self._undo_helper: Optional[TextEditUndoHelper] = None
 
         self._setup_ui(
             title,
@@ -559,8 +550,15 @@ class ExpandableTextSection(QWidget):
 
         # Text edit
         self.text_edit = create_text_edit(placeholder=placeholder, min_height=0)
-        self.text_edit.textChanged.connect(self._on_text_changed)
         layout.addWidget(self.text_edit)
+
+        # Initialize undo helper
+        self._undo_helper = TextEditUndoHelper(
+            self.text_edit,
+            self._update_undo_redo_buttons,
+        )
+        self._undo_helper.initialize()
+        self.text_edit.textChanged.connect(self._on_text_changed)
 
         # Apply initial wrap state
         self._apply_wrap_state()
@@ -590,60 +588,29 @@ class ExpandableTextSection(QWidget):
 
     def _on_text_changed(self):
         """Handle text changes - debounce state saving."""
-        self._text_change_timer.start()
+        self._undo_helper.schedule_save()
         self.text_changed.emit()
 
-    def _save_text_state(self):
-        """Save text state if changed (called by debounce timer)."""
-        current_text = self.text_edit.toPlainText()
-        if current_text != self._last_text:
-            self._undo_stack.append(self._last_text)
-            self._redo_stack.clear()
-            self._last_text = current_text
-            self._update_undo_redo_buttons()
-
-    def _update_undo_redo_buttons(self):
+    def _update_undo_redo_buttons(self, can_undo: bool, can_redo: bool):
         """Update undo/redo button enabled states."""
-        self.header.set_undo_redo_enabled(
-            len(self._undo_stack) > 0,
-            len(self._redo_stack) > 0,
-        )
+        self.header.set_undo_redo_enabled(can_undo, can_redo)
 
     # Public API
 
     def undo(self):
         """Undo last text change."""
-        if not self._undo_stack:
-            return
-        self._redo_stack.append(self.text_edit.toPlainText())
-        previous_text = self._undo_stack.pop()
-        self.text_edit.blockSignals(True)
-        self.text_edit.setPlainText(previous_text)
-        self._last_text = previous_text
-        self.text_edit.blockSignals(False)
-        self._update_undo_redo_buttons()
+        self._undo_helper.undo()
 
     def redo(self):
         """Redo last undone text change."""
-        if not self._redo_stack:
-            return
-        self._undo_stack.append(self.text_edit.toPlainText())
-        redo_text = self._redo_stack.pop()
-        self.text_edit.blockSignals(True)
-        self.text_edit.setPlainText(redo_text)
-        self._last_text = redo_text
-        self.text_edit.blockSignals(False)
-        self._update_undo_redo_buttons()
+        self._undo_helper.redo()
 
     def set_text(self, text: str):
         """Set the text content without affecting undo stack."""
         self.text_edit.blockSignals(True)
         self.text_edit.setPlainText(text)
-        self._last_text = text
         self.text_edit.blockSignals(False)
-        self._undo_stack.clear()
-        self._redo_stack.clear()
-        self._update_undo_redo_buttons()
+        self._undo_helper.initialize(text)
 
     def get_text(self) -> str:
         """Get the current text content."""
@@ -673,9 +640,7 @@ class ExpandableTextSection(QWidget):
 
     def clear_undo_stack(self):
         """Clear the undo/redo stacks."""
-        self._undo_stack.clear()
-        self._redo_stack.clear()
-        self._update_undo_redo_buttons()
+        self._undo_helper.clear()
 
 
 class UndoRedoManager(Generic[T]):

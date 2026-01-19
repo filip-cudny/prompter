@@ -32,6 +32,7 @@ from modules.gui.shared_widgets import (
     ImageChipWidget,
     create_text_edit,
 )
+from modules.gui.undo_redo_functions import perform_undo, perform_redo
 
 logger = logging.getLogger(__name__)
 
@@ -539,29 +540,23 @@ class ContextEditorDialog(BaseDialog):
 
     def _undo_context(self):
         """Undo last context change."""
-        if not self._context_undo_stack:
-            return
-
-        # Save current state to redo stack
-        self._context_redo_stack.append(self._get_context_state())
-
-        # Restore previous state
-        state = self._context_undo_stack.pop()
-        self._restore_context_state(state)
-        self._update_undo_redo_buttons()
+        if perform_undo(
+            self._context_undo_stack,
+            self._context_redo_stack,
+            self._get_context_state,
+            self._restore_context_state,
+        ):
+            self._update_undo_redo_buttons()
 
     def _redo_context(self):
         """Redo last undone context change."""
-        if not self._context_redo_stack:
-            return
-
-        # Save current state to undo stack
-        self._context_undo_stack.append(self._get_context_state())
-
-        # Restore redo state
-        state = self._context_redo_stack.pop()
-        self._restore_context_state(state)
-        self._update_undo_redo_buttons()
+        if perform_redo(
+            self._context_undo_stack,
+            self._context_redo_stack,
+            self._get_context_state,
+            self._restore_context_state,
+        ):
+            self._update_undo_redo_buttons()
 
     # --- Clipboard state management ---
 
@@ -598,29 +593,23 @@ class ContextEditorDialog(BaseDialog):
 
     def _undo_clipboard(self):
         """Undo last clipboard change."""
-        if not self._clipboard_undo_stack:
-            return
-
-        # Save current state to redo stack
-        self._clipboard_redo_stack.append(self._get_clipboard_state())
-
-        # Restore previous state
-        state = self._clipboard_undo_stack.pop()
-        self._restore_clipboard_state(state)
-        self._update_undo_redo_buttons()
+        if perform_undo(
+            self._clipboard_undo_stack,
+            self._clipboard_redo_stack,
+            self._get_clipboard_state,
+            self._restore_clipboard_state,
+        ):
+            self._update_undo_redo_buttons()
 
     def _redo_clipboard(self):
         """Redo last undone clipboard change."""
-        if not self._clipboard_redo_stack:
-            return
-
-        # Save current state to undo stack
-        self._clipboard_undo_stack.append(self._get_clipboard_state())
-
-        # Restore redo state
-        state = self._clipboard_redo_stack.pop()
-        self._restore_clipboard_state(state)
-        self._update_undo_redo_buttons()
+        if perform_redo(
+            self._clipboard_undo_stack,
+            self._clipboard_redo_stack,
+            self._get_clipboard_state,
+            self._restore_clipboard_state,
+        ):
+            self._update_undo_redo_buttons()
 
     # --- Common state management ---
 

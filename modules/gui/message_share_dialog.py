@@ -35,6 +35,7 @@ from modules.gui.shared_widgets import (
     create_text_edit,
     TEXT_EDIT_MIN_HEIGHT,
 )
+from modules.gui.undo_redo_functions import perform_undo, perform_redo
 
 # Import from extracted modules
 from modules.gui.message_share_data import (
@@ -811,21 +812,23 @@ class MessageShareDialog(BaseDialog):
 
     def _undo_context(self):
         """Undo last context change."""
-        if not self._context_undo_stack:
-            return
-        self._context_redo_stack.append(self._get_context_state())
-        state = self._context_undo_stack.pop()
-        self._restore_context_state(state)
-        self._update_undo_redo_buttons()
+        if perform_undo(
+            self._context_undo_stack,
+            self._context_redo_stack,
+            self._get_context_state,
+            self._restore_context_state,
+        ):
+            self._update_undo_redo_buttons()
 
     def _redo_context(self):
         """Redo last undone context change."""
-        if not self._context_redo_stack:
-            return
-        self._context_undo_stack.append(self._get_context_state())
-        state = self._context_redo_stack.pop()
-        self._restore_context_state(state)
-        self._update_undo_redo_buttons()
+        if perform_redo(
+            self._context_undo_stack,
+            self._context_redo_stack,
+            self._get_context_state,
+            self._restore_context_state,
+        ):
+            self._update_undo_redo_buttons()
 
     # --- Undo/Redo: Input Section ---
 
@@ -842,21 +845,23 @@ class MessageShareDialog(BaseDialog):
 
     def _undo_input(self):
         """Undo last input change."""
-        if not self._input_undo_stack:
-            return
-        self._input_redo_stack.append(self._get_input_state())
-        state = self._input_undo_stack.pop()
-        self._restore_input_state(state)
-        self._update_undo_redo_buttons()
+        if perform_undo(
+            self._input_undo_stack,
+            self._input_redo_stack,
+            self._get_input_state,
+            self._restore_input_state,
+        ):
+            self._update_undo_redo_buttons()
 
     def _redo_input(self):
         """Redo last undone input change."""
-        if not self._input_redo_stack:
-            return
-        self._input_undo_stack.append(self._get_input_state())
-        state = self._input_redo_stack.pop()
-        self._restore_input_state(state)
-        self._update_undo_redo_buttons()
+        if perform_redo(
+            self._input_undo_stack,
+            self._input_redo_stack,
+            self._get_input_state,
+            self._restore_input_state,
+        ):
+            self._update_undo_redo_buttons()
 
     # --- Undo/Redo: Output Section ---
 
@@ -873,33 +878,33 @@ class MessageShareDialog(BaseDialog):
 
     def _undo_output(self):
         """Undo last output change."""
-        if not self._output_undo_stack:
-            return
-        self._output_redo_stack.append(self._get_output_state())
-        state = self._output_undo_stack.pop()
-        self._restore_output_state(state)
-
-        if self._conversation_turns:
-            turn = self._conversation_turns[0]
-            if turn.output_versions:
-                turn.output_versions[turn.current_version_index] = state.text
-
-        self._update_undo_redo_buttons()
+        state = perform_undo(
+            self._output_undo_stack,
+            self._output_redo_stack,
+            self._get_output_state,
+            self._restore_output_state,
+        )
+        if state:
+            if self._conversation_turns:
+                turn = self._conversation_turns[0]
+                if turn.output_versions:
+                    turn.output_versions[turn.current_version_index] = state.text
+            self._update_undo_redo_buttons()
 
     def _redo_output(self):
         """Redo last undone output change."""
-        if not self._output_redo_stack:
-            return
-        self._output_undo_stack.append(self._get_output_state())
-        state = self._output_redo_stack.pop()
-        self._restore_output_state(state)
-
-        if self._conversation_turns:
-            turn = self._conversation_turns[0]
-            if turn.output_versions:
-                turn.output_versions[turn.current_version_index] = state.text
-
-        self._update_undo_redo_buttons()
+        state = perform_redo(
+            self._output_undo_stack,
+            self._output_redo_stack,
+            self._get_output_state,
+            self._restore_output_state,
+        )
+        if state:
+            if self._conversation_turns:
+                turn = self._conversation_turns[0]
+                if turn.output_versions:
+                    turn.output_versions[turn.current_version_index] = state.text
+            self._update_undo_redo_buttons()
 
     # --- Version Navigation for Output #1 ---
 
