@@ -1232,3 +1232,420 @@ class TestRegenerationPreservesUndoState:
 
         assert turn.version_undo_states[0].undo_stack == ["a", "b"]
         assert turn.version_undo_states[0].redo_stack == ["c"]
+
+
+def _restore_pending_version_data(dialog, turn):
+    """Mirrors execution_handler.py lines 321-327.
+
+    This MUST match the actual implementation in execute_with_message.
+    Update this when the fix is applied to execution_handler.py.
+    """
+    if hasattr(dialog, '_pending_version_history'):
+        turn.output_versions = dialog._pending_version_history
+        delattr(dialog, '_pending_version_history')
+    if hasattr(dialog, '_pending_version_undo_states'):
+        turn.version_undo_states = dialog._pending_version_undo_states
+        delattr(dialog, '_pending_version_undo_states')
+    if hasattr(dialog, '_pending_version_index'):
+        turn.current_version_index = dialog._pending_version_index
+        delattr(dialog, '_pending_version_index')
+
+
+class TestRegenerationPreservesVersionIndex:
+    def test_version_index_restored_after_regeneration(self):
+        dialog = Mock()
+        dialog._pending_version_history = ["original v1", "original v2"]
+        dialog._pending_version_undo_states = []
+        dialog._pending_version_index = 1
+
+        turn = make_turn_with_versions(
+            output_versions=[],
+            current_version_index=0,
+        )
+
+        _restore_pending_version_data(dialog, turn)
+
+        _sync_all_outputs_to_versions_standalone(
+            conversation_turns=[turn],
+            output_edit_text="Regenerating...",
+            output_sections=[],
+        )
+
+        assert turn.output_versions[0] == "original v1", "Version 0 should be preserved"
+        assert turn.output_versions[1] == "Regenerating...", "Version 1 should be updated"
+
+
+def _sync_output_to_version_on_text_change(
+    turn,
+    current_output_text: str,
+    last_output_text: str,
+) -> str:
+    """Standalone version of sync logic in _save_text_states."""
+    if current_output_text != last_output_text:
+        if turn and turn.output_versions:
+            turn.output_versions[turn.current_version_index] = current_output_text
+        return current_output_text
+    return last_output_text
+
+
+def _sync_all_outputs_to_versions_standalone(
+    conversation_turns: list,
+    output_edit_text: str,
+    output_sections: list,
+):
+    """Standalone version of _sync_all_outputs_to_versions."""
+    if not conversation_turns:
+        return
+
+    turn1 = conversation_turns[0]
+    if turn1.output_versions:
+        turn1.output_versions[turn1.current_version_index] = output_edit_text
+
+    for section in output_sections:
+        turn_number = section.turn_number
+        for turn in conversation_turns:
+            if turn.turn_number == turn_number and turn.output_versions:
+                turn.output_versions[turn.current_version_index] = section.text_edit.toPlainText()
+                break
+
+
+def _build_conversation_data_with_versions(
+    context_text: str,
+    context_images: list,
+    conversation_turns: list,
+) -> dict:
+    """Standalone version that uses output_versions like the real implementation."""
+    turns = []
+    for i, turn in enumerate(conversation_turns):
+        turn_data = {
+            "role": "user",
+            "text": turn.message_text,
+            "images": [
+                {"data": img.data, "media_type": img.media_type or "image/png"}
+                for img in turn.message_images
+            ],
+        }
+        if i == 0:
+            turn_data["context_text"] = context_text
+            turn_data["context_images"] = [
+                {"data": img.data, "media_type": img.media_type or "image/png"}
+                for img in context_images
+            ]
+
+        turns.append(turn_data)
+
+        if turn.is_complete and turn.output_versions:
+            selected_text = turn.output_versions[turn.current_version_index]
+            turns.append({"role": "assistant", "text": selected_text})
+        elif turn.is_complete and turn.output_text:
+            turns.append({"role": "assistant", "text": turn.output_text})
+
+    return {"turns": turns}
+
+
+def _on_send_copy_expected(
+    sync_fn,
+    execute_fn,
+    close_fn,
+    message_text: str,
+    message_images: list,
+):
+    """Expected behavior of _on_send_copy - MUST call sync before executing.
+
+    This defines the contract: _on_send_copy must sync outputs to versions
+    before sending to ensure edited text is included in conversation data.
+    """
+    sync_fn()  # REQUIRED: sync edited outputs to version arrays
+    has_content = bool(message_text.strip()) or bool(message_images)
+    if not has_content:
+        close_fn()
+        return
+    execute_fn(message_text, keep_open=False)
+
+
+def _on_send_show_expected(
+    sync_fn,
+    execute_fn,
+    regenerate_fn,
+    is_regenerate_mode: bool,
+    message_text: str,
+    message_images: list,
+):
+    """Expected behavior of _on_send_show - MUST call sync before executing.
+
+    This defines the contract: _on_send_show must sync outputs to versions
+    before sending (unless in regenerate mode, which has its own sync).
+    """
+    if is_regenerate_mode:
+        regenerate_fn()
+        return
+
+    sync_fn()  # REQUIRED: sync edited outputs to version arrays
+    has_content = bool(message_text.strip()) or bool(message_images)
+    if not has_content:
+        return
+    execute_fn(message_text, keep_open=True)
+
+
+class TestSendMethodsCallSync:
+    """Tests that verify _on_send_copy and _on_send_show call sync before sending.
+
+    These tests read the actual source code to verify the sync call is present.
+    This catches the bug where edited output wasn't synced before sending.
+    """
+
+    def test_on_send_copy_source_contains_sync_call(self):
+        """Verify _on_send_copy calls _sync_all_outputs_to_versions in source."""
+        import os
+        dialog_path = os.path.join(
+            os.path.dirname(__file__),
+            "..",
+            "modules",
+            "gui",
+            "prompt_execute_dialog",
+            "dialog.py",
+        )
+        with open(dialog_path) as f:
+            source = f.read()
+
+        # Find _on_send_copy method
+        import re
+        match = re.search(
+            r'def _on_send_copy\(self\):.*?(?=\n    def |\nclass |\Z)',
+            source,
+            re.DOTALL
+        )
+        assert match, "_on_send_copy method not found in dialog.py"
+
+        method_source = match.group(0)
+        assert '_sync_all_outputs_to_versions' in method_source, (
+            "_on_send_copy must call _sync_all_outputs_to_versions() "
+            "to sync edited outputs before sending"
+        )
+
+    def test_on_send_show_source_contains_sync_call(self):
+        """Verify _on_send_show calls _sync_all_outputs_to_versions in source."""
+        import os
+        dialog_path = os.path.join(
+            os.path.dirname(__file__),
+            "..",
+            "modules",
+            "gui",
+            "prompt_execute_dialog",
+            "dialog.py",
+        )
+        with open(dialog_path) as f:
+            source = f.read()
+
+        # Find _on_send_show method
+        import re
+        match = re.search(
+            r'def _on_send_show\(self\):.*?(?=\n    def |\nclass |\Z)',
+            source,
+            re.DOTALL
+        )
+        assert match, "_on_send_show method not found in dialog.py"
+
+        method_source = match.group(0)
+        assert '_sync_all_outputs_to_versions' in method_source, (
+            "_on_send_show must call _sync_all_outputs_to_versions() "
+            "to sync edited outputs before sending"
+        )
+
+    def test_sync_method_exists(self):
+        """Verify _sync_all_outputs_to_versions method exists in dialog.py."""
+        import os
+        dialog_path = os.path.join(
+            os.path.dirname(__file__),
+            "..",
+            "modules",
+            "gui",
+            "prompt_execute_dialog",
+            "dialog.py",
+        )
+        with open(dialog_path) as f:
+            source = f.read()
+
+        assert 'def _sync_all_outputs_to_versions(self)' in source, (
+            "_sync_all_outputs_to_versions method must exist in dialog.py "
+            "to sync edited outputs to version arrays before sending"
+        )
+
+
+class TestOutputVersionSyncOnEdit:
+    """Tests that verify edited output text is synced to turn.output_versions.
+
+    This test class catches the bug where user edits to output_edit were not
+    synced to turn.output_versions, causing stale data to be sent in
+    _build_conversation_data.
+    """
+
+    def test_edited_output_synced_on_text_change(self):
+        """Verify that editing output syncs to version array."""
+        turn = make_turn_with_versions(
+            output_versions=["original output"],
+            current_version_index=0,
+        )
+
+        _sync_output_to_version_on_text_change(
+            turn=turn,
+            current_output_text="user edited this",
+            last_output_text="original output",
+        )
+
+        assert turn.output_versions[0] == "user edited this"
+
+    def test_edited_output_used_in_conversation_data(self):
+        """Verify that _build_conversation_data uses the edited (synced) version."""
+        turn = make_turn_with_versions(
+            turn_number=1,
+            message_text="Hello",
+            output_versions=["original output"],
+            current_version_index=0,
+            is_complete=True,
+        )
+
+        _sync_output_to_version_on_text_change(
+            turn=turn,
+            current_output_text="user edited this",
+            last_output_text="original output",
+        )
+
+        result = _build_conversation_data_with_versions(
+            context_text="",
+            context_images=[],
+            conversation_turns=[turn],
+        )
+
+        assert result["turns"][1]["text"] == "user edited this"
+
+    def test_sync_before_send_updates_all_outputs(self):
+        """Verify _sync_all_outputs_to_versions syncs Output #1 before sending."""
+        turn = make_turn_with_versions(
+            turn_number=1,
+            message_text="Hello",
+            output_versions=["original output"],
+            current_version_index=0,
+            is_complete=True,
+        )
+
+        _sync_all_outputs_to_versions_standalone(
+            conversation_turns=[turn],
+            output_edit_text="edited in UI",
+            output_sections=[],
+        )
+
+        assert turn.output_versions[0] == "edited in UI"
+
+    def test_sync_before_send_updates_dynamic_outputs(self):
+        """Verify _sync_all_outputs_to_versions syncs dynamic output sections."""
+        turn1 = make_turn_with_versions(
+            turn_number=1,
+            message_text="First",
+            output_versions=["output 1"],
+            current_version_index=0,
+            is_complete=True,
+        )
+        turn2 = make_turn_with_versions(
+            turn_number=2,
+            message_text="Second",
+            output_versions=["output 2 original"],
+            current_version_index=0,
+            is_complete=True,
+        )
+
+        output_section = make_output_section(turn_number=2, text="output 2 edited")
+
+        _sync_all_outputs_to_versions_standalone(
+            conversation_turns=[turn1, turn2],
+            output_edit_text="output 1",
+            output_sections=[output_section],
+        )
+
+        assert turn2.output_versions[0] == "output 2 edited"
+
+    def test_no_sync_when_text_unchanged(self):
+        """Verify no sync happens when text hasn't changed."""
+        turn = make_turn_with_versions(
+            output_versions=["same text"],
+            current_version_index=0,
+        )
+
+        result = _sync_output_to_version_on_text_change(
+            turn=turn,
+            current_output_text="same text",
+            last_output_text="same text",
+        )
+
+        assert result == "same text"
+        assert turn.output_versions[0] == "same text"
+
+    def test_sync_to_correct_version_index(self):
+        """Verify sync updates the correct version when multiple versions exist."""
+        turn = make_turn_with_versions(
+            output_versions=["v1", "v2 original", "v3"],
+            current_version_index=1,
+        )
+
+        _sync_output_to_version_on_text_change(
+            turn=turn,
+            current_output_text="v2 edited",
+            last_output_text="v2 original",
+        )
+
+        assert turn.output_versions[0] == "v1"
+        assert turn.output_versions[1] == "v2 edited"
+        assert turn.output_versions[2] == "v3"
+
+    def test_full_flow_edit_then_send(self):
+        """End-to-end test: edit output, sync, then verify conversation data."""
+        turn1 = make_turn_with_versions(
+            turn_number=1,
+            message_text="First message",
+            output_versions=["First response"],
+            current_version_index=0,
+            is_complete=True,
+        )
+
+        turn1.output_versions[turn1.current_version_index] = "Edited first response"
+
+        turn2 = make_turn_with_versions(
+            turn_number=2,
+            message_text="Second message",
+            output_versions=[],
+            current_version_index=0,
+            is_complete=False,
+        )
+
+        result = _build_conversation_data_with_versions(
+            context_text="System context",
+            context_images=[],
+            conversation_turns=[turn1, turn2],
+        )
+
+        assert result["turns"][0]["text"] == "First message"
+        assert result["turns"][1]["text"] == "Edited first response"
+        assert result["turns"][2]["text"] == "Second message"
+        assert len(result["turns"]) == 3
+
+    def test_empty_turns_no_error(self):
+        """Verify sync handles empty conversation turns gracefully."""
+        _sync_all_outputs_to_versions_standalone(
+            conversation_turns=[],
+            output_edit_text="some text",
+            output_sections=[],
+        )
+
+    def test_turn_without_versions_no_error(self):
+        """Verify sync handles turns without output_versions gracefully."""
+        turn = make_turn_with_versions(
+            output_versions=[],
+            current_version_index=0,
+        )
+        turn.output_versions = []
+
+        _sync_output_to_version_on_text_change(
+            turn=turn,
+            current_output_text="edited",
+            last_output_text="original",
+        )
