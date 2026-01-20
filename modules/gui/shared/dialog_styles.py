@@ -17,7 +17,7 @@ QWIDGETSIZE_MAX = 16777215
 
 # Scroll area margin constants
 DIALOG_CONTENT_MARGINS = (10, 10, 0, 10)  # No right margin - scrollbar at edge
-SCROLL_CONTENT_MARGINS = (0, 0, 6, 0)  # Right margin for scrollbar gap
+SCROLL_CONTENT_MARGINS = (0, 0, 0, 0)  # Individual widgets handle their margins
 SCROLL_CONTENT_SPACING = 8
 
 # Button layout constants
@@ -140,6 +140,7 @@ DIALOG_STYLESHEET = f"""
         border: 1px solid {COLOR_BORDER};
         border-radius: 4px;
         padding: 8px;
+        margin-right: 14px;
         selection-background-color: {COLOR_SELECTION};
     }}
     QPushButton {{
