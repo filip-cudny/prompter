@@ -29,6 +29,7 @@ from modules.gui.shared.dialog_styles import (
     COLOR_DIALOG_BG,
     COLOR_TEXT,
     COLOR_TEXT_EDIT_BG,
+    SCROLL_CONTENT_MARGINS,
     SVG_CHEVRON_DOWN_PATH,
     TOOLTIP_STYLE,
     get_dialog_stylesheet,
@@ -195,7 +196,7 @@ class PromptEditorDialog(QDialog):
             }}
         """)
         form_layout = QVBoxLayout(form_container)
-        form_layout.setContentsMargins(0, 0, 0, 0)
+        form_layout.setContentsMargins(*SCROLL_CONTENT_MARGINS)
         form_layout.setSpacing(12)
 
         name_row = QHBoxLayout()
