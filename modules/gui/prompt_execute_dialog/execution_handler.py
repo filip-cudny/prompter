@@ -482,6 +482,80 @@ class ExecutionHandler:
 
         return {"turns": turns}
 
+    def _clear_regeneration_flag(self) -> bool:
+        """Clear regeneration flag and return whether it was set."""
+        dialog = self.dialog
+        is_regeneration = getattr(dialog, '_pending_is_regeneration', False)
+        if hasattr(dialog, '_pending_is_regeneration'):
+            delattr(dialog, '_pending_is_regeneration')
+        return is_regeneration
+
+    def _update_turn_with_output(self, output_text: str, is_regeneration: bool):
+        """Update turn's version history and mark as complete."""
+        dialog = self.dialog
+        if not dialog._conversation_turns:
+            return
+
+        turn = dialog._conversation_turns[-1]
+        turn.output_text = output_text
+        turn.is_complete = True
+
+        if not output_text:
+            return
+
+        if is_regeneration and turn.output_versions:
+            turn.output_versions[turn.current_version_index] = output_text
+            turn.version_undo_states[turn.current_version_index] = OutputVersionState(
+                undo_stack=[],
+                redo_stack=[],
+                last_text=output_text
+            )
+        else:
+            turn.output_versions.append(output_text)
+            turn.current_version_index = len(turn.output_versions) - 1
+            turn.version_undo_states.append(OutputVersionState(
+                undo_stack=[],
+                redo_stack=[],
+                last_text=output_text
+            ))
+
+    def _update_version_ui(self, output_text: str):
+        """Update version display and sync undo state in UI."""
+        dialog = self.dialog
+        if not dialog._conversation_turns:
+            return
+
+        turn = dialog._conversation_turns[-1]
+
+        if turn.turn_number == 1 or not dialog._output_sections:
+            dialog.output_header.set_version_info(
+                turn.current_version_index + 1,
+                len(turn.output_versions)
+            )
+            if turn.output_versions:
+                dialog._output_undo_stack.clear()
+                dialog._output_redo_stack.clear()
+                dialog._last_output_text = output_text or ""
+                dialog._update_undo_redo_buttons()
+        else:
+            section = dialog._output_sections[-1]
+            section.header.set_version_info(
+                turn.current_version_index + 1,
+                len(turn.output_versions)
+            )
+            if turn.output_versions:
+                section.undo_stack.clear()
+                section.redo_stack.clear()
+                section.last_text = output_text or ""
+                dialog._update_dynamic_section_buttons(section)
+
+    def _finalize_execution_ui(self):
+        """Show reply button and update send buttons after execution ends."""
+        dialog = self.dialog
+        dialog.reply_btn.setVisible(True)
+        dialog.reply_btn.setIcon(create_icon("message-square-reply", "#f0f0f0", 16))
+        dialog._update_send_buttons_state()
+
     def stop_execution(self):
         """Cancel this dialog's execution only."""
         if not self._current_execution_id:
@@ -489,21 +563,25 @@ class ExecutionHandler:
 
         execution_id_to_cancel = self._current_execution_id
 
-        # Set flags BEFORE cancelling to prevent signal handler from processing
+        is_regeneration = self._clear_regeneration_flag()
+
         self._waiting_for_result = False
         self._current_execution_id = None
+        self._disable_for_global_execution = False
         self._revert_button_to_send_state()
 
-        # Append [cancelled] to existing output content
         output_edit = self._get_current_output_edit()
-
         current_text = output_edit.toPlainText()
-        if current_text and current_text != "Executing...":
-            output_edit.setPlainText(current_text + "\n\n[cancelled]")
+        if current_text and current_text not in ("Executing...", "Regenerating..."):
+            cancelled_text = current_text + "\n\n[cancelled]"
         else:
-            output_edit.setPlainText("[cancelled]")
+            cancelled_text = "[cancelled]"
+        output_edit.setPlainText(cancelled_text)
 
-        # Cancel the execution after updating UI (silent mode - we handle UI ourselves)
+        self._update_turn_with_output(cancelled_text, is_regeneration)
+        self._update_version_ui(cancelled_text)
+        self._finalize_execution_ui()
+
         service = self._get_prompt_store_service()
         if service:
             service.execution_service.cancel_execution(
@@ -517,7 +595,6 @@ class ExecutionHandler:
         if not self._waiting_for_result:
             return
 
-        # Filter by execution_id - only process results for this dialog's execution
         if (
             execution_id
             and self._current_execution_id
@@ -529,69 +606,19 @@ class ExecutionHandler:
         self._current_execution_id = None
         self.disconnect_execution_signal()
         self.disconnect_streaming_signal()
-
-        # Revert button to send state
         self._revert_button_to_send_state()
 
         dialog = self.dialog
-
-        # Check if streaming already updated the UI
+        is_regeneration = self._clear_regeneration_flag()
         is_streaming = result.metadata and result.metadata.get("streaming", False)
 
-        # Mark the current turn as complete and store output
-        if dialog._conversation_turns:
-            turn = dialog._conversation_turns[-1]
-            output_text = result.content if result.success else None
-            turn.output_text = output_text
-            turn.is_complete = True
+        output_text = result.content if result.success else None
+        self._update_turn_with_output(output_text, is_regeneration)
+        self._update_version_ui(output_text)
+        self._finalize_execution_ui()
 
-            # Append to version history
-            if output_text:
-                turn.output_versions.append(output_text)
-                turn.current_version_index = len(turn.output_versions) - 1
-                # Create a fresh undo state for the new version
-                turn.version_undo_states.append(OutputVersionState(
-                    undo_stack=[],
-                    redo_stack=[],
-                    last_text=output_text
-                ))
-
-            # Update version display in UI
-            if turn.turn_number == 1 or not dialog._output_sections:
-                dialog.output_header.set_version_info(
-                    turn.current_version_index + 1,
-                    len(turn.output_versions)
-                )
-                # Sync undo state for Output #1
-                if turn.output_versions:
-                    dialog._output_undo_stack.clear()
-                    dialog._output_redo_stack.clear()
-                    dialog._last_output_text = output_text or ""
-                    dialog._update_undo_redo_buttons()
-            else:
-                section = dialog._output_sections[-1]
-                section.header.set_version_info(
-                    turn.current_version_index + 1,
-                    len(turn.output_versions)
-                )
-                # Sync undo state for dynamic section
-                if turn.output_versions:
-                    section.undo_stack.clear()
-                    section.redo_stack.clear()
-                    section.last_text = output_text or ""
-                    dialog._update_dynamic_section_buttons(section)
-
-        # Show Reply button now that we have output
-        dialog.reply_btn.setVisible(True)
-        dialog.reply_btn.setIcon(create_icon("message-square-reply", "#f0f0f0", 16))
-
-        # Update send buttons state
-        dialog._update_send_buttons_state()
-
-        # Get the correct output text edit
         output_edit = self._get_current_output_edit()
 
-        # Only update text if NOT streaming (streaming already did it) or on error
         if not is_streaming or not result.success:
             if result.success and result.content:
                 output_edit.setPlainText(result.content)
@@ -600,7 +627,6 @@ class ExecutionHandler:
             else:
                 output_edit.setPlainText("No output received")
 
-        # Update height for expanded output sections (streaming blocks signals)
         if dialog._current_turn_number == 1 or not dialog._output_sections:
             if not dialog.output_header.is_wrapped():
                 content_height = get_text_edit_content_height(dialog.output_edit)

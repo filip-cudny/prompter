@@ -1168,6 +1168,9 @@ class PromptExecuteDialog(BaseDialog):
         # Check for empty sections in conversation history
         has_conversation_error = self._has_empty_conversation_sections()
 
+        # Check if stop button is active - don't override its state
+        stop_active = self._execution_handler._stop_button_active
+
         can_send = (
             has_message
             and not has_conversation_error
@@ -1182,24 +1185,25 @@ class PromptExecuteDialog(BaseDialog):
             and not self._disable_for_global_execution
         )
 
-        self.send_show_btn.setEnabled(can_act)
-        self.send_copy_btn.setEnabled(can_send)
+        # Enable buttons (stop button should stay enabled)
+        self.send_show_btn.setEnabled(can_act or stop_active == "alt")
+        self.send_copy_btn.setEnabled(can_send or stop_active == "ctrl")
 
-        # Update send_show_btn icon and tooltip based on mode
-        if is_regenerate:
-            # Regenerate mode - show redo icon
-            icon_color = "#f0f0f0" if can_act else "#444444"
-            self.send_show_btn.setIcon(create_icon("refresh-cw", icon_color, 16))
-            self.send_show_btn.setToolTip("Regenerate (Alt+Enter)")
-        else:
-            # Normal send mode
-            icon_color = "#f0f0f0" if can_act else "#444444"
-            self.send_show_btn.setIcon(create_icon("send-horizontal", icon_color, 16))
-            self.send_show_btn.setToolTip("Send & Show Result (Alt+Enter)")
+        # Only update send_show_btn icon if not in stop mode
+        if stop_active != "alt":
+            if is_regenerate:
+                icon_color = "#f0f0f0" if can_act else "#444444"
+                self.send_show_btn.setIcon(create_icon("refresh-cw", icon_color, 16))
+                self.send_show_btn.setToolTip("Regenerate (Alt+Enter)")
+            else:
+                icon_color = "#f0f0f0" if can_act else "#444444"
+                self.send_show_btn.setIcon(create_icon("send-horizontal", icon_color, 16))
+                self.send_show_btn.setToolTip("Send & Show Result (Alt+Enter)")
 
-        # Update copy button icon
-        copy_icon_color = "#f0f0f0" if can_send else "#444444"
-        self.send_copy_btn.setIcon(create_composite_icon("delete", "copy", copy_icon_color, 16, "&", 4))
+        # Only update send_copy_btn icon if not in stop mode
+        if stop_active != "ctrl":
+            copy_icon_color = "#f0f0f0" if can_send else "#444444"
+            self.send_copy_btn.setIcon(create_composite_icon("delete", "copy", copy_icon_color, 16, "&", 4))
 
     def _on_context_text_changed(self):
         """Handle context text changes - debounce state saving."""
@@ -1688,6 +1692,24 @@ class PromptExecuteDialog(BaseDialog):
         """Check if dialog is in regenerate mode (can regenerate last output)."""
         return self._conversation_manager.is_regenerate_mode()
 
+    def _sync_ui_to_conversation_turns(self):
+        """Sync current UI text/images back to conversation turn data."""
+        if not self._conversation_turns:
+            return
+
+        # Sync turn 1 from main input section
+        turn1 = self._conversation_turns[0]
+        turn1.message_text = self.input_edit.toPlainText()
+        turn1.message_images = list(self._message_images)
+
+        # Sync subsequent turns from dynamic reply sections
+        for i, section in enumerate(self._dynamic_sections):
+            turn_idx = i + 1  # Turn 2 is at index 1, etc.
+            if turn_idx < len(self._conversation_turns):
+                turn = self._conversation_turns[turn_idx]
+                turn.message_text = section.text_edit.toPlainText()
+                turn.message_images = list(section.turn_images)
+
     def _regenerate_last_output(self):
         """Regenerate the last AI output by re-executing the last message."""
         if not self._conversation_turns:
@@ -1699,6 +1721,7 @@ class PromptExecuteDialog(BaseDialog):
 
         turn_number = last_turn.turn_number
 
+        # Save current version's edited text and undo state
         if last_turn.output_versions:
             if turn_number == 1 or not self._output_sections:
                 current_output_text = self.output_edit.toPlainText()
@@ -1710,9 +1733,23 @@ class PromptExecuteDialog(BaseDialog):
                 last_turn.output_versions[last_turn.current_version_index] = current_output_text
                 self._save_dynamic_version_undo_state(section, last_turn)
 
+        # Create copies of version history
         existing_versions = list(last_turn.output_versions)
         existing_version_undo_states = list(last_turn.version_undo_states)
-        existing_version_index = last_turn.current_version_index
+
+        # Create a NEW version placeholder BEFORE execution
+        # This isolates the previous version completely
+        from modules.gui.prompt_execute_dialog.data import OutputVersionState
+        existing_versions.append("")  # Placeholder for new output
+        existing_version_undo_states.append(OutputVersionState(
+            undo_stack=[],
+            redo_stack=[],
+            last_text=""
+        ))
+        new_version_index = len(existing_versions) - 1
+
+        # Sync UI edits to conversation turns before removing last turn
+        self._sync_ui_to_conversation_turns()
 
         # Read current text from UI (may have been edited by user)
         if self._dynamic_sections and turn_number > 1:
@@ -1732,10 +1769,11 @@ class PromptExecuteDialog(BaseDialog):
         # Hide reply button during regeneration
         self.reply_btn.setVisible(False)
 
-        # Store version history to restore after turn is recreated
+        # Store version history with NEW version already added
         self._pending_version_history = existing_versions
         self._pending_version_undo_states = existing_version_undo_states
-        self._pending_version_index = existing_version_index
+        self._pending_version_index = new_version_index  # Point to NEW version
+        self._pending_is_regeneration = True  # Flag for result handler
 
         self._execution_handler.execute_with_message(message_text, keep_open=True, regenerate=True)
 
