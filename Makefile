@@ -1,7 +1,7 @@
 # Promptheus Makefile
 # Background process management for the Promptheus application
 
-.PHONY: help install setup start stop restart status logs logs-follow logs-debug start-debug debug clean clean-all autostart-macos autostart-linux info test
+.PHONY: help install setup start stop restart status logs logs-follow logs-debug start-debug debug clean clean-all autostart-macos autostart-linux info test test-cov lint lint-fix
 
 PYTHON := python3
 VENV_DIR := .venv
@@ -276,6 +276,19 @@ info: ## Show system information
 
 test: ## Run tests with pytest
 	@$(VENV_PYTHON) -m pytest
+
+test-cov: ## Run tests with coverage report
+	@$(VENV_PYTHON) -m pytest --cov --cov-report=term-missing --cov-report=html
+	@echo "✅ Coverage report generated in htmlcov/"
+
+lint: ## Check code with ruff
+	@$(VENV_PYTHON) -m ruff check .
+	@$(VENV_PYTHON) -m ruff format --check .
+
+lint-fix: ## Fix code issues with ruff
+	@$(VENV_PYTHON) -m ruff check --fix .
+	@$(VENV_PYTHON) -m ruff format .
+	@echo "✅ Code formatted"
 
 # Default target
 all: help

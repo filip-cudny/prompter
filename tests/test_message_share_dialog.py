@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import Mock
-from conftest import (
+from tests.conftest import (
     ConversationTurn,
     ConversationTurnWithVersions,
     ContextItem,
