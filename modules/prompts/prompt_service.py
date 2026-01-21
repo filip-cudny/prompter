@@ -86,8 +86,6 @@ class PromptStoreService(PromptStoreServiceProtocol):
         for provider in self.prompt_providers:
             if hasattr(provider, "refresh"):
                 provider.refresh()
-        if self._menu_coordinator and hasattr(self._menu_coordinator, "_clear_menu_cache"):
-            self._menu_coordinator._clear_menu_cache()
 
     def execute_item(self, item: MenuItem) -> ExecutionResult:
         """Execute a menu item and track in history."""
@@ -148,7 +146,9 @@ class PromptStoreService(PromptStoreServiceProtocol):
         """Set the menu coordinator for GUI updates."""
         self._menu_coordinator = menu_coordinator
 
-    def emit_execution_completed(self, result: ExecutionResult, execution_id: str = "") -> None:
+    def emit_execution_completed(
+        self, result: ExecutionResult, execution_id: str = ""
+    ) -> None:
         """Emit execution completed signal to update GUI."""
         if self._menu_coordinator:
             eid = execution_id or (result.execution_id if result else "") or ""

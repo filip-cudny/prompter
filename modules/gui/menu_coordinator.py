@@ -1,8 +1,8 @@
 """PyQt5-based menu coordinator for the Prompter application."""
 
 import logging
-from typing import List, Optional, Callable, Tuple, Dict, Any
-from PyQt5.QtCore import QObject, pyqtSignal, QTimer
+from typing import List, Optional, Callable, Tuple
+from PyQt5.QtCore import QObject, pyqtSignal
 from PyQt5.QtWidgets import QApplication
 
 from core.models import MenuItem, ExecutionResult, MenuItemType, ErrorCode
@@ -40,7 +40,7 @@ class PyQtMenuCoordinator(QObject):
         self.execution_callback: Optional[Callable[[ExecutionResult], None]] = None
         self.error_callback: Optional[Callable[[str], None]] = None
 
-        # Context manager for cache invalidation
+        # Context manager for change notifications
         self.context_manager = None
 
         # Notification manager for UI notifications
@@ -48,17 +48,6 @@ class PyQtMenuCoordinator(QObject):
 
         # Menu state
         self.last_menu_items: List[MenuItem] = []
-        self.menu_cache: Dict[str, List[MenuItem]] = {}
-        self.cache_timeout = 30000  # 30 seconds
-        self.cache_timer = QTimer()
-        self.cache_timer.timeout.connect(self._clear_menu_cache)
-
-        # Separate caches for different menu parts
-        self._cached_dynamic_items = None  # Top dynamic items (Context, Last Interaction)
-        self._cached_static_items = None  # Static provider items (prompts)
-        self._cached_bottom_items = None  # Bottom items (Speech, Settings, Active Prompt)
-        self._dynamic_items_dirty = True
-        self._static_items_dirty = True
 
         # Providers whose items appear at TOP of menu (before prompts)
         self._top_dynamic_provider_classes = {
@@ -71,7 +60,7 @@ class PyQtMenuCoordinator(QObject):
             "SpeechMenuProvider",
         }
 
-        # All dynamic provider classes (for cache invalidation)
+        # All dynamic provider classes
         self._dynamic_provider_classes = (
             self._top_dynamic_provider_classes | self._bottom_dynamic_provider_classes
         )
@@ -117,20 +106,17 @@ class PyQtMenuCoordinator(QObject):
             context_manager.add_change_callback(self._on_context_changed)
 
     def _on_context_changed(self):
-        """Handle context changes by invalidating cache."""
-        logger.debug("Context changed, invalidating menu cache")
-        self._invalidate_cache()
+        """Handle context changes."""
+        logger.debug("Context changed")
 
     def add_provider(self, provider) -> None:
         """Add a menu provider."""
         self.providers.append(provider)
-        self._clear_menu_cache()
 
     def remove_provider(self, provider) -> None:
         """Remove a menu provider."""
         if provider in self.providers:
             self.providers.remove(provider)
-            self._clear_menu_cache()
 
     def set_execution_callback(
         self, callback: Callable[[ExecutionResult], None]
@@ -182,9 +168,6 @@ class PyQtMenuCoordinator(QObject):
 
     def cleanup(self) -> None:
         """Clean up resources."""
-        if self.cache_timer.isActive():
-            self.cache_timer.stop()
-
         if self.context_manager:
             self.context_manager.remove_change_callback(self._on_context_changed)
 
@@ -192,62 +175,32 @@ class PyQtMenuCoordinator(QObject):
             self.context_menu.destroy()
 
         self.providers.clear()
-        self._clear_menu_cache()
 
     def _get_all_menu_items(self) -> List[MenuItem]:
-        """Get all menu items with selective caching."""
-        # Check if we have valid complete cache
-        if (
-            self._cached_static_items is not None
-            and self._cached_dynamic_items is not None
-            and self._cached_bottom_items is not None
-            and not self._static_items_dirty
-            and not self._dynamic_items_dirty
-        ):
-            # Combine cached items in order: top dynamic, static (prompts), bottom
-            all_items = []
-            all_items.extend(self._cached_dynamic_items)
-            all_items.extend(self._cached_static_items)
-            all_items.extend(self._cached_bottom_items)
-            return all_items
-
+        """Get all menu items from providers."""
         try:
-            # Get or rebuild static provider items (prompts)
-            if self._cached_static_items is None or self._static_items_dirty:
-                static_items = []
-                for provider in self.providers:
-                    if (
-                        provider.__class__.__name__
-                        not in self._dynamic_provider_classes
-                    ):
-                        try:
-                            items = provider.get_menu_items()
-                            if items:
-                                wrapped_items = self._wrap_provider_items(items)
-                                static_items.extend(wrapped_items)
-                        except (RuntimeError, Exception) as e:
-                            print(
-                                f"Error getting items from provider {provider.__class__.__name__}: {e}"
-                            )
-                            continue
-
-                self._cached_static_items = static_items
-                self._static_items_dirty = False
-
-            # Get or rebuild top dynamic items (Context, Last Interaction)
-            if self._cached_dynamic_items is None or self._dynamic_items_dirty:
-                self._cached_dynamic_items = self._build_dynamic_items()
-                # Also rebuild bottom items when dynamic cache is dirty
-                self._cached_bottom_items = self._build_bottom_dynamic_items()
-                self._dynamic_items_dirty = False
-
-            # Combine all items: top dynamic, static (prompts), bottom
             all_items = []
-            all_items.extend(self._cached_dynamic_items or [])
-            all_items.extend(self._cached_static_items or [])
-            all_items.extend(self._cached_bottom_items or [])
 
-            self._start_cache_timer()
+            # Build top dynamic items (Context, Last Interaction)
+            all_items.extend(self._build_dynamic_items())
+
+            # Build static provider items (prompts)
+            for provider in self.providers:
+                if provider.__class__.__name__ not in self._dynamic_provider_classes:
+                    try:
+                        items = provider.get_menu_items()
+                        if items:
+                            wrapped_items = self._wrap_provider_items(items)
+                            all_items.extend(wrapped_items)
+                    except (RuntimeError, Exception) as e:
+                        logger.error(
+                            f"Error getting items from provider {provider.__class__.__name__}: {e}"
+                        )
+                        continue
+
+            # Build bottom dynamic items (Speech, Settings, Active Prompt)
+            all_items.extend(self._build_bottom_dynamic_items())
+
             return all_items
 
         except Exception as e:
@@ -301,9 +254,6 @@ class PyQtMenuCoordinator(QObject):
                 # Execute the item using the service for prompts and other items
                 result = self.prompt_store_service.execute_item(item)
 
-                # Invalidate dynamic cache based on action type
-                self._invalidate_cache_for_action(item, result)
-
                 # Emit signal for thread-safe handling
                 self.execution_completed.emit(result, result.execution_id or "")
 
@@ -313,9 +263,6 @@ class PyQtMenuCoordinator(QObject):
 
     def _handle_execution_result(self, result: ExecutionResult, execution_id: str = "") -> None:
         """Handle execution result on main thread."""
-        # Invalidate cache for actions that need it (handles submenu items)
-        self._invalidate_cache_for_result(result)
-
         if self.execution_callback:
             try:
                 self.execution_callback(result)
@@ -323,8 +270,8 @@ class PyQtMenuCoordinator(QObject):
                 print(f"Error in execution callback: {e}")
 
     def _on_execution_started(self, execution_id: str) -> None:
-        """Handle execution started by invalidating cache so menu shows correct state."""
-        self._invalidate_cache()
+        """Handle execution started event."""
+        pass
 
     def _handle_error(self, error_message: str) -> None:
         """Handle error on main thread."""
@@ -336,22 +283,6 @@ class PyQtMenuCoordinator(QObject):
         else:
             print(f"Menu error: {error_message}")
 
-    def _start_cache_timer(self) -> None:
-        """Start the cache cleanup timer."""
-        if not self.cache_timer.isActive():
-            self.cache_timer.start(self.cache_timeout)
-
-    def _clear_menu_cache(self) -> None:
-        """Clear the menu item cache."""
-        self.menu_cache.clear()
-        self._cached_dynamic_items = None
-        self._cached_static_items = None
-        self._cached_bottom_items = None
-        self._dynamic_items_dirty = True
-        self._static_items_dirty = True
-        if self.cache_timer.isActive():
-            self.cache_timer.stop()
-
     def get_last_menu_items(self) -> List[MenuItem]:
         """Get the last displayed menu items."""
         return self.last_menu_items
@@ -359,14 +290,6 @@ class PyQtMenuCoordinator(QObject):
     def get_provider_count(self) -> int:
         """Get the number of registered providers."""
         return len(self.providers)
-
-    def get_cache_info(self) -> Dict[str, Any]:
-        """Get cache information for debugging."""
-        return {
-            "cached_keys": list(self.menu_cache.keys()),
-            "cache_active": self.cache_timer.isActive(),
-            "cache_timeout": self.cache_timeout,
-        }
 
     def _build_dynamic_items(self) -> List[MenuItem]:
         """Build TOP dynamic menu items (Context, Last Interaction - appear before prompts)."""
@@ -481,7 +404,6 @@ class PyQtMenuCoordinator(QObject):
                 metadata={"action": "clear_active_prompt"},
             )
             self.execution_completed.emit(result, "")
-            self._invalidate_cache()
 
     def _get_prompt_selector_items(self) -> List[MenuItem]:
         """Get prompt selector submenu items."""
@@ -594,7 +516,6 @@ class PyQtMenuCoordinator(QObject):
                                 metadata={"action": "set_default_model", "model": mid},
                             )
                             self.execution_completed.emit(result, "")
-                            self._invalidate_cache()
                         except Exception as e:
                             result = ExecutionResult(
                                 success=False,
@@ -632,80 +553,6 @@ class PyQtMenuCoordinator(QObject):
                     enabled=False,
                 )
             ]
-
-    def _invalidate_cache_for_action(
-        self, item: MenuItem, result: ExecutionResult
-    ) -> None:
-        """Invalidate specific cache parts based on the executed action."""
-        if not result.success:
-            return
-
-        # Get action from metadata or item type
-        action = result.metadata.get("action") if result.metadata else None
-        item_type = item.item_type
-
-        # Actions that change active prompt or generate new input/output
-        if action in [
-            "set_active_prompt",
-            "execute_prompt",
-            "execute_preset",
-            "execute_active_prompt",
-            "speech_recording_started",
-            "speech_recording_stopped",
-            "set_context",
-            "append_context",
-            "clear_context",
-        ] or item_type in [MenuItemType.PROMPT]:
-            self._invalidate_cache()
-
-    def _invalidate_cache_for_result(self, result: ExecutionResult) -> None:
-        """Invalidate cache based on execution result (for submenu items)."""
-        if not result.success:
-            return
-
-        # Get action from metadata
-        action = result.metadata.get("action") if result.metadata else None
-
-        # Actions that change active prompt or generate new input/output
-        if action in [
-            "set_active_prompt",
-            "execute_prompt",
-            "execute_preset",
-            "execute_active_prompt",
-            "speech_recording_started",
-            "speech_recording_stopped",
-            "set_context",
-            "append_context",
-            "clear_context",
-        ]:
-            self._invalidate_cache()
-
-    def _invalidate_cache(self) -> None:
-        """Invalidate only dynamic items cache."""
-        logger.debug("Invalidating menu cache")
-        self._cached_dynamic_items = None
-        self._cached_bottom_items = None
-        self._dynamic_items_dirty = True
-        self._cached_static_items = None
-        self._static_items_dirty = True
-
-    def get_cache_status(self) -> Dict[str, Any]:
-        """Get detailed cache status for debugging."""
-        return {
-            "static_cache_valid": self._cached_static_items is not None
-            and not self._static_items_dirty,
-            "dynamic_cache_valid": self._cached_dynamic_items is not None
-            and not self._dynamic_items_dirty,
-            "static_items_count": len(self._cached_static_items)
-            if self._cached_static_items
-            else 0,
-            "dynamic_items_count": len(self._cached_dynamic_items)
-            if self._cached_dynamic_items
-            else 0,
-            "static_dirty": self._static_items_dirty,
-            "dynamic_dirty": self._dynamic_items_dirty,
-            "dynamic_provider_classes": self._dynamic_provider_classes,
-        }
 
 
 class PyQtMenuEventHandler:

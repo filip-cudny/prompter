@@ -530,9 +530,6 @@ class PyQtContextMenu(QObject):
     def _on_execution_completed_while_open(self, result):
         """Refresh menu when execution completes while open."""
         if self.menu and self.menu.isVisible() and self._last_menu_position:
-            # Invalidate cache so fresh item states are fetched
-            if hasattr(self, 'menu_coordinator') and self.menu_coordinator:
-                self.menu_coordinator._invalidate_cache()
             # Use short timer to allow event loop to process
             QTimer.singleShot(10, self._rebuild_and_show_menu)
 
