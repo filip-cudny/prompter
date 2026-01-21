@@ -53,7 +53,7 @@ class ClipboardPlaceholderProcessor(PlaceholderProcessor):
         except ClipboardUnavailableError:
             raise
         except Exception as e:
-            raise ClipboardUnavailableError(f"Clipboard unavailable: {e}")
+            raise ClipboardUnavailableError(f"Clipboard unavailable: {e}") from e
 
 
 class ContextPlaceholderProcessor(PlaceholderProcessor):

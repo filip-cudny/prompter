@@ -30,7 +30,7 @@ class SystemClipboardManager(ClipboardManager):
             else:
                 raise ClipboardError(f"Unsupported platform: {self.platform}")
         except Exception as e:
-            raise ClipboardError(f"Failed to get clipboard content: {str(e)}")
+            raise ClipboardError(f"Failed to get clipboard content: {str(e)}") from e
 
     def set_content(self, content: str) -> bool:
         """Set the clipboard content. Returns True if successful."""
@@ -44,7 +44,7 @@ class SystemClipboardManager(ClipboardManager):
             else:
                 raise ClipboardError(f"Unsupported platform: {self.platform}")
         except Exception as e:
-            raise ClipboardError(f"Failed to set clipboard content: {str(e)}")
+            raise ClipboardError(f"Failed to set clipboard content: {str(e)}") from e
 
     def is_empty(self) -> bool:
         """Check if the clipboard is empty."""
@@ -420,12 +420,14 @@ class SystemClipboardManager(ClipboardManager):
                 check=True,
             )
             return result.stdout
-        except FileNotFoundError:
-            raise ClipboardError(f"xclip failed ({xclip_error}) and xsel not found")
-        except subprocess.TimeoutExpired:
-            raise ClipboardError(f"xclip failed ({xclip_error}) and xsel timed out")
+        except FileNotFoundError as e:
+            raise ClipboardError(f"xclip failed ({xclip_error}) and xsel not found") from e
+        except subprocess.TimeoutExpired as e:
+            raise ClipboardError(f"xclip failed ({xclip_error}) and xsel timed out") from e
         except subprocess.CalledProcessError as e:
-            raise ClipboardError(f"xclip failed ({xclip_error}) and xsel failed with code {e.returncode}: {e.stderr}")
+            raise ClipboardError(
+                f"xclip failed ({xclip_error}) and xsel failed with code {e.returncode}: {e.stderr}"
+            ) from e
 
     def _set_content_linux(self, content: str) -> bool:
         """Set clipboard content on Linux."""
@@ -456,12 +458,12 @@ class SystemClipboardManager(ClipboardManager):
                 check=True,
             )
             return True
-        except FileNotFoundError:
-            raise ClipboardError(f"xclip failed ({xclip_error}) and xsel not found")
-        except subprocess.TimeoutExpired:
-            raise ClipboardError(f"xclip failed ({xclip_error}) and xsel timed out")
+        except FileNotFoundError as e:
+            raise ClipboardError(f"xclip failed ({xclip_error}) and xsel not found") from e
+        except subprocess.TimeoutExpired as e:
+            raise ClipboardError(f"xclip failed ({xclip_error}) and xsel timed out") from e
         except subprocess.CalledProcessError as e:
-            raise ClipboardError(f"xclip failed ({xclip_error}) and xsel failed with code {e.returncode}")
+            raise ClipboardError(f"xclip failed ({xclip_error}) and xsel failed with code {e.returncode}") from e
 
     def _get_content_windows(self) -> str:
         """Get clipboard content on Windows."""
@@ -480,7 +482,7 @@ class SystemClipboardManager(ClipboardManager):
             else:
                 return ""
         except Exception as e:
-            raise ClipboardError(f"Failed to get Windows clipboard: {str(e)}")
+            raise ClipboardError(f"Failed to get Windows clipboard: {str(e)}") from e
 
     def _set_content_windows(self, content: str) -> bool:
         """Set clipboard content on Windows."""

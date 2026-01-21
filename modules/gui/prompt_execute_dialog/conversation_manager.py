@@ -337,11 +337,11 @@ class ConversationManager:
             if not section.text_edit.toPlainText().strip() and not section.turn_images:
                 return True
 
-        if dialog._dynamic_sections or dialog._output_section_shown:
-            if not dialog.input_edit.toPlainText().strip() and not dialog._message_images:
-                return True
-
-        return False
+        return bool(
+            (dialog._dynamic_sections or dialog._output_section_shown)
+            and not dialog.input_edit.toPlainText().strip()
+            and not dialog._message_images
+        )
 
     def is_regenerate_mode(self) -> bool:
         """Check if dialog is in regenerate mode (can regenerate last output)."""

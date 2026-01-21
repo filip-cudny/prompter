@@ -202,11 +202,15 @@ class BaseDialog(QDialog):
 
     def event(self, event):
         """Handle events to ensure proper focus behavior."""
-        if event.type() in (
-            QEvent.WindowActivate,
-            QEvent.FocusIn,
-            QEvent.MouseButtonPress,
-        ) and not BaseDialog._focus_in_progress:
+        if (
+            event.type()
+            in (
+                QEvent.WindowActivate,
+                QEvent.FocusIn,
+                QEvent.MouseButtonPress,
+            )
+            and not BaseDialog._focus_in_progress
+        ):
             BaseDialog._focus_in_progress = True
             self.raise_()
             self.activateWindow()

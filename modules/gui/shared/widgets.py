@@ -3,9 +3,12 @@
 import base64
 import logging
 from collections.abc import Callable
-from typing import Generic, TypeVar
+from typing import TYPE_CHECKING, Generic, TypeVar
 
 from PySide6.QtCore import QBuffer, QByteArray, Qt, QTimer, Signal
+
+if TYPE_CHECKING:
+    from core.context_manager import ContextItem
 from PySide6.QtGui import QFont, QImage
 from PySide6.QtWidgets import (
     QApplication,
