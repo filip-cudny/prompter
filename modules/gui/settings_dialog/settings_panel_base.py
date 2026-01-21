@@ -2,8 +2,8 @@
 
 from typing import Optional
 
-from PyQt5.QtCore import pyqtSignal
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QScrollArea, QFrame
+from PySide6.QtCore import Signal
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QScrollArea, QFrame
 
 from modules.gui.shared.dialog_styles import COLOR_DIALOG_BG, COLOR_TEXT
 
@@ -16,7 +16,7 @@ class SettingsPanelBase(QWidget):
     - _setup_content(): Method to set up the panel's UI content
     """
 
-    settings_changed = pyqtSignal()
+    settings_changed = Signal()
 
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)

@@ -30,10 +30,10 @@ make autostart-linux   # Setup Linux systemd service
 
 ### Core Application Structure
 
-**Main Entry Point**: `main.py` - Initializes the PrompterApp and handles macOS dock hiding via LSUIElement
+**Main Entry Point**: `main.py` - Initializes the PromtheusApp and handles macOS dock hiding via LSUIElement
 
 **Core Modules**:
-- `app/application.py` - Main PyQt5 application class (PrompterApp)
+- `app/application.py` - Main PySide6 application class (PromtheusApp)
 - `core/` - Core business logic and interfaces
   - `services.py` - Service layer implementations
   - `models.py` - Data models and structures  
@@ -78,7 +78,7 @@ make autostart-linux   # Setup Linux systemd service
 
 ## Development Notes
 
-- **GUI Framework**: PyQt5-based system tray application
+- **GUI Framework**: PySide6-based system tray application
 - **Cross-Platform**: macOS, Linux, Windows support with platform-specific integrations
 - **API Integration**: OpenAI-compatible endpoints for both chat and transcription
 - **Service Architecture**: Background daemon with proper process management

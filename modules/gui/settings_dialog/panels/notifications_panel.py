@@ -2,8 +2,8 @@
 
 from typing import Any, Dict, Optional
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import (
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
     QCheckBox,
     QColorDialog,
     QFormLayout,
@@ -110,7 +110,7 @@ class ColorButton(QPushButton):
 
     def _on_clicked(self):
         """Handle button click to show color picker."""
-        from PyQt5.QtGui import QColor
+        from PySide6.QtGui import QColor
         color = QColorDialog.getColor(QColor(self._color), self, "Select Color")
         if color.isValid():
             self._color = color.name()

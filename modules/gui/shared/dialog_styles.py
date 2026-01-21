@@ -2,8 +2,8 @@
 
 from typing import Callable, Dict, Optional, TypeVar
 
-from PyQt5.QtCore import QTimer
-from PyQt5.QtWidgets import QDialog, QSizePolicy, QWidget
+from PySide6.QtCore import QTimer
+from PySide6.QtWidgets import QDialog, QSizePolicy, QWidget
 
 import os
 

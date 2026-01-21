@@ -3,8 +3,8 @@
 import uuid
 from typing import Any, Dict, List, Optional, Tuple
 
-from PyQt5.QtCore import QLocale, Qt, pyqtSignal
-from PyQt5.QtWidgets import (
+from PySide6.QtCore import QLocale, Qt, Signal
+from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QDoubleSpinBox,
@@ -148,7 +148,7 @@ ADD_BUTTON_STYLE = f"""
 class PasswordLineEdit(QWidget):
     """Line edit with password toggle button."""
 
-    textChanged = pyqtSignal(str)
+    textChanged = Signal(str)
 
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
@@ -201,7 +201,7 @@ class PasswordLineEdit(QWidget):
 class ParameterRowWidget(QWidget):
     """Widget representing a single parameter row."""
 
-    deleted = pyqtSignal(object)
+    deleted = Signal(object)
 
     def __init__(
         self,
@@ -420,7 +420,7 @@ class AddParameterDialog(QDialog):
 class ModelEditorWidget(QWidget):
     """Widget for editing a model's configuration."""
 
-    model_changed = pyqtSignal(str, dict)
+    model_changed = Signal(str, dict)
 
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
@@ -554,7 +554,7 @@ class ModelEditorWidget(QWidget):
     def _add_parameter(self):
         existing = [row.get_name() for row in self._parameter_rows]
         dialog = AddParameterDialog(existing, self)
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.Accepted:
             result = dialog.get_parameter()
             if result:
                 name, value, param_type = result

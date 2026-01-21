@@ -1,11 +1,11 @@
-"""Main PyQt5 application class for the Prompter application."""
+"""Main PySide6 application class for the Promptheus application."""
 
 import sys
 import signal
 from typing import Optional, List
-from PyQt5.QtWidgets import QApplication, QToolTip
-from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QObject
-from PyQt5.QtGui import QPalette, QColor
+from PySide6.QtWidgets import QApplication, QToolTip
+from PySide6.QtCore import Qt, QTimer, Signal, QObject
+from PySide6.QtGui import QPalette, QColor
 
 
 from modules.prompts.prompt_service import PromptStoreService
@@ -37,19 +37,16 @@ from modules.gui.shared import TOOLTIP_STYLE
 from modules.utils.keymap_actions import initialize_global_action_registry
 
 
-class PrompterApp(QObject):
-    """Main PyQt5 application class for the Prompter."""
+class PromtheusApp(QObject):
+    """Main PySide6 application class for Promptheus."""
 
     # Qt signals
-    shutdown_requested = pyqtSignal()
+    shutdown_requested = Signal()
 
     def __init__(self, config_file: Optional[str] = None):
         super().__init__()
 
-        # Enable HiDPI pixmap support (required for sharp icons on macOS Retina)
-        QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
-
-        # Create QApplication
+        # Create QApplication (Qt6 handles HiDPI automatically)
         self.app = QApplication(sys.argv)
         self.app.setQuitOnLastWindowClosed(False)
 
@@ -309,7 +306,7 @@ class PrompterApp(QObject):
     def _initialize_gui(self) -> None:
         """Initialize GUI components."""
         if not self.config or not self.prompt_store_service:
-            raise RuntimeError("Configuration or Prompter service not initialized")
+            raise RuntimeError("Configuration or PromptStore service not initialized")
 
         # Initialize hotkey manager
         self.hotkey_manager = PyQtHotkeyManager(
@@ -456,7 +453,7 @@ class PrompterApp(QObject):
                 enabled=True,
             )
 
-            # Execute the speech item through the Prompter service
+            # Execute the speech item through the PromptStore service
             if self.prompt_store_service:
                 result = self.prompt_store_service.execute_item(speech_item)
 
@@ -488,7 +485,7 @@ class PrompterApp(QObject):
         """Execute the active prompt with current clipboard content."""
         try:
             if not self.prompt_store_service:
-                print("Prompter service not initialized")
+                print("PromptStore service not initialized")
                 return
 
             result = self.prompt_store_service.execute_active_prompt()
@@ -518,7 +515,7 @@ class PrompterApp(QObject):
                 self.hotkey_manager.start()
 
             # Run the Qt event loop
-            return self.app.exec_()
+            return self.app.exec()
 
         except KeyboardInterrupt:
             print("\nShutting down...")
@@ -676,7 +673,7 @@ class PrompterApp(QObject):
             self.prompt_providers.clear()
             self._initialize_prompt_providers()
 
-            # Update Prompter service with new primary provider
+            # Update PromptStore service with new primary provider
             if self.prompt_store_service and self.prompt_providers:
                 primary_provider = self.prompt_providers[0]
                 self.prompt_store_service.primary_provider = primary_provider
@@ -714,11 +711,11 @@ def main():
     """Main entry point."""
     import argparse
 
-    parser = argparse.ArgumentParser(description="Prompter PyQt5 Application")
+    parser = argparse.ArgumentParser(description="Promptheus Application")
     parser.add_argument("--config", "-c", help="Configuration file path")
     args = parser.parse_args()
 
-    app = PrompterApp(args.config)
+    app = PromtheusApp(args.config)
     return app.run()
 
 

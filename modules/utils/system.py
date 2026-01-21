@@ -37,9 +37,9 @@ def get_cursor_position() -> Tuple[int, int]:
     except Exception:
         pass
 
-    # Fallback to PyQt5 method
+    # Fallback to PySide6 method
     try:
-        from PyQt5.QtGui import QCursor
+        from PySide6.QtGui import QCursor
 
         cursor_pos = QCursor.pos()
         return cursor_pos.x(), cursor_pos.y()

@@ -4,7 +4,7 @@ import logging
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
-from PyQt5.QtWidgets import (
+from PySide6.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
     QWidget,
@@ -13,7 +13,7 @@ from PyQt5.QtWidgets import (
     QFrame,
     QSizePolicy,
 )
-from PyQt5.QtCore import Qt, QTimer, QEvent, pyqtSignal
+from PySide6.QtCore import Qt, QTimer, QEvent, Signal
 
 from core.context_manager import ContextManager, ContextItem, ContextItemType
 from modules.utils.notification_config import is_notification_enabled
@@ -76,7 +76,7 @@ class ContextEditorDialog(BaseDialog):
     """Dialog for editing context (text and images) and clipboard."""
 
     STATE_KEY = "context_editor_dialog"
-    context_saved = pyqtSignal()
+    context_saved = Signal()
 
     def __init__(
         self,

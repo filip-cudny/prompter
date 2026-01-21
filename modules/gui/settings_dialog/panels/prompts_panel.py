@@ -1,7 +1,7 @@
 """Prompts settings panel."""
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import (
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
     QComboBox,
     QHBoxLayout,
     QLabel,
@@ -173,7 +173,7 @@ class PromptsPanel(SettingsPanelBase):
         )
 
         dialog = PromptTemplateDialog(current_prompt=current_prompt, parent=self)
-        if dialog.exec_():
+        if dialog.exec():
             result = dialog.get_result()
             if result is not None:
                 self._pending_generator_config["system_prompt"] = result
@@ -188,7 +188,7 @@ class PromptsPanel(SettingsPanelBase):
     def _on_add_prompt(self):
         """Handle add prompt request."""
         dialog = PromptEditorDialog(parent=self)
-        if dialog.exec_():
+        if dialog.exec():
             result = dialog.get_result()
             if result:
                 self._config_service.add_prompt(result, persist=False)
@@ -198,7 +198,7 @@ class PromptsPanel(SettingsPanelBase):
     def _on_edit_prompt(self, prompt_data: dict):
         """Handle edit prompt request."""
         dialog = PromptEditorDialog(prompt_data=prompt_data, parent=self)
-        if dialog.exec_():
+        if dialog.exec():
             result = dialog.get_result()
             if result:
                 self._config_service.update_prompt(result["id"], result, persist=False)

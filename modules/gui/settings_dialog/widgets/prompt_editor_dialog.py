@@ -5,8 +5,8 @@ import uuid
 import re
 from typing import Any, Dict, List, Optional
 
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
-from PyQt5.QtWidgets import (
+from PySide6.QtCore import Qt, QThread, Signal
+from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QFrame,
@@ -43,8 +43,8 @@ MIN_CONTENT_LENGTH = 10
 class DescriptionGeneratorWorker(QThread):
     """Worker thread for generating descriptions via API."""
 
-    finished = pyqtSignal(str)
-    error = pyqtSignal(str)
+    finished = Signal(str)
+    error = Signal(str)
 
     def __init__(
         self,

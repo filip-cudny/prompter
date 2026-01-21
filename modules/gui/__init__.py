@@ -1,4 +1,4 @@
-"""GUI module for Prompter application."""
+"""GUI module for Promptheus application."""
 
 from .context_menu import PyQtContextMenu
 from .hotkey_manager import PyQtHotkeyManager, PyQtHotkeyListener

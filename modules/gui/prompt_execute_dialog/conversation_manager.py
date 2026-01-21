@@ -2,7 +2,7 @@
 
 from typing import List, Dict, TYPE_CHECKING
 
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QSizePolicy
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QSizePolicy
 
 from core.context_manager import ContextItem, ContextItemType
 from modules.gui.shared.dialog_styles import (

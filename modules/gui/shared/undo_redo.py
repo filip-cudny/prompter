@@ -2,8 +2,8 @@
 
 from typing import TypeVar, List, Callable, Optional
 
-from PyQt5.QtCore import QTimer
-from PyQt5.QtWidgets import QTextEdit
+from PySide6.QtCore import QTimer
+from PySide6.QtWidgets import QTextEdit
 
 T = TypeVar("T")
 

@@ -2,8 +2,8 @@
 
 from typing import List, Tuple, Union
 
-from PyQt5.QtCore import Qt, QEvent, QTimer
-from PyQt5.QtWidgets import (
+from PySide6.QtCore import Qt, QEvent, QTimer
+from PySide6.QtWidgets import (
     QDialog,
     QFrame,
     QScrollArea,

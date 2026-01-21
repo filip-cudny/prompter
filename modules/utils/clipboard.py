@@ -180,7 +180,7 @@ class SystemClipboardManager(ClipboardManager):
         # This avoids X11 clipboard deadlock when Qt owns the clipboard
         # (calling xclip from Qt's event loop while Qt owns clipboard causes timeout)
         try:
-            from PyQt5.QtWidgets import QApplication
+            from PySide6.QtWidgets import QApplication
 
             app = QApplication.instance()
             if app:
@@ -245,9 +245,9 @@ class SystemClipboardManager(ClipboardManager):
 
         # Try Qt's clipboard first (handles Qt-set images)
         try:
-            from PyQt5.QtWidgets import QApplication
-            from PyQt5.QtCore import QBuffer, QIODevice
-            from PyQt5.QtGui import QPixmap
+            from PySide6.QtWidgets import QApplication
+            from PySide6.QtCore import QBuffer, QIODevice
+            from PySide6.QtGui import QPixmap
 
             app = QApplication.instance()
             if app:
@@ -329,7 +329,7 @@ class SystemClipboardManager(ClipboardManager):
     def _has_image_windows(self) -> bool:
         """Check if clipboard contains an image on Windows."""
         try:
-            from PyQt5.QtWidgets import QApplication
+            from PySide6.QtWidgets import QApplication
 
             app = QApplication.instance()
             if app is None:
@@ -345,9 +345,9 @@ class SystemClipboardManager(ClipboardManager):
     def _get_image_data_windows(self) -> Optional[Tuple[str, str]]:
         """Get image data from clipboard on Windows."""
         try:
-            from PyQt5.QtWidgets import QApplication
-            from PyQt5.QtCore import QBuffer, QIODevice
-            from PyQt5.QtGui import QPixmap
+            from PySide6.QtWidgets import QApplication
+            from PySide6.QtCore import QBuffer, QIODevice
+            from PySide6.QtGui import QPixmap
 
             app = QApplication.instance()
             if app is None:
@@ -404,7 +404,7 @@ class SystemClipboardManager(ClipboardManager):
         # This avoids X11 clipboard deadlock when Qt owns the clipboard
         # (calling xclip from Qt's event loop while Qt owns clipboard causes timeout)
         try:
-            from PyQt5.QtWidgets import QApplication
+            from PySide6.QtWidgets import QApplication
 
             app = QApplication.instance()
             if app:
@@ -495,7 +495,7 @@ class SystemClipboardManager(ClipboardManager):
     def _get_content_windows(self) -> str:
         """Get clipboard content on Windows."""
         try:
-            from PyQt5.QtWidgets import QApplication
+            from PySide6.QtWidgets import QApplication
 
             app = QApplication.instance()
             if app is None:
@@ -514,7 +514,7 @@ class SystemClipboardManager(ClipboardManager):
     def _set_content_windows(self, content: str) -> bool:
         """Set clipboard content on Windows."""
         try:
-            from PyQt5.QtWidgets import QApplication
+            from PySide6.QtWidgets import QApplication
 
             app = QApplication.instance()
             if app is None:

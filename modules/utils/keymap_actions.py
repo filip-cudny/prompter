@@ -1,4 +1,4 @@
-"""Keymap actions module - defines and handles available prompter actions."""
+"""Keymap actions module - defines and handles available Promptheus actions."""
 
 from typing import Dict, Any, Optional
 from abc import ABC, abstractmethod

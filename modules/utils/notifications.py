@@ -4,25 +4,25 @@ import os
 import platform
 import threading
 from typing import Union, Optional
-from PyQt5.QtWidgets import (
+from PySide6.QtWidgets import (
     QApplication,
     QWidget,
     QLabel,
     QHBoxLayout,
     QVBoxLayout,
-    QDesktopWidget,
     QGraphicsOpacityEffect,
 )
-from PyQt5.QtCore import (
+from PySide6.QtCore import (
     QTimer,
     QPropertyAnimation,
     QEasingCurve,
     Qt,
     QRectF,
     QObject,
-    pyqtSignal,
+    QRect,
+    Signal,
 )
-from PyQt5.QtGui import QPainter, QPen, QColor, QPainterPath, QCursor
+from PySide6.QtGui import QPainter, QPen, QColor, QPainterPath, QCursor, QGuiApplication
 
 from modules.gui.icons import create_icon_pixmap
 from modules.utils.notification_config import (
@@ -50,7 +50,7 @@ def is_wayland_session() -> bool:
 class EnhancedNotificationWidget(QWidget):
     """Enhanced notification widget with proper non-focus-stealing implementation."""
 
-    notification_finished = pyqtSignal()
+    notification_finished = Signal()
 
     def __init__(
         self,
@@ -179,6 +179,7 @@ class EnhancedNotificationWidget(QWidget):
         self.opacity_effect.setOpacity(0.0)
 
         self.fade_animation = QPropertyAnimation(self.opacity_effect, b"opacity")
+        self._fade_finished_connected = False
 
     def show_notification(
         self, duration: int = 2000, screen_geometry=None, notification_index: int = 0
@@ -246,12 +247,11 @@ class EnhancedNotificationWidget(QWidget):
         self.fade_animation.setEasingCurve(QEasingCurve.InCubic)
 
         # Disconnect existing connections to avoid multiple signals
-        try:
-            self.fade_animation.finished.disconnect()
-        except TypeError:
-            pass
+        if self._fade_finished_connected:
+            self.fade_animation.finished.disconnect(self._on_fade_finished)
 
         self.fade_animation.finished.connect(self._on_fade_finished)
+        self._fade_finished_connected = True
         self.fade_animation.start()
 
     def _on_fade_finished(self):
@@ -292,7 +292,7 @@ class EnhancedNotificationWidget(QWidget):
 
 
 class NotificationDispatcher(QObject):
-    show_notification_signal = pyqtSignal(str, str, str, str, str, int)
+    show_notification_signal = Signal(str, str, str, str, str, int)
 
     def __init__(self, manager):
         super().__init__()
@@ -320,7 +320,6 @@ class EnhancedNotificationManager:
 
     def __init__(self, app: QApplication):
         self.app = app
-        self.desktop = QDesktopWidget()
         self.active_notifications: list[EnhancedNotificationWidget] = []
         self.dispatcher = NotificationDispatcher(self)
         self.notification_lock = threading.Lock()
@@ -503,30 +502,14 @@ class EnhancedNotificationManager:
     def _get_active_screen_geometry(self):
         """Get geometry of the screen containing the cursor."""
         try:
-            if not self.desktop:
-                try:
-                    from PyQt5.QtCore import QRect
-
-                    return QRect(0, 0, 1920, 1080)
-                except ImportError:
-                    return None
-
             cursor_pos = QCursor.pos()
-            screen_number = self.desktop.screenNumber(cursor_pos)
-
-            # Validate screen number
-            if screen_number < 0 or screen_number >= self.desktop.screenCount():
-                screen_number = 0
-
-            return self.desktop.screenGeometry(screen_number)
+            screen = QGuiApplication.screenAt(cursor_pos)
+            if screen is None:
+                screen = QGuiApplication.primaryScreen()
+            return screen.geometry() if screen else QRect(0, 0, 1920, 1080)
         except Exception as e:
             print(f"Error getting screen geometry: {e}")
-            try:
-                from PyQt5.QtCore import QRect
-
-                return QRect(0, 0, 1920, 1080)
-            except ImportError:
-                return None
+            return QRect(0, 0, 1920, 1080)
 
     def is_available(self) -> bool:
         """Check if notifications are available."""

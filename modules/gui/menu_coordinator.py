@@ -1,9 +1,9 @@
-"""PyQt5-based menu coordinator for the Prompter application."""
+"""PySide6-based menu coordinator for the Promptheus application."""
 
 import logging
 from typing import List, Optional, Callable, Tuple
-from PyQt5.QtCore import QObject, pyqtSignal
-from PyQt5.QtWidgets import QApplication
+from PySide6.QtCore import QObject, Signal
+from PySide6.QtWidgets import QApplication
 
 from core.models import MenuItem, ExecutionResult, MenuItemType, ErrorCode
 from core.exceptions import MenuError
@@ -18,10 +18,10 @@ class PyQtMenuCoordinator(QObject):
     """Coordinates menu providers and handles menu display using PyQt5."""
 
     # Qt signals for thread-safe communication
-    execution_completed = pyqtSignal(object, str)  # ExecutionResult, execution_id
-    execution_started = pyqtSignal(str)  # execution_id
-    execution_error = pyqtSignal(str)
-    streaming_chunk = pyqtSignal(str, str, bool, str)  # chunk, accumulated, is_final, execution_id
+    execution_completed = Signal(object, str)  # ExecutionResult, execution_id
+    execution_started = Signal(str)  # execution_id
+    execution_error = Signal(str)
+    streaming_chunk = Signal(str, str, bool, str)  # chunk, accumulated, is_final, execution_id
 
     def __init__(self, prompt_store_service, parent=None):
         super().__init__(parent)
@@ -32,7 +32,7 @@ class PyQtMenuCoordinator(QObject):
         self.context_menu.set_execution_callback(self._handle_menu_item_execution)
         self.app = QApplication.instance()
 
-        # Set menu coordinator reference in Prompter service for GUI updates
+        # Set menu coordinator reference in PromptStore service for GUI updates
         if hasattr(self.prompt_store_service, "set_menu_coordinator"):
             self.prompt_store_service.set_menu_coordinator(self)
 
@@ -238,7 +238,7 @@ class PyQtMenuCoordinator(QObject):
         return wrapped_items
 
     def _execute_menu_item(self, item: MenuItem) -> None:
-        """Execute a menu item through the Prompter service or direct action call."""
+        """Execute a menu item through the PromptStore service or direct action call."""
         try:
             logger.debug(f"Executing menu item: {item.id} (type: {item.item_type})")
             # For system items with direct actions (like set default model, set active prompt),

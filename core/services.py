@@ -1,4 +1,4 @@
-"""Core business services for the Prompter application."""
+"""Core business services for the Promptheus application."""
 
 import logging
 from pathlib import Path

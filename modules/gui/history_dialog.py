@@ -2,7 +2,7 @@
 
 from typing import Optional
 
-from PyQt5.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget,
     QHBoxLayout,
     QVBoxLayout,
@@ -13,7 +13,7 @@ from PyQt5.QtWidgets import (
     QComboBox,
     QSizePolicy,
 )
-from PyQt5.QtCore import Qt, pyqtSignal
+from PySide6.QtCore import Qt, Signal
 
 from core.interfaces import ClipboardManager
 from core.models import HistoryEntry, HistoryEntryType
@@ -34,7 +34,7 @@ _show_dialog = create_singleton_dialog_manager()
 
 
 class ClickableLabel(QLabel):
-    clicked = pyqtSignal()
+    clicked = Signal()
 
     def __init__(self, text: str = "", parent: Optional[QWidget] = None):
         super().__init__(text, parent)
@@ -386,7 +386,7 @@ class HistoryDialog(BaseDialog):
     DEFAULT_SIZE = SMALL_DIALOG_SIZE
     MIN_SIZE = SMALL_MIN_DIALOG_SIZE
 
-    history_changed = pyqtSignal()
+    history_changed = Signal()
 
     VALID_PAGE_SIZES = [10, 25, 50]
     DEFAULT_PAGE_SIZE = 10

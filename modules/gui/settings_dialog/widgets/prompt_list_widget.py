@@ -2,8 +2,8 @@
 
 from typing import Any, Dict, List, Optional
 
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtWidgets import (
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import (
     QHBoxLayout,
     QListWidget,
     QListWidgetItem,
@@ -66,11 +66,11 @@ ICON_BTN_STYLE = f"""
 class PromptListWidget(QWidget):
     """Widget for managing a list of prompts with reorder capability."""
 
-    prompt_selected = pyqtSignal(dict)
-    prompt_add_requested = pyqtSignal()
-    prompt_edit_requested = pyqtSignal(dict)
-    prompt_delete_requested = pyqtSignal(str)
-    order_changed = pyqtSignal(list)
+    prompt_selected = Signal(dict)
+    prompt_add_requested = Signal()
+    prompt_edit_requested = Signal(dict)
+    prompt_delete_requested = Signal(str)
+    order_changed = Signal(list)
 
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)

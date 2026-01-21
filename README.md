@@ -1,4 +1,4 @@
-# Prompter
+# Promptheus
 
 A powerful context menu application that provides instant access to AI prompts from anywhere in your system. Execute common tasks like text summarization, translation, and custom prompts using clipboard content or speech-to-text input.
 
@@ -16,8 +16,14 @@ A powerful context menu application that provides instant access to AI prompts f
 
 ### Prerequisites
 
-- Python 3.8 or higher
+- Python 3.11 or higher
 - Operating System: macOS, Linux, or Windows
+
+#### Ubuntu/Debian
+
+```bash
+sudo apt install libxcb-cursor0
+```
 
 ### Setup
 
@@ -25,7 +31,7 @@ A powerful context menu application that provides instant access to AI prompts f
 
 ```bash
 git clone <repository-url>
-cd prompter
+cd promptheus
 ```
 
 2. Install and setup using Make:
@@ -37,7 +43,7 @@ make install
 This will:
 
 - Create a virtual environment
-- Install dependencies
+- Install dependencies (with platform-specific extras)
 - Create `.env` file (add your API keys)
 - Copy example settings to `settings/` directory
 
@@ -315,12 +321,12 @@ make logs-follow  # Follow logs in real-time
 ### Project Structure
 
 ```
-prompter/
+promptheus/
 ├── main.py                 # Main application entry
+├── pyproject.toml          # Project dependencies
 ├── settings/              # Configuration directory
 │   ├── prompts/           # External prompt files
 │   └── settings.json      # Main settings file
-├── requirements.txt       # Python dependencies
 ├── Makefile              # Build and service management
 └── .env                  # Environment variables
 ```
