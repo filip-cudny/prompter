@@ -367,7 +367,6 @@ class ConversationManager:
 
     def rebuild_reply_image_chips(self, section: QWidget):
         """Rebuild image chips for a reply section."""
-        dialog = self.dialog
 
         # Clear existing chips
         for chip in section.image_chips:

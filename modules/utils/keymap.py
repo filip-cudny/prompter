@@ -49,10 +49,7 @@ class KeymapContext:
         if "os ==" not in self.context:
             return True
 
-        if f"os == {current_os}" in self.context:
-            return True
-
-        return False
+        return f"os == {current_os}" in self.context
 
 
 class KeymapManager:

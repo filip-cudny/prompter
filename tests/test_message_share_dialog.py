@@ -54,11 +54,7 @@ def _has_empty_conversation_sections_standalone(
         if not section.text_edit.toPlainText().strip() and not section.turn_images:
             return True
 
-    if dynamic_sections or output_section_shown:
-        if not input_text.strip() and not message_images:
-            return True
-
-    return False
+    return bool((dynamic_sections or output_section_shown) and not input_text.strip() and not message_images)
 
 
 def _can_send_standalone(
@@ -133,7 +129,7 @@ def _save_text_state(current_text: str, last_text: str, undo_stack: list, redo_s
     if current_text != last_text:
         state = (
             state_class(text=last_text)
-            if state_class == PromptInputState or state_class == OutputState
+            if state_class in (PromptInputState, OutputState)
             else state_class
         )
         undo_stack.append(state)
@@ -186,9 +182,7 @@ def _should_process_streaming_chunk(
 ) -> bool:
     if not waiting_for_result:
         return False
-    if chunk_execution_id and current_execution_id and chunk_execution_id != current_execution_id:
-        return False
-    return True
+    return not (chunk_execution_id and current_execution_id and chunk_execution_id != current_execution_id)
 
 
 class TestIsRegenerateMode:
@@ -756,7 +750,7 @@ class TestSaveTextStates:
         undo_stack = []
         redo_stack = []
 
-        new_last = _save_text_state(
+        _save_text_state(
             current_text="new output",
             last_text="old output",
             undo_stack=undo_stack,
@@ -833,7 +827,6 @@ class TestConversationTabBar:
 
     def test_set_active_tab_updates_state(self):
         active_tab_id = None
-        tabs = {"tab-1": {}, "tab-2": {}}
 
         active_tab_id = "tab-2"
 

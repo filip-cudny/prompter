@@ -1,6 +1,7 @@
 """Context section widgets for displaying and managing context items as chips."""
 
 import base64
+import contextlib
 import logging
 from collections.abc import Callable
 
@@ -778,17 +779,13 @@ class ContextSectionWidget(QWidget):
 
     def cleanup(self):
         """Clean up resources."""
-        try:
+        with contextlib.suppress(Exception):
             self.context_manager.remove_change_callback(self._on_context_changed)
-        except Exception:
-            pass
 
     def _safe_cleanup(self):
         """Safety cleanup on widget destruction."""
-        try:
+        with contextlib.suppress(Exception):
             self.context_manager.remove_change_callback(self._on_context_changed)
-        except Exception:
-            pass
 
 
 class LastInteractionChip(QWidget):

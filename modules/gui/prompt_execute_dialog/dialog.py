@@ -1863,15 +1863,13 @@ class PromptExecuteDialog(BaseDialog):
             if key == Qt.Key_V and (modifiers & Qt.ControlModifier):
                 # Check reply sections first
                 for section in self._dynamic_sections:
-                    if obj == section.text_edit:
-                        if self._paste_image_to_reply(section):
-                            return True  # Event handled, don't paste as text
+                    if obj == section.text_edit and self._paste_image_to_reply(section):
+                        return True  # Event handled, don't paste as text
 
                 if obj == self.context_text_edit:
                     if self._paste_image_from_clipboard():
                         return True  # Event handled, don't paste as text
-                elif obj == self.input_edit:
-                    if self._paste_image_to_message():
-                        return True  # Event handled, don't paste as text
+                elif obj == self.input_edit and self._paste_image_to_message():
+                    return True  # Event handled, don't paste as text
 
         return super().eventFilter(obj, event)

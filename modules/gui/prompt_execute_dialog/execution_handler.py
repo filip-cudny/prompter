@@ -1,5 +1,6 @@
 """Execution handler for PromptExecuteDialog."""
 
+import contextlib
 import time
 from typing import TYPE_CHECKING
 
@@ -97,10 +98,8 @@ class ExecutionHandler:
             return
         service = self._get_prompt_store_service()
         if service and hasattr(service, "_menu_coordinator"):
-            try:
+            with contextlib.suppress(Exception):
                 service._menu_coordinator.execution_completed.disconnect(self.on_execution_result)
-            except Exception:
-                pass
         self._execution_signal_connected = False
 
     def connect_streaming_signal(self):
@@ -121,10 +120,8 @@ class ExecutionHandler:
             return
         service = self._get_prompt_store_service()
         if service and hasattr(service, "_menu_coordinator"):
-            try:
+            with contextlib.suppress(Exception):
                 service._menu_coordinator.streaming_chunk.disconnect(self.on_streaming_chunk)
-            except Exception:
-                pass
         self._streaming_signal_connected = False
 
     def connect_global_execution_signals(self):
@@ -151,14 +148,10 @@ class ExecutionHandler:
             return
         service = self._get_prompt_store_service()
         if service and hasattr(service, "_menu_coordinator"):
-            try:
+            with contextlib.suppress(Exception):
                 service._menu_coordinator.execution_started.disconnect(self.on_global_execution_started)
-            except Exception:
-                pass
-            try:
+            with contextlib.suppress(Exception):
                 service._menu_coordinator.execution_completed.disconnect(self.on_global_execution_completed)
-            except Exception:
-                pass
         self._global_execution_signal_connected = False
 
     def disconnect_all_signals(self):
@@ -598,20 +591,16 @@ class ExecutionHandler:
         if is_alt_enter:
             dialog.send_show_btn.setIcon(create_icon("square", "#f0f0f0", 16))
             dialog.send_show_btn.setToolTip("Stop execution (Alt+Enter)")
-            try:
+            with contextlib.suppress(TypeError):
                 dialog.send_show_btn.clicked.disconnect()
-            except TypeError:
-                pass
             dialog.send_show_btn.clicked.connect(self._on_stop_button_clicked)
             dialog.send_show_btn.setEnabled(True)
             self._stop_button_active = "alt"
         else:
             dialog.send_copy_btn.setIcon(create_icon("square", "#f0f0f0", 16))
             dialog.send_copy_btn.setToolTip("Stop execution (Ctrl+Enter)")
-            try:
+            with contextlib.suppress(TypeError):
                 dialog.send_copy_btn.clicked.disconnect()
-            except TypeError:
-                pass
             dialog.send_copy_btn.clicked.connect(self._on_stop_button_clicked)
             dialog.send_copy_btn.setEnabled(True)
             self._stop_button_active = "ctrl"
@@ -625,18 +614,14 @@ class ExecutionHandler:
         dialog = self.dialog
 
         if self._stop_button_active == "alt":
-            try:
+            with contextlib.suppress(TypeError):
                 dialog.send_show_btn.clicked.disconnect()
-            except TypeError:
-                pass
             dialog.send_show_btn.clicked.connect(dialog._on_send_show)
             dialog.send_show_btn.setIcon(create_icon("send-horizontal", "#444444", 16))
             dialog.send_show_btn.setToolTip("Send & Show Result (Alt+Enter)")
         elif self._stop_button_active == "ctrl":
-            try:
+            with contextlib.suppress(TypeError):
                 dialog.send_copy_btn.clicked.disconnect()
-            except TypeError:
-                pass
             dialog.send_copy_btn.clicked.connect(dialog._on_send_copy)
             dialog.send_copy_btn.setIcon(create_icon("copy", "#444444", 16))
             dialog.send_copy_btn.setToolTip("Send & Copy to Clipboard (Ctrl+Enter)")

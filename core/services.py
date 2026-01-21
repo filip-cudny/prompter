@@ -51,10 +51,7 @@ class ExecutionService:
 
     def is_executing(self) -> bool:
         """Check if any handler is executing (LLM request in progress)."""
-        for handler in self.handlers:
-            if hasattr(handler, "async_manager") and handler.async_manager.is_busy():
-                return True
-        return False
+        return any(hasattr(handler, "async_manager") and handler.async_manager.is_busy() for handler in self.handlers)
 
     def get_executing_action_id(self) -> str | None:
         """Get the ID of the action that is currently executing."""
@@ -83,9 +80,8 @@ class ExecutionService:
             silent: If True, skip notification and signal emission (caller handles UI)
         """
         for handler in self.handlers:
-            if hasattr(handler, "async_manager"):
-                if handler.async_manager.has_execution(execution_id):
-                    return handler.async_manager.stop_execution(execution_id, silent)
+            if hasattr(handler, "async_manager") and handler.async_manager.has_execution(execution_id):
+                return handler.async_manager.stop_execution(execution_id, silent)
         return False
 
     def should_disable_action(self, action_id: str) -> bool:
@@ -94,9 +90,7 @@ class ExecutionService:
             return True
         executing_id = self.get_executing_action_id()
         if executing_id:
-            if executing_id == action_id:
-                return False
-            return True
+            return executing_id != action_id
         return False
 
     def get_disable_reason(self, action_id: str) -> str | None:
@@ -140,7 +134,7 @@ class ExecutionService:
             if not self.speech_service:
                 return ExecutionResult(success=False, error="Speech service not available")
 
-            is_alternative = item.data and item.data.get("alternative_execution", False)
+            item.data and item.data.get("alternative_execution", False)
 
             if self.speech_service.is_recording():
                 self.speech_service.stop_recording()

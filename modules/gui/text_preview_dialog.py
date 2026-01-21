@@ -200,15 +200,14 @@ class TextPreviewDialog(BaseDialog):
             event.key() == Qt.Key_C
             and (event.modifiers() & Qt.ControlModifier)
             and not (event.modifiers() & Qt.ShiftModifier)
-        ):
-            if self._clipboard_manager:
-                selected_text = self.text_edit.textCursor().selectedText()
-                if selected_text:
-                    # Replace paragraph separators with newlines
-                    selected_text = selected_text.replace("\u2029", "\n")
-                    self._clipboard_manager.set_content(selected_text)
-                    event.accept()
-                    return
+        ) and self._clipboard_manager:
+            selected_text = self.text_edit.textCursor().selectedText()
+            if selected_text:
+                # Replace paragraph separators with newlines
+                selected_text = selected_text.replace("\u2029", "\n")
+                self._clipboard_manager.set_content(selected_text)
+                event.accept()
+                return
             # Fall through to default Qt handling if no clipboard_manager or no selection
 
         # Ctrl+Shift+C for copy all

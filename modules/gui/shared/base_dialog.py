@@ -206,12 +206,11 @@ class BaseDialog(QDialog):
             QEvent.WindowActivate,
             QEvent.FocusIn,
             QEvent.MouseButtonPress,
-        ):
-            if not BaseDialog._focus_in_progress:
-                BaseDialog._focus_in_progress = True
-                self.raise_()
-                self.activateWindow()
-                QTimer.singleShot(DIALOG_SHOW_DELAY_MS, self._clear_focus_guard)
+        ) and not BaseDialog._focus_in_progress:
+            BaseDialog._focus_in_progress = True
+            self.raise_()
+            self.activateWindow()
+            QTimer.singleShot(DIALOG_SHOW_DELAY_MS, self._clear_focus_guard)
         return super().event(event)
 
     def _clear_focus_guard(self):

@@ -176,7 +176,7 @@ class PlaceholderService:
 
     def has_placeholders(self, content: str) -> bool:
         """Check if content contains any registered placeholders."""
-        for placeholder_name in self.processors.keys():
+        for placeholder_name in self.processors:
             placeholder_pattern = f"{{{{{placeholder_name}}}}}"
             if placeholder_pattern in content:
                 return True

@@ -1,5 +1,6 @@
 """Menu item providers for the Promptheus application."""
 
+import contextlib
 from collections.abc import Callable
 
 from core.models import MenuItem, MenuItemType
@@ -28,10 +29,8 @@ class PromptMenuProvider:
 
             model_configs = {}
             if self.prompt_store.primary_provider and hasattr(self.prompt_store.primary_provider, "get_model_configs"):
-                try:
+                with contextlib.suppress(Exception):
                     model_configs = self.prompt_store.primary_provider.get_model_configs()
-                except Exception:
-                    pass
 
             for index, prompt in enumerate(prompts, 1):
                 item_id = f"prompt_{prompt.id}"

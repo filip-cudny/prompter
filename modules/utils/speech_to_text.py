@@ -16,6 +16,8 @@ try:
 except ImportError:
     SOUNDDEVICE_AVAILABLE = False
 
+import contextlib
+
 from core.openai_service import OpenAiService
 
 
@@ -291,19 +293,15 @@ class SpeechToTextService:
             transcription = self.openai_service.transcribe_audio_file(audio_file_path, "speech_to_text")
             transcription_duration = time.time() - start_time
 
-            try:
+            with contextlib.suppress(Exception):
                 os.unlink(audio_file_path)
-            except Exception:
-                pass
 
             if transcription:
                 self._execute_transcription_callbacks(transcription, transcription_duration, handler_name)
 
         except Exception as e:
-            try:
+            with contextlib.suppress(Exception):
                 os.unlink(audio_file_path)
-            except Exception:
-                pass
 
             error_msg = f"Transcription failed: {e}"
             if self.error_callback:
