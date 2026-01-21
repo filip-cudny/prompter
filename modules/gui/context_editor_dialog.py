@@ -772,11 +772,10 @@ class ContextEditorDialog(BaseDialog):
             # Fall through to default Qt handling if no selection
 
         # Ctrl+V for paste image (always try if clipboard has image)
-        if event.key() == Qt.Key_V and (event.modifiers() & Qt.ControlModifier):
-            if self.clipboard_manager.has_image():
-                self._paste_image_from_clipboard()
-                event.accept()
-                return
+        if event.key() == Qt.Key_V and (event.modifiers() & Qt.ControlModifier) and self.clipboard_manager.has_image():
+            self._paste_image_from_clipboard()
+            event.accept()
+            return
 
         # Escape to close
         if self.handle_escape_key(event):
@@ -822,8 +821,11 @@ class ContextEditorDialog(BaseDialog):
                     self.clipboard_manager.set_content(selected_text)
                     return True  # Event handled
             # Ctrl+V for paste image
-            if event.key() == Qt.Key_V and (event.modifiers() & Qt.ControlModifier):
-                if self.clipboard_manager.has_image():
-                    self._paste_image_from_clipboard()
-                    return True  # Event handled, don't pass to text_edit
+            if (
+                event.key() == Qt.Key_V
+                and (event.modifiers() & Qt.ControlModifier)
+                and self.clipboard_manager.has_image()
+            ):
+                self._paste_image_from_clipboard()
+                return True  # Event handled, don't pass to text_edit
         return super().eventFilter(obj, event)

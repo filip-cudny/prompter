@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Outline (filled "donut" using evenodd), transparent background -->
+  <path fill="#FFFFFF" fill-rule="evenodd" d="
+    M144 140
+    H368
+    A72 72 0 0 1 440 212
+    V412
+    A72 72 0 0 1 368 484
+    H144
+    A72 72 0 0 1 72 412
+    V212
+    A72 72 0 0 1 144 140
+    Z
+
+    M220 60
+    H292
+    A64 64 0 0 1 356 124
+    V156
+    H156
+    V124
+    A64 64 0 0 1 220 60
+    Z
+
+    M180 176
+    H332
+    A36 36 0 0 1 368 212
+    V412
+    A36 36 0 0 1 332 448
+    H180
+    A36 36 0 0 1 144 412
+    V212
+    A36 36 0 0 1 180 176
+    Z
+
+    M228 96
+    H284
+    A28 28 0 0 1 312 124
+    V132
+    H200
+    V124
+    A28 28 0 0 1 228 96
+    Z
+  "/>
+
+  <!-- Clip hole ring -->
+  <path fill="#FFFFFF" fill-rule="evenodd" d="
+    M256 140
+    m -28 0
+    a 28 28 0 1 0 56 0
+    a 28 28 0 1 0 -56 0
+    Z
+    M256 140
+    m -12 0
+    a 12 12 0 1 0 24 0
+    a 12 12 0 1 0 -24 0
+    Z
+  "/>
+
+  <!-- Centered thunder -->
+  <path d="M282 230 L214 330 H252 L230 420 L298 300 H260 Z" fill="#FFFFFF"/>
+</svg>

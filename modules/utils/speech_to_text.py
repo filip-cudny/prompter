@@ -98,9 +98,8 @@ class AudioRecorder:
             self.stream = None
 
         try:
-            temp_file = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
-            temp_path = temp_file.name
-            temp_file.close()
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
+                temp_path = temp_file.name
 
             with wave.open(temp_path, "wb") as wf:
                 wf.setnchannels(self.channels)

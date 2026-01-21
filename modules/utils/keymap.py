@@ -130,15 +130,12 @@ class KeymapManager:
 def get_current_os() -> str:
     """Get the current operating system identifier."""
     system = platform.system().lower()
-
-    if system == "darwin":
-        return "macos"
-    elif system == "windows":
-        return "windows"
-    elif system == "linux":
-        return "linux"
-    else:
-        return "linux"
+    os_map = {
+        "darwin": "macos",
+        "windows": "windows",
+        "linux": "linux",
+    }
+    return os_map.get(system, "linux")
 
 
 def validate_keymap_data(keymaps: list[dict[str, Any]]) -> None:

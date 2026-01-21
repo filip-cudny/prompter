@@ -23,12 +23,12 @@ def safe_load_json(file_path: Path) -> dict[str, Any]:
 
         return json5.loads(content)
 
-    except FileNotFoundError:
-        raise ConfigurationError(f"Settings file not found: {file_path}")
+    except FileNotFoundError as e:
+        raise ConfigurationError(f"Settings file not found: {file_path}") from e
     except (json.JSONDecodeError, ValueError) as e:
-        raise ConfigurationError(f"Invalid JSON in settings file: {e}")
+        raise ConfigurationError(f"Invalid JSON in settings file: {e}") from e
     except Exception as e:
-        raise ConfigurationError(f"Error loading settings file: {e}")
+        raise ConfigurationError(f"Error loading settings file: {e}") from e
 
 
 @dataclass
@@ -505,7 +505,7 @@ class ConfigService:
                     _load_api_key_for_model(config.speech_to_text_model, "speech_to_text_model")
 
             except Exception as e:
-                raise ConfigurationError(f"Failed to load configuration: {e}")
+                raise ConfigurationError(f"Failed to load configuration: {e}") from e
         else:
             raise ConfigurationError(f"Settings file not found: {keymap_settings_file}")
 
@@ -597,9 +597,12 @@ def validate_config(config: AppConfig) -> None:
                         f"Model '{model_display}' parameter '{param_name}' must be a number, string, or boolean"
                     )
 
-        if "base_url" in model_config and model_config["base_url"]:
-            if not model_config["base_url"].startswith(("http://", "https://")):
-                raise ConfigurationError(f"Model '{model_display}' base_url must start with http:// or https://")
+        if (
+            "base_url" in model_config
+            and model_config["base_url"]
+            and not model_config["base_url"].startswith(("http://", "https://"))
+        ):
+            raise ConfigurationError(f"Model '{model_display}' base_url must start with http:// or https://")
 
     # Validate number_input_debounce_ms
     if config.number_input_debounce_ms is not None:
@@ -607,8 +610,8 @@ def validate_config(config: AppConfig) -> None:
             debounce_ms = int(config.number_input_debounce_ms)
             if debounce_ms < 0 or debounce_ms > 10000:
                 raise ConfigurationError("number_input_debounce_ms must be between 0 and 10000 milliseconds")
-        except (ValueError, TypeError):
-            raise ConfigurationError("number_input_debounce_ms must be a valid integer")
+        except (ValueError, TypeError) as e:
+            raise ConfigurationError("number_input_debounce_ms must be a valid integer") from e
 
     # Validate speech_to_text_model if present
     if config.speech_to_text_model is not None:
@@ -625,9 +628,12 @@ def validate_config(config: AppConfig) -> None:
                 raise ConfigurationError(f"speech_to_text_model field '{field}' cannot be empty")
 
         # Validate base_url if present (optional field)
-        if "base_url" in config.speech_to_text_model and config.speech_to_text_model["base_url"]:
-            if not config.speech_to_text_model["base_url"].startswith(("http://", "https://")):
-                raise ConfigurationError("speech_to_text_model base_url must start with http:// or https://")
+        if (
+            "base_url" in config.speech_to_text_model
+            and config.speech_to_text_model["base_url"]
+            and not config.speech_to_text_model["base_url"].startswith(("http://", "https://"))
+        ):
+            raise ConfigurationError("speech_to_text_model base_url must start with http:// or https://")
 
 
 def _load_api_keys(models: list[dict[str, Any]]) -> None:

@@ -615,9 +615,7 @@ class ContextSectionWidget(QWidget):
         text_items = [(idx, item) for idx, item in enumerate(items) if item.item_type == ContextItemType.TEXT]
 
         # Display images first (with ascending numbering), then text
-        image_number = 0
-        for idx, item in image_items:
-            image_number += 1
+        for image_number, (idx, item) in enumerate(image_items, start=1):
             chip = ImageContextChip(
                 index=idx,
                 image_number=image_number,

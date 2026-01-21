@@ -127,11 +127,7 @@ def _redo_stack_operation(undo_stack: list, redo_stack: list, get_current_state,
 
 def _save_text_state(current_text: str, last_text: str, undo_stack: list, redo_stack: list, state_class):
     if current_text != last_text:
-        state = (
-            state_class(text=last_text)
-            if state_class in (PromptInputState, OutputState)
-            else state_class
-        )
+        state = state_class(text=last_text) if state_class in (PromptInputState, OutputState) else state_class
         undo_stack.append(state)
         redo_stack.clear()
         return current_text

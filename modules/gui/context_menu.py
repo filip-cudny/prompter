@@ -455,16 +455,13 @@ class PyQtContextMenu(QObject):
 
     def _force_app_activation_linux(self):
         """Force application activation on Linux when triggered from another app."""
-        try:
-            # Use wmctrl if available
+        with contextlib.suppress(Exception):
             subprocess.run(
                 ["wmctrl", "-a", str(os.getpid())],
                 capture_output=True,
                 timeout=1,
                 check=False,
             )
-        except Exception:
-            pass
 
     def get_cursor_position(self) -> tuple[int, int]:
         """Get current cursor position."""
@@ -1055,18 +1052,17 @@ class PyQtContextMenu(QObject):
                 """Handle mic button click - trigger alternative execution (speech input)."""
                 # For recording action, this stops recording (always allowed)
                 # For non-recording actions when enabled
-                if self._context_menu.execution_callback:
-                    if self._is_recording_action or self._menu_item.enabled:
-                        # True = shift_pressed, triggers alternative execution (speech-to-text)
-                        self._context_menu.execution_callback(self._menu_item, True)
-                        # Close the menu after execution
-                        if self._context_menu.menu:
-                            self._context_menu.menu.close()
-                        if self._context_menu.focus_window:
-                            self._context_menu.focus_window.hide()
-                        # Restore focus after execution
-                        self._context_menu._focus_restore_pending = True
-                        QTimer.singleShot(100, self._context_menu._restore_focus_with_cleanup)
+                if self._context_menu.execution_callback and (self._is_recording_action or self._menu_item.enabled):
+                    # True = shift_pressed, triggers alternative execution (speech-to-text)
+                    self._context_menu.execution_callback(self._menu_item, True)
+                    # Close the menu after execution
+                    if self._context_menu.menu:
+                        self._context_menu.menu.close()
+                    if self._context_menu.focus_window:
+                        self._context_menu.focus_window.hide()
+                    # Restore focus after execution
+                    self._context_menu._focus_restore_pending = True
+                    QTimer.singleShot(100, self._context_menu._restore_focus_with_cleanup)
 
             def mousePressEvent(self, event):
                 # Check if click is on a button - if so, let the button handle it
@@ -1090,18 +1086,17 @@ class PyQtContextMenu(QObject):
                         event.ignore()
                         return
 
-                    if self._menu_item.enabled or self._is_recording_action:
-                        if self._context_menu.execution_callback:
-                            shift_pressed = bool(QApplication.keyboardModifiers() & Qt.ShiftModifier)
-                            self._context_menu.execution_callback(self._menu_item, shift_pressed)
-                            # Close the menu after execution
-                            if self._context_menu.menu:
-                                self._context_menu.menu.close()
-                            if self._context_menu.focus_window:
-                                self._context_menu.focus_window.hide()
-                            # Restore focus after execution
-                            self._context_menu._focus_restore_pending = True
-                            QTimer.singleShot(100, self._context_menu._restore_focus_with_cleanup)
+                    if (self._menu_item.enabled or self._is_recording_action) and self._context_menu.execution_callback:
+                        shift_pressed = bool(QApplication.keyboardModifiers() & Qt.ShiftModifier)
+                        self._context_menu.execution_callback(self._menu_item, shift_pressed)
+                        # Close the menu after execution
+                        if self._context_menu.menu:
+                            self._context_menu.menu.close()
+                        if self._context_menu.focus_window:
+                            self._context_menu.focus_window.hide()
+                        # Restore focus after execution
+                        self._context_menu._focus_restore_pending = True
+                        QTimer.singleShot(100, self._context_menu._restore_focus_with_cleanup)
 
             def enterEvent(self, event):
                 if self._menu_item.enabled or self._is_recording_action or self._is_executing_action:
@@ -1141,19 +1136,18 @@ class PyQtContextMenu(QObject):
                         event.accept()
                         return
 
-                    if self._menu_item.enabled or self._is_recording_action:
-                        if self._context_menu.execution_callback:
-                            shift_pressed = bool(QApplication.keyboardModifiers() & Qt.ShiftModifier)
-                            self._context_menu.execution_callback(self._menu_item, shift_pressed)
-                            # Close the menu after execution
-                            if self._context_menu.menu:
-                                self._context_menu.menu.close()
-                            if self._context_menu.focus_window:
-                                self._context_menu.focus_window.hide()
-                            # Restore focus after execution
-                            self._context_menu._focus_restore_pending = True
-                            QTimer.singleShot(100, self._context_menu._restore_focus_with_cleanup)
-                        event.accept()
+                    if (self._menu_item.enabled or self._is_recording_action) and self._context_menu.execution_callback:
+                        shift_pressed = bool(QApplication.keyboardModifiers() & Qt.ShiftModifier)
+                        self._context_menu.execution_callback(self._menu_item, shift_pressed)
+                        # Close the menu after execution
+                        if self._context_menu.menu:
+                            self._context_menu.menu.close()
+                        if self._context_menu.focus_window:
+                            self._context_menu.focus_window.hide()
+                        # Restore focus after execution
+                        self._context_menu._focus_restore_pending = True
+                        QTimer.singleShot(100, self._context_menu._restore_focus_with_cleanup)
+                    event.accept()
                 else:
                     super().keyPressEvent(event)
 
@@ -1192,13 +1186,17 @@ class PyQtContextMenu(QObject):
             return False
 
         # Handle app-level mouse clicks for click-outside detection
-        if event.type() == QEvent.MouseButtonPress and self.menu and self.menu.isVisible():
-            if not isinstance(obj, QMenu):
-                click_pos = event.globalPosition().toPoint()
-                menu_rect = self.menu.geometry()
-                if not menu_rect.contains(click_pos):
-                    self.menu.hide()
-                    return False
+        if (
+            event.type() == QEvent.MouseButtonPress
+            and self.menu
+            and self.menu.isVisible()
+            and not isinstance(obj, QMenu)
+        ):
+            click_pos = event.globalPosition().toPoint()
+            menu_rect = self.menu.geometry()
+            if not menu_rect.contains(click_pos):
+                self.menu.hide()
+                return False
 
         if isinstance(obj, QMenu):
             if event.type() == QEvent.KeyPress:

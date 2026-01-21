@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Clipboard -->
+  <g fill="#E6EEF9" stroke="#9DB7E6" stroke-width="10" stroke-linejoin="round">
+    <!-- Body -->
+    <rect x="96" y="140" width="320" height="320" rx="44"/>
+    <!-- Top clip -->
+    <rect x="156" y="72" width="200" height="92" rx="28"/>
+    <!-- Clip ring -->
+    <circle cx="256" cy="118" r="16" fill="none"/>
+  </g>
+
+  <!-- Lightning bolt -->
+  <path
+    d="M292 176 L204 306 H258 L228 424 L336 274 H282 Z"
+    fill="#1E86FF"
+  />
+</svg>
