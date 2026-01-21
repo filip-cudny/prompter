@@ -136,6 +136,7 @@ def mock_dialog():
 def mock_dynamic_section():
     def _make(turn_number: int, text: str = "", images: list = None):
         return make_section(turn_number, text, images)
+
     return _make
 
 
@@ -143,6 +144,7 @@ def mock_dynamic_section():
 def mock_output_section():
     def _make(turn_number: int, text: str = ""):
         return make_output_section(turn_number, text)
+
     return _make
 
 

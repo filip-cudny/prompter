@@ -105,9 +105,7 @@ class PromptsPanel(SettingsPanelBase):
         self._generator_model_combo = QComboBox()
         self._generator_model_combo.addItem("Default (first available)", "")
         self._populate_generator_models()
-        self._generator_model_combo.currentIndexChanged.connect(
-            self._on_generator_model_changed
-        )
+        self._generator_model_combo.currentIndexChanged.connect(self._on_generator_model_changed)
         row_layout.addWidget(self._generator_model_combo)
 
         icon_btn_style = f"""
@@ -169,9 +167,7 @@ class PromptsPanel(SettingsPanelBase):
     def _on_edit_generator_prompt(self) -> None:
         """Open dialog to edit the generator prompt template."""
         config = self._config_service.get_description_generator_config()
-        current_prompt = self._pending_generator_config.get(
-            "system_prompt", config.get("system_prompt", "")
-        )
+        current_prompt = self._pending_generator_config.get("system_prompt", config.get("system_prompt", ""))
 
         dialog = PromptTemplateDialog(current_prompt=current_prompt, parent=self)
         if dialog.exec():
@@ -220,9 +216,7 @@ class PromptsPanel(SettingsPanelBase):
     def save_changes(self) -> bool:
         """Save pending changes to config."""
         if self._pending_generator_config:
-            self._config_service.update_description_generator_config(
-                self._pending_generator_config, persist=False
-            )
+            self._config_service.update_description_generator_config(self._pending_generator_config, persist=False)
             self._pending_generator_config = {}
         self.mark_clean()
         return True

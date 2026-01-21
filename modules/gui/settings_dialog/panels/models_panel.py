@@ -1,6 +1,5 @@
 """Models settings panel."""
 
-
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -27,7 +26,8 @@ from modules.utils.config import ConfigService
 from ..settings_panel_base import SettingsPanelBase
 from ..widgets.model_editor_widget import ModelEditorWidget
 
-TOOLBAR_BTN_STYLE = f"""
+TOOLBAR_BTN_STYLE = (
+    f"""
     QPushButton {{
         background-color: {COLOR_BUTTON_BG};
         color: {COLOR_TEXT};
@@ -42,7 +42,9 @@ TOOLBAR_BTN_STYLE = f"""
         background-color: {COLOR_DIALOG_BG};
         color: #666666;
     }}
-""" + TOOLTIP_STYLE
+"""
+    + TOOLTIP_STYLE
+)
 
 
 class ModelsPanel(SettingsPanelBase):

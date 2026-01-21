@@ -24,7 +24,8 @@ from modules.gui.shared.dialog_styles import (
     TOOLTIP_STYLE,
 )
 
-TOOLBAR_BTN_STYLE = f"""
+TOOLBAR_BTN_STYLE = (
+    f"""
     QPushButton {{
         background-color: {COLOR_BUTTON_BG};
         color: {COLOR_TEXT};
@@ -39,10 +40,13 @@ TOOLBAR_BTN_STYLE = f"""
         background-color: {COLOR_DIALOG_BG};
         color: #666666;
     }}
-""" + TOOLTIP_STYLE
+"""
+    + TOOLTIP_STYLE
+)
 
 
-ICON_BTN_STYLE = f"""
+ICON_BTN_STYLE = (
+    f"""
     QPushButton {{
         background-color: {COLOR_BUTTON_BG};
         border: 1px solid {COLOR_BORDER};
@@ -59,7 +63,9 @@ ICON_BTN_STYLE = f"""
     QPushButton:disabled {{
         background-color: {COLOR_DIALOG_BG};
     }}
-""" + TOOLTIP_STYLE
+"""
+    + TOOLTIP_STYLE
+)
 
 
 class PromptListWidget(QWidget):

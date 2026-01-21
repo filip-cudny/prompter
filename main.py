@@ -40,9 +40,7 @@ def main():
 
     parser = argparse.ArgumentParser(description="Promptheus Application")
     parser.add_argument("--config", "-c", help="Configuration file path")
-    parser.add_argument(
-        "--debug", "-d", action="store_true", help="Enable debug mode with detailed logging"
-    )
+    parser.add_argument("--debug", "-d", action="store_true", help="Enable debug mode with detailed logging")
     args = parser.parse_args()
 
     setup_logging(debug=args.debug)

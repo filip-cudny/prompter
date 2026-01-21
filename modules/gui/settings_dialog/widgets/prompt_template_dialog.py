@@ -1,6 +1,5 @@
 """Dialog for editing the description generator prompt template."""
 
-
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QDialog,

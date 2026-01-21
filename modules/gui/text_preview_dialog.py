@@ -1,6 +1,5 @@
 """Text preview dialog for displaying and editing content."""
 
-
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QFrame, QHBoxLayout, QScrollArea, QVBoxLayout, QWidget
 
@@ -206,7 +205,7 @@ class TextPreviewDialog(BaseDialog):
                 selected_text = self.text_edit.textCursor().selectedText()
                 if selected_text:
                     # Replace paragraph separators with newlines
-                    selected_text = selected_text.replace('\u2029', '\n')
+                    selected_text = selected_text.replace("\u2029", "\n")
                     self._clipboard_manager.set_content(selected_text)
                     event.accept()
                     return

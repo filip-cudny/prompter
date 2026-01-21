@@ -79,12 +79,7 @@ class EnhancedNotificationWidget(QWidget):
     def _setup_non_activating_window(self):
         """Configure window for non-activating overlay behavior."""
         # Base window flags for all platforms
-        base_flags = (
-            Qt.FramelessWindowHint
-            | Qt.WindowStaysOnTopHint
-            | Qt.Tool
-            | Qt.WindowDoesNotAcceptFocus
-        )
+        base_flags = Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool | Qt.WindowDoesNotAcceptFocus
 
         # Platform-specific window flags
         # Note: Qt.X11BypassWindowManagerHint can prevent windows from rendering
@@ -115,9 +110,7 @@ class EnhancedNotificationWidget(QWidget):
             }
         """)
 
-    def _setup_ui(
-        self, title: str, message: str | None, icon_name: str, icon_color: str
-    ):
+    def _setup_ui(self, title: str, message: str | None, icon_name: str, icon_color: str):
         main_layout = QHBoxLayout(self)
         main_layout.setContentsMargins(12, 12, 24, 12)
         main_layout.setSpacing(12)
@@ -183,9 +176,7 @@ class EnhancedNotificationWidget(QWidget):
         self.fade_animation = QPropertyAnimation(self.opacity_effect, b"opacity")
         self._fade_finished_connected = False
 
-    def show_notification(
-        self, duration: int = 2000, screen_geometry=None, notification_index: int = 0
-    ):
+    def show_notification(self, duration: int = 2000, screen_geometry=None, notification_index: int = 0):
         """Show notification without stealing focus."""
         if self.hide_timer:
             self.hide_timer.stop()
@@ -194,13 +185,7 @@ class EnhancedNotificationWidget(QWidget):
         if screen_geometry:
             self.adjustSize()
             x = screen_geometry.x() + screen_geometry.width() - self.width() - 20
-            y = (
-                screen_geometry.y()
-                + screen_geometry.height()
-                - self.height()
-                - 20
-                - (notification_index * 80)
-            )
+            y = screen_geometry.y() + screen_geometry.height() - self.height() - 20 - (notification_index * 80)
             self.move(x, y)
 
         # Show without activation
@@ -228,6 +213,7 @@ class EnhancedNotificationWidget(QWidget):
     def _configure_macos_window_level(self):
         """Configure macOS window level for proper overlay behavior."""
         from modules.gui.context_menu import _set_macos_window_move_to_active_space
+
         _set_macos_window_move_to_active_space(self)
 
     def fade_in(self):
@@ -294,9 +280,7 @@ class NotificationDispatcher(QObject):
     def __init__(self, manager):
         super().__init__()
         self.manager = manager
-        self.show_notification_signal.connect(
-            self._show_notification_slot, Qt.QueuedConnection
-        )
+        self.show_notification_signal.connect(self._show_notification_slot, Qt.QueuedConnection)
 
     def _show_notification_slot(
         self,
@@ -307,9 +291,7 @@ class NotificationDispatcher(QObject):
         bg_color: str,
         duration: int,
     ):
-        self.manager._display_notification_internal(
-            title, message, icon_name, icon_color, bg_color, duration
-        )
+        self.manager._display_notification_internal(title, message, icon_name, icon_color, bg_color, duration)
 
 
 class EnhancedNotificationManager:
@@ -321,15 +303,9 @@ class EnhancedNotificationManager:
         self.dispatcher = NotificationDispatcher(self)
         self.notification_lock = threading.Lock()
 
-    def show_success_notification(
-        self, title: str, message: str | None = None, duration: int = 2000
-    ):
+    def show_success_notification(self, title: str, message: str | None = None, duration: int = 2000):
         config = NOTIFICATION_TYPES["success"]
-        icon_color = (
-            NOTIFICATION_ICON_MONOCHROME_COLOR
-            if is_monochromatic_mode()
-            else get_icon_color("success")
-        )
+        icon_color = NOTIFICATION_ICON_MONOCHROME_COLOR if is_monochromatic_mode() else get_icon_color("success")
         self._display_notification(
             title,
             message,
@@ -339,15 +315,9 @@ class EnhancedNotificationManager:
             duration,
         )
 
-    def show_error_notification(
-        self, title: str, message: str | None = None, duration: int = 4000
-    ):
+    def show_error_notification(self, title: str, message: str | None = None, duration: int = 4000):
         config = NOTIFICATION_TYPES["error"]
-        icon_color = (
-            NOTIFICATION_ICON_MONOCHROME_COLOR
-            if is_monochromatic_mode()
-            else get_icon_color("error")
-        )
+        icon_color = NOTIFICATION_ICON_MONOCHROME_COLOR if is_monochromatic_mode() else get_icon_color("error")
         self._display_notification(
             title,
             message,
@@ -357,15 +327,9 @@ class EnhancedNotificationManager:
             duration,
         )
 
-    def show_info_notification(
-        self, title: str, message: str | None = None, duration: int = 2000
-    ):
+    def show_info_notification(self, title: str, message: str | None = None, duration: int = 2000):
         config = NOTIFICATION_TYPES["info"]
-        icon_color = (
-            NOTIFICATION_ICON_MONOCHROME_COLOR
-            if is_monochromatic_mode()
-            else get_icon_color("info")
-        )
+        icon_color = NOTIFICATION_ICON_MONOCHROME_COLOR if is_monochromatic_mode() else get_icon_color("info")
         self._display_notification(
             title,
             message,
@@ -375,15 +339,9 @@ class EnhancedNotificationManager:
             duration,
         )
 
-    def show_warning_notification(
-        self, title: str, message: str | None = None, duration: int = 3000
-    ):
+    def show_warning_notification(self, title: str, message: str | None = None, duration: int = 3000):
         config = NOTIFICATION_TYPES["warning"]
-        icon_color = (
-            NOTIFICATION_ICON_MONOCHROME_COLOR
-            if is_monochromatic_mode()
-            else get_icon_color("warning")
-        )
+        icon_color = NOTIFICATION_ICON_MONOCHROME_COLOR if is_monochromatic_mode() else get_icon_color("warning")
         self._display_notification(
             title,
             message,
@@ -407,9 +365,7 @@ class EnhancedNotificationManager:
             print(f"[notification] {display_text}")
             return
 
-        self.dispatcher.show_notification_signal.emit(
-            title, message or "", icon_name, icon_color, bg_color, duration
-        )
+        self.dispatcher.show_notification_signal.emit(title, message or "", icon_name, icon_color, bg_color, duration)
 
     def _display_notification_internal(
         self,
@@ -422,18 +378,12 @@ class EnhancedNotificationManager:
     ):
         try:
             if threading.current_thread() != threading.main_thread():
-                print(
-                    "Warning: Notification called from background thread, using fallback"
-                )
+                print("Warning: Notification called from background thread, using fallback")
                 display_text = f"{title}: {message}" if message else title
                 print(f"[notification] {display_text}")
                 return
 
-            if (
-                not self.app
-                or not hasattr(self.app, "instance")
-                or not self.app.instance()
-            ):
+            if not self.app or not hasattr(self.app, "instance") or not self.app.instance():
                 display_text = f"{title}: {message}" if message else title
                 print(f"[notification] {display_text}")
                 return
@@ -453,9 +403,7 @@ class EnhancedNotificationManager:
                 )
 
                 # Connect cleanup signal
-                notification.notification_finished.connect(
-                    lambda: self._on_notification_finished(notification)
-                )
+                notification.notification_finished.connect(lambda: self._on_notification_finished(notification))
 
                 # Add to active notifications
                 self.active_notifications.append(notification)
@@ -474,9 +422,7 @@ class EnhancedNotificationManager:
 
     def _cleanup_finished_notifications(self):
         """Remove finished notifications from active list."""
-        self.active_notifications = [
-            notif for notif in self.active_notifications if notif._is_visible
-        ]
+        self.active_notifications = [notif for notif in self.active_notifications if notif._is_visible]
 
     def _on_notification_finished(self, notification):
         """Handle notification completion."""

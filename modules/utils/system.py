@@ -125,6 +125,7 @@ def _set_macos_activation_policy_regular():
     """Set macOS activation policy to Regular (shows in dock, normal window behavior)."""
     try:
         from AppKit import NSApp, NSApplicationActivationPolicyRegular
+
         NSApp.setActivationPolicy_(NSApplicationActivationPolicyRegular)
         NSApp.activateIgnoringOtherApps_(True)
     except ImportError:
@@ -137,6 +138,7 @@ def _set_macos_activation_policy_accessory():
     """Set macOS activation policy to Accessory (hidden from dock)."""
     try:
         from AppKit import NSApp, NSApplicationActivationPolicyAccessory
+
         NSApp.setActivationPolicy_(NSApplicationActivationPolicyAccessory)
     except ImportError:
         pass

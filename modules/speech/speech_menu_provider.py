@@ -31,9 +31,7 @@ class SpeechMenuProvider:
             if self.prompt_store_service and self.prompt_store_service.is_recording():
                 speech_label = "Stop Recording"
             elif self.prompt_store_service:
-                speech_enabled = not self.prompt_store_service.should_disable_action(
-                    "system_speech_to_text"
-                )
+                speech_enabled = not self.prompt_store_service.should_disable_action("system_speech_to_text")
 
             speech_item = MenuItem(
                 id="system_speech_to_text",

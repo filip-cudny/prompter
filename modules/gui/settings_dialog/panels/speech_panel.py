@@ -1,6 +1,5 @@
 """Speech settings panel."""
 
-
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QFormLayout,
@@ -70,9 +69,7 @@ class SpeechPanel(SettingsPanelBase):
 
         self._api_key_env_edit = QLineEdit()
         self._api_key_env_edit.setPlaceholderText("OPENAI_API_KEY")
-        self._api_key_env_edit.setToolTip(
-            "Environment variable name containing the API key"
-        )
+        self._api_key_env_edit.setToolTip("Environment variable name containing the API key")
         form_layout.addRow("API Key Env:", self._api_key_env_edit)
 
         self._base_url_edit = QLineEdit()

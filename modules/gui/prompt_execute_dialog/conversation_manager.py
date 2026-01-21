@@ -92,23 +92,15 @@ class ConversationManager:
         container.last_text = ""
 
         # Connect undo/redo signals
-        header.undo_requested.connect(
-            lambda s=container: dialog._undo_dynamic_section(s)
-        )
-        header.redo_requested.connect(
-            lambda s=container: dialog._redo_dynamic_section(s)
-        )
+        header.undo_requested.connect(lambda s=container: dialog._undo_dynamic_section(s))
+        header.redo_requested.connect(lambda s=container: dialog._redo_dynamic_section(s))
 
         # Connect delete signal
         header.delete_requested.connect(lambda s=container: self.delete_section(s))
 
         # Connect text changes for debounced state saving and height update
-        text_edit.textChanged.connect(
-            lambda s=container: dialog._schedule_dynamic_state_save(s)
-        )
-        text_edit.textChanged.connect(
-            lambda s=container: dialog._update_dynamic_section_height(s)
-        )
+        text_edit.textChanged.connect(lambda s=container: dialog._schedule_dynamic_state_save(s))
+        text_edit.textChanged.connect(lambda s=container: dialog._update_dynamic_section_height(s))
 
         # Wrap toggle function
         def toggle_wrap(c=container, h=header, te=text_edit):
@@ -181,31 +173,19 @@ class ConversationManager:
         container.last_text = ""
 
         # Connect undo/redo signals
-        header.undo_requested.connect(
-            lambda s=container: dialog._undo_dynamic_section(s)
-        )
-        header.redo_requested.connect(
-            lambda s=container: dialog._redo_dynamic_section(s)
-        )
+        header.undo_requested.connect(lambda s=container: dialog._undo_dynamic_section(s))
+        header.redo_requested.connect(lambda s=container: dialog._redo_dynamic_section(s))
 
         # Connect delete signal
         header.delete_requested.connect(lambda s=container: self.delete_section(s))
 
         # Connect version navigation signals
-        header.version_prev_requested.connect(
-            lambda s=container: dialog._on_version_prev_dynamic(s)
-        )
-        header.version_next_requested.connect(
-            lambda s=container: dialog._on_version_next_dynamic(s)
-        )
+        header.version_prev_requested.connect(lambda s=container: dialog._on_version_prev_dynamic(s))
+        header.version_next_requested.connect(lambda s=container: dialog._on_version_next_dynamic(s))
 
         # Connect text changes for debounced state saving and height update
-        text_edit.textChanged.connect(
-            lambda s=container: dialog._schedule_dynamic_state_save(s)
-        )
-        text_edit.textChanged.connect(
-            lambda s=container: dialog._update_dynamic_section_height(s)
-        )
+        text_edit.textChanged.connect(lambda s=container: dialog._schedule_dynamic_state_save(s))
+        text_edit.textChanged.connect(lambda s=container: dialog._update_dynamic_section_height(s))
 
         # Wrap toggle function
         def toggle_wrap(c=container, h=header, te=text_edit):
@@ -265,9 +245,7 @@ class ConversationManager:
         # Remove corresponding turn from conversation history
         turn_number = getattr(section, "turn_number", None)
         if turn_number is not None:
-            dialog._conversation_turns = [
-                t for t in dialog._conversation_turns if t.turn_number != turn_number
-            ]
+            dialog._conversation_turns = [t for t in dialog._conversation_turns if t.turn_number != turn_number]
 
         # Update section numbering and delete button visibility
         self.renumber_sections()
@@ -360,10 +338,7 @@ class ConversationManager:
                 return True
 
         if dialog._dynamic_sections or dialog._output_section_shown:
-            if (
-                not dialog.input_edit.toPlainText().strip()
-                and not dialog._message_images
-            ):
+            if not dialog.input_edit.toPlainText().strip() and not dialog._message_images:
                 return True
 
         return False
@@ -375,10 +350,7 @@ class ConversationManager:
         if dialog._execution_handler.is_waiting:
             return False
 
-        if (
-            not dialog._conversation_turns
-            or not dialog._conversation_turns[-1].is_complete
-        ):
+        if not dialog._conversation_turns or not dialog._conversation_turns[-1].is_complete:
             return False
 
         if not dialog._dynamic_sections:
@@ -418,12 +390,8 @@ class ConversationManager:
                 image_data=item.data or "",
                 media_type=item.media_type or "image/png",
             )
-            chip.delete_requested.connect(
-                lambda i, s=section: self._on_reply_image_delete(s, i)
-            )
-            chip.copy_requested.connect(
-                lambda i, s=section: self._on_reply_image_copy(s, i)
-            )
+            chip.delete_requested.connect(lambda i, s=section: self._on_reply_image_delete(s, i))
+            chip.copy_requested.connect(lambda i, s=section: self._on_reply_image_copy(s, i))
             section.image_chips.append(chip)
             section.images_layout.addWidget(chip)
 
@@ -463,9 +431,7 @@ class ConversationManager:
 
     # --- State Capture/Restore ---
 
-    def restore_dynamic_sections(
-        self, reply_data: list[dict], output_data: list[dict]
-    ):
+    def restore_dynamic_sections(self, reply_data: list[dict], output_data: list[dict]):
         """Recreate dynamic sections from serialized data."""
         dialog = self.dialog
 
@@ -518,8 +484,5 @@ class ConversationManager:
             turn_number = data["turn_number"]
             for turn in dialog._conversation_turns:
                 if turn.turn_number == turn_number and turn.output_versions:
-                    section.header.set_version_info(
-                        turn.current_version_index + 1,
-                        len(turn.output_versions)
-                    )
+                    section.header.set_version_info(turn.current_version_index + 1, len(turn.output_versions))
                     break

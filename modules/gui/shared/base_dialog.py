@@ -1,6 +1,5 @@
 """Base dialog class with common functionality."""
 
-
 from PySide6.QtCore import QEvent, Qt, QTimer
 from PySide6.QtWidgets import (
     QDialog,
@@ -147,9 +146,7 @@ class BaseDialog(QDialog):
             container: Section container for size policy
             expanding: If True, use Expanding policy when visible; else Maximum
         """
-        widgets = (
-            content_widgets if isinstance(content_widgets, list) else [content_widgets]
-        )
+        widgets = content_widgets if isinstance(content_widgets, list) else [content_widgets]
         is_visible = any(w.isVisible() for w in widgets)
 
         for widget in widgets:
@@ -185,11 +182,7 @@ class BaseDialog(QDialog):
         """
         collapsed = self.get_section_state(f"{section_key}_collapsed", False)
         if collapsed:
-            widgets = (
-                content_widgets
-                if isinstance(content_widgets, list)
-                else [content_widgets]
-            )
+            widgets = content_widgets if isinstance(content_widgets, list) else [content_widgets]
             for widget in widgets:
                 widget.hide()
             header.set_collapsed(True)

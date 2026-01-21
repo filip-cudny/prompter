@@ -27,13 +27,9 @@ class PromptMenuProvider:
             prompts = self.prompt_store.get_prompts()
 
             model_configs = {}
-            if self.prompt_store.primary_provider and hasattr(
-                self.prompt_store.primary_provider, "get_model_configs"
-            ):
+            if self.prompt_store.primary_provider and hasattr(self.prompt_store.primary_provider, "get_model_configs"):
                 try:
-                    model_configs = (
-                        self.prompt_store.primary_provider.get_model_configs()
-                    )
+                    model_configs = self.prompt_store.primary_provider.get_model_configs()
                 except Exception:
                     pass
 
@@ -46,12 +42,8 @@ class PromptMenuProvider:
                 is_executing_action = False
 
                 if self.prompt_store_service:
-                    enabled = not self.prompt_store_service.should_disable_action(
-                        item_id
-                    )
-                    disable_reason = self.prompt_store_service.get_disable_reason(
-                        item_id
-                    )
+                    enabled = not self.prompt_store_service.should_disable_action(item_id)
+                    disable_reason = self.prompt_store_service.get_disable_reason(item_id)
                     # Check if this is the currently recording action
                     recording_action_id = self.prompt_store_service.get_recording_action_id()
                     is_recording_action = recording_action_id == item_id
@@ -61,15 +53,11 @@ class PromptMenuProvider:
 
                 model_display_name = prompt.model
                 if prompt.model and model_configs.get(prompt.model):
-                    model_display_name = model_configs[prompt.model].get(
-                        "display_name", prompt.model
-                    )
+                    model_display_name = model_configs[prompt.model].get("display_name", prompt.model)
 
                 # Calculate max width needed (assume max 999 prompts)
                 max_digits = len(str(len(prompts))) if prompts else 1
-                max_digits = max(
-                    max_digits, 2
-                )  # Minimum 2 digits for better appearance
+                max_digits = max(max_digits, 2)  # Minimum 2 digits for better appearance
 
                 # Right-align number with non-breaking spaces
                 number_str = str(index)
@@ -79,9 +67,7 @@ class PromptMenuProvider:
 
                 numeration = f'<i style="color: rgba(128, 128, 128, 0.5)">{prefix}</i>'
                 model_suffix = (
-                    f' <i style="color: rgba(128, 128, 128, 0.5)">({model_display_name})</i>'
-                    if prompt.model
-                    else ""
+                    f' <i style="color: rgba(128, 128, 128, 0.5)">({model_display_name})</i>' if prompt.model else ""
                 )
 
                 item = MenuItem(

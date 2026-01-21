@@ -28,7 +28,8 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T")
 
 # Transparent button style (no border, no background)
-ICON_BTN_STYLE = """
+ICON_BTN_STYLE = (
+    """
     QPushButton {
         background: transparent;
         border: none;
@@ -36,7 +37,9 @@ ICON_BTN_STYLE = """
         min-width: 0px;
         max-width: 24px;
     }
-""" + TOOLTIP_STYLE
+"""
+    + TOOLTIP_STYLE
+)
 
 # Minimum height for text edit widgets in dialogs
 TEXT_EDIT_MIN_HEIGHT = 300
@@ -87,9 +90,7 @@ class CollapsibleSectionHeader(QWidget):
 
         # Title label after chevron
         self.title_label = QLabel(title)
-        self.title_label.setStyleSheet(
-            "QLabel { color: #888888; font-size: 11px; font-weight: bold; }"
-        )
+        self.title_label.setStyleSheet("QLabel { color: #888888; font-size: 11px; font-weight: bold; }")
         layout.addWidget(self.title_label)
 
         # Optional hint text (e.g., "Paste image: Ctrl+V")
@@ -193,9 +194,7 @@ class CollapsibleSectionHeader(QWidget):
         icon_name = "chevron-right" if collapsed else "chevron-down"
         self.toggle_btn._icon_name = icon_name
         self.toggle_btn._update_icon(ICON_COLOR_NORMAL)
-        self.toggle_btn.setToolTip(
-            "Expand section" if collapsed else "Collapse section"
-        )
+        self.toggle_btn.setToolTip("Expand section" if collapsed else "Collapse section")
 
     def set_title(self, title: str):
         """Update the section title."""
@@ -227,9 +226,7 @@ class CollapsibleSectionHeader(QWidget):
             icon_name = "chevrons-up-down" if wrapped else "chevrons-down-up"
             self.wrap_btn._icon_name = icon_name
             self.wrap_btn._update_icon(ICON_COLOR_NORMAL)
-            self.wrap_btn.setToolTip(
-                "Expand to fit content" if wrapped else "Wrap to fixed height"
-            )
+            self.wrap_btn.setToolTip("Expand to fit content" if wrapped else "Wrap to fixed height")
 
     def set_wrap_button_visible(self, visible: bool):
         """Show or hide the wrap button."""
@@ -376,9 +373,7 @@ class ImageChipWidget(QWidget):
             orig_width = image.width()
             orig_height = image.height()
 
-            thumbnail = image.scaled(
-                300, 300, Qt.KeepAspectRatio, Qt.SmoothTransformation
-            )
+            thumbnail = image.scaled(300, 300, Qt.KeepAspectRatio, Qt.SmoothTransformation)
 
             buffer = QBuffer()
             buffer.open(QBuffer.WriteOnly)
@@ -427,9 +422,7 @@ class ImageChipWidget(QWidget):
 
     def mousePressEvent(self, event):
         # Copy on click (except on buttons)
-        if not self.delete_btn.geometry().contains(
-            event.pos()
-        ) and not self.copy_btn.geometry().contains(event.pos()):
+        if not self.delete_btn.geometry().contains(event.pos()) and not self.copy_btn.geometry().contains(event.pos()):
             self._on_copy_clicked()
         super().mousePressEvent(event)
 

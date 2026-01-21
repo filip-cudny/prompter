@@ -1,6 +1,5 @@
 """Main Settings dialog with VSCode-style sidebar navigation."""
 
-
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QPushButton,

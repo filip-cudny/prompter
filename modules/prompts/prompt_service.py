@@ -33,14 +33,8 @@ class PromptStoreService(PromptStoreServiceProtocol):
         context_manager=None,
         history_service: HistoryService | None = None,
     ):
-        self.prompt_providers = (
-            prompt_providers
-            if isinstance(prompt_providers, list)
-            else [prompt_providers]
-        )
-        self.primary_provider = (
-            self.prompt_providers[0] if self.prompt_providers else None
-        )
+        self.prompt_providers = prompt_providers if isinstance(prompt_providers, list) else [prompt_providers]
+        self.primary_provider = self.prompt_providers[0] if self.prompt_providers else None
         self.clipboard_manager = clipboard_manager
         self.notification_manager = notification_manager or PyQtNotificationManager()
         self.speech_service = speech_service
@@ -71,9 +65,7 @@ class PromptStoreService(PromptStoreServiceProtocol):
                         provider_prompts = provider.get_prompts()
                         all_prompts.extend(provider_prompts)
                     except Exception as e:
-                        print(
-                            f"Warning: Failed to get prompts from provider {type(provider).__name__}: {e}"
-                        )
+                        print(f"Warning: Failed to get prompts from provider {type(provider).__name__}: {e}")
 
             self._prompts_cache = all_prompts
             return self._prompts_cache
@@ -100,13 +92,9 @@ class PromptStoreService(PromptStoreServiceProtocol):
                 # Only add history for non-async executions and non-speech actions
                 # Async executions will add history when they complete
                 # Speech actions should not be added to history (only final prompt results should be)
-                should_skip_history = (
-                    result.success
-                    and result.content == "Execution started asynchronously"
-                ) or (
+                should_skip_history = (result.success and result.content == "Execution started asynchronously") or (
                     result.metadata
-                    and result.metadata.get("action")
-                    in ["speech_recording_started", "speech_recording_stopped"]
+                    and result.metadata.get("action") in ["speech_recording_started", "speech_recording_stopped"]
                 )
                 if not should_skip_history:
                     self.add_history_entry(item, input_content, result)
@@ -146,9 +134,7 @@ class PromptStoreService(PromptStoreServiceProtocol):
         """Set the menu coordinator for GUI updates."""
         self._menu_coordinator = menu_coordinator
 
-    def emit_execution_completed(
-        self, result: ExecutionResult, execution_id: str = ""
-    ) -> None:
+    def emit_execution_completed(self, result: ExecutionResult, execution_id: str = "") -> None:
         """Emit execution completed signal to update GUI."""
         if self._menu_coordinator:
             eid = execution_id or (result.execution_id if result else "") or ""
@@ -159,9 +145,7 @@ class PromptStoreService(PromptStoreServiceProtocol):
         if self._menu_coordinator:
             self._menu_coordinator.execution_started.emit(execution_id)
 
-    def add_history_entry(
-        self, item: MenuItem, input_content: str, result: ExecutionResult
-    ) -> None:
+    def add_history_entry(self, item: MenuItem, input_content: str, result: ExecutionResult) -> None:
         """Add entry to history service for prompt executions."""
         if item.item_type in [MenuItemType.PROMPT]:
             is_conversation = bool(item.data and item.data.get("conversation_data"))
@@ -195,11 +179,7 @@ class PromptStoreService(PromptStoreServiceProtocol):
         """Set the active prompt/preset."""
         self.active_prompt_service.set_active_prompt(item)
         if item.item_type == MenuItemType.PROMPT:
-            prompt_name = (
-                item.data.get("prompt_name", "Unknown Prompt")
-                if item.data
-                else "Unknown Prompt"
-            )
+            prompt_name = item.data.get("prompt_name", "Unknown Prompt") if item.data else "Unknown Prompt"
             if is_notification_enabled("prompt_execution_success"):
                 self.notification_manager.show_success_notification(
                     f"{prompt_name} is active",

@@ -73,14 +73,10 @@ class ContextPlaceholderProcessor(PlaceholderProcessor):
         return self.context_manager.get_context_or_default("")
 
 
-
-
 class PlaceholderService:
     """Service for processing placeholders in messages."""
 
-    def __init__(
-        self, clipboard_manager: ClipboardManager, context_manager: ContextManager
-    ):
+    def __init__(self, clipboard_manager: ClipboardManager, context_manager: ContextManager):
         self.processors: dict[str, PlaceholderProcessor] = {}
         self.context_manager = context_manager
         self._register_default_processors(clipboard_manager, context_manager)
@@ -104,9 +100,7 @@ class PlaceholderService:
             del self.processors[placeholder_name]
             logger.debug("Unregistered placeholder processor: %s", placeholder_name)
 
-    def process_messages(
-        self, messages: list[dict[str, Any]], context: str | None = None
-    ) -> list[dict[str, Any]]:
+    def process_messages(self, messages: list[dict[str, Any]], context: str | None = None) -> list[dict[str, Any]]:
         """Process placeholders in messages."""
         processed_messages = []
 
@@ -114,9 +108,7 @@ class PlaceholderService:
             if message and isinstance(message.get("content"), str):
                 # For the last message (user message), attach images if available
                 is_last_message = i == len(messages) - 1
-                processed_message = self._process_message_with_context(
-                    message, context, is_last_message
-                )
+                processed_message = self._process_message_with_context(message, context, is_last_message)
                 processed_messages.append(processed_message)
 
         return processed_messages
@@ -150,9 +142,7 @@ class PlaceholderService:
                 message_content.append(
                     {
                         "type": "image_url",
-                        "image_url": {
-                            "url": f"data:{img['media_type']};base64,{img['data']}"
-                        },
+                        "image_url": {"url": f"data:{img['media_type']};base64,{img['data']}"},
                     }
                 )
 
@@ -170,19 +160,13 @@ class PlaceholderService:
             if placeholder_pattern in processed_content:
                 try:
                     replacement_value = processor.process(context)
-                    processed_content = processed_content.replace(
-                        placeholder_pattern, replacement_value
-                    )
+                    processed_content = processed_content.replace(placeholder_pattern, replacement_value)
                     logger.debug("Processed placeholder: %s", placeholder_name)
                 except ClipboardUnavailableError:
                     raise
                 except Exception as e:
-                    logger.error(
-                        "Failed to process placeholder %s: %s", placeholder_name, e
-                    )
-                    processed_content = processed_content.replace(
-                        placeholder_pattern, ""
-                    )
+                    logger.error("Failed to process placeholder %s: %s", placeholder_name, e)
+                    processed_content = processed_content.replace(placeholder_pattern, "")
 
         return processed_content
 
@@ -200,10 +184,7 @@ class PlaceholderService:
 
     def get_placeholder_info(self) -> dict[str, str]:
         """Get dictionary mapping placeholder names to their descriptions."""
-        return {
-            name: processor.get_description()
-            for name, processor in self.processors.items()
-        }
+        return {name: processor.get_description() for name, processor in self.processors.items()}
 
     def find_invalid_placeholders(self, content: str) -> list[str]:
         """Find all invalid placeholders in content.

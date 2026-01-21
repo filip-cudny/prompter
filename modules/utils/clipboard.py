@@ -88,9 +88,7 @@ class SystemClipboardManager(ClipboardManager):
             logger.debug(f"pyobjc not available: {e}, falling back to pngpaste")
             # Fallback to pngpaste if pyobjc not available
             try:
-                result = subprocess.run(
-                    ["pngpaste", "-"], capture_output=True, timeout=5
-                )
+                result = subprocess.run(["pngpaste", "-"], capture_output=True, timeout=5)
                 has_image = result.returncode == 0
                 logger.debug(f"pngpaste result: {has_image}")
                 return has_image
@@ -107,9 +105,7 @@ class SystemClipboardManager(ClipboardManager):
             from AppKit import NSPasteboard
             from PIL import Image
 
-            logger.debug(
-                "Attempting to get image data from macOS clipboard using pyobjc"
-            )
+            logger.debug("Attempting to get image data from macOS clipboard using pyobjc")
             pb = NSPasteboard.generalPasteboard()
 
             # Try different image formats in order of preference using UTI strings
@@ -123,9 +119,7 @@ class SystemClipboardManager(ClipboardManager):
                 logger.debug(f"Trying format: {format_name}")
                 data = pb.dataForType_(pasteboard_type)
                 if data:
-                    logger.debug(
-                        f"Found image data for {format_name}, size: {len(data.bytes())} bytes"
-                    )
+                    logger.debug(f"Found image data for {format_name}, size: {len(data.bytes())} bytes")
                     # Convert NSData to bytes and then to PIL Image
                     image_bytes = data.bytes()
                     image = Image.open(io.BytesIO(image_bytes))
@@ -137,9 +131,7 @@ class SystemClipboardManager(ClipboardManager):
 
                     # Encode as base64
                     image_data = base64.b64encode(png_data).decode("utf-8")
-                    logger.debug(
-                        f"Successfully converted image to base64, length: {len(image_data)}"
-                    )
+                    logger.debug(f"Successfully converted image to base64, length: {len(image_data)}")
                     return (image_data, "image/png")
 
             logger.debug("No image data found in any supported format")
@@ -149,19 +141,13 @@ class SystemClipboardManager(ClipboardManager):
             logger.debug(f"pyobjc/PIL not available: {e}, falling back to pngpaste")
             # Fallback to pngpaste if pyobjc/PIL not available
             try:
-                result = subprocess.run(
-                    ["pngpaste", "-"], capture_output=True, timeout=10
-                )
+                result = subprocess.run(["pngpaste", "-"], capture_output=True, timeout=10)
                 if result.returncode == 0 and result.stdout:
-                    logger.debug(
-                        f"pngpaste successful, data size: {len(result.stdout)} bytes"
-                    )
+                    logger.debug(f"pngpaste successful, data size: {len(result.stdout)} bytes")
                     image_data = base64.b64encode(result.stdout).decode("utf-8")
                     return (image_data, "image/png")
                 else:
-                    logger.debug(
-                        f"pngpaste failed with return code: {result.returncode}"
-                    )
+                    logger.debug(f"pngpaste failed with return code: {result.returncode}")
             except FileNotFoundError:
                 logger.debug("pngpaste command not found")
             except Exception as e:
@@ -205,10 +191,7 @@ class SystemClipboardManager(ClipboardManager):
             )
             targets = result.stdout.lower()
             logger.debug(f"xclip targets: {targets}")
-            has_image = any(
-                fmt in targets
-                for fmt in ["image/png", "image/jpeg", "image/gif", "image/bmp"]
-            )
+            has_image = any(fmt in targets for fmt in ["image/png", "image/jpeg", "image/gif", "image/bmp"])
             logger.debug(f"xclip image detection result: {has_image}")
             return has_image
         except (
@@ -283,9 +266,7 @@ class SystemClipboardManager(ClipboardManager):
                     check=True,
                 )
                 if result.stdout:
-                    logger.debug(
-                        f"Successfully retrieved image data using xclip, size: {len(result.stdout)} bytes"
-                    )
+                    logger.debug(f"Successfully retrieved image data using xclip, size: {len(result.stdout)} bytes")
                     image_data = base64.b64encode(result.stdout).decode("utf-8")
                     return (image_data, mime_type)
             except (
@@ -299,9 +280,7 @@ class SystemClipboardManager(ClipboardManager):
 
         # Fallback to xsel if xclip is not available
         for mime_type, ext in image_formats:
-            logger.debug(
-                f"Trying to get image data for MIME type: {mime_type} using xsel"
-            )
+            logger.debug(f"Trying to get image data for MIME type: {mime_type} using xsel")
             try:
                 result = subprocess.run(
                     ["xsel", "--clipboard", "--output", "--target", mime_type],
@@ -310,9 +289,7 @@ class SystemClipboardManager(ClipboardManager):
                     check=True,
                 )
                 if result.stdout:
-                    logger.debug(
-                        f"Successfully retrieved image data using xsel, size: {len(result.stdout)} bytes"
-                    )
+                    logger.debug(f"Successfully retrieved image data using xsel, size: {len(result.stdout)} bytes")
                     image_data = base64.b64encode(result.stdout).decode("utf-8")
                     return (image_data, mime_type)
             except (
@@ -393,9 +370,7 @@ class SystemClipboardManager(ClipboardManager):
 
     def _set_content_macos(self, content: str) -> bool:
         """Set clipboard content on macOS."""
-        result = subprocess.run(
-            ["pbcopy"], input=content, text=True, capture_output=True, timeout=5
-        )
+        result = subprocess.run(["pbcopy"], input=content, text=True, capture_output=True, timeout=5)
         return result.returncode == 0
 
     def _get_content_linux(self) -> str:
@@ -450,9 +425,7 @@ class SystemClipboardManager(ClipboardManager):
         except subprocess.TimeoutExpired:
             raise ClipboardError(f"xclip failed ({xclip_error}) and xsel timed out")
         except subprocess.CalledProcessError as e:
-            raise ClipboardError(
-                f"xclip failed ({xclip_error}) and xsel failed with code {e.returncode}: {e.stderr}"
-            )
+            raise ClipboardError(f"xclip failed ({xclip_error}) and xsel failed with code {e.returncode}: {e.stderr}")
 
     def _set_content_linux(self, content: str) -> bool:
         """Set clipboard content on Linux."""
@@ -488,9 +461,7 @@ class SystemClipboardManager(ClipboardManager):
         except subprocess.TimeoutExpired:
             raise ClipboardError(f"xclip failed ({xclip_error}) and xsel timed out")
         except subprocess.CalledProcessError as e:
-            raise ClipboardError(
-                f"xclip failed ({xclip_error}) and xsel failed with code {e.returncode}"
-            )
+            raise ClipboardError(f"xclip failed ({xclip_error}) and xsel failed with code {e.returncode}")
 
     def _get_content_windows(self) -> str:
         """Get clipboard content on Windows."""

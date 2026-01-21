@@ -46,15 +46,11 @@ class PromptProvider:
             self._prompts_cache = []
 
             for prompt_config in settings.prompts:
-                prompt_data = self.settings_service.convert_to_prompt_data(
-                    prompt_config
-                )
+                prompt_data = self.settings_service.convert_to_prompt_data(prompt_config)
                 self._prompts_cache.append(prompt_data)
 
         except Exception as e:
-            raise ProviderError(
-                f"Failed to load prompts from settings: {str(e)}"
-            ) from e
+            raise ProviderError(f"Failed to load prompts from settings: {str(e)}") from e
 
     def get_model_configs(self) -> dict[str, list[dict[str, Any]]]:
         """Get model configurations from settings."""

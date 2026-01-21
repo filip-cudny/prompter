@@ -1,6 +1,5 @@
 """Menu provider for last interaction section (input/output/transcription)."""
 
-
 from core.models import MenuItem, MenuItemType
 
 

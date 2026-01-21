@@ -1,6 +1,5 @@
 """Base class for settings panels."""
 
-
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QFrame, QLabel, QScrollArea, QVBoxLayout, QWidget
 

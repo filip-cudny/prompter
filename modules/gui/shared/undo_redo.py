@@ -180,9 +180,7 @@ class TextEditUndoHelper:
         if not self._undo_stack:
             return False
         self._redo_stack.append(self._text_edit.toPlainText())
-        self._last_text = set_text_with_signal_block(
-            self._text_edit, self._undo_stack.pop()
-        )
+        self._last_text = set_text_with_signal_block(self._text_edit, self._undo_stack.pop())
         self._notify_buttons_changed()
         return True
 
@@ -195,9 +193,7 @@ class TextEditUndoHelper:
         if not self._redo_stack:
             return False
         self._undo_stack.append(self._text_edit.toPlainText())
-        self._last_text = set_text_with_signal_block(
-            self._text_edit, self._redo_stack.pop()
-        )
+        self._last_text = set_text_with_signal_block(self._text_edit, self._redo_stack.pop())
         self._notify_buttons_changed()
         return True
 

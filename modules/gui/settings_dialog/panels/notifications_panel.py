@@ -1,6 +1,5 @@
 """Notifications settings panel."""
 
-
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -110,6 +109,7 @@ class ColorButton(QPushButton):
     def _on_clicked(self):
         """Handle button click to show color picker."""
         from PySide6.QtGui import QColor
+
         color = QColorDialog.getColor(QColor(self._color), self, "Select Color")
         if color.isValid():
             self._color = color.name()
@@ -233,15 +233,11 @@ class NotificationsPanel(SettingsPanelBase):
             checkbox.setChecked(events.get(event_key, True))
             checkbox.blockSignals(False)
 
-        bg_colors = notifications.get(
-            "background_colors", DEFAULT_NOTIFICATION_SETTINGS["background_colors"]
-        )
+        bg_colors = notifications.get("background_colors", DEFAULT_NOTIFICATION_SETTINGS["background_colors"])
         for color_type, color_btn in self._color_buttons.items():
             color_btn.set_color(bg_colors.get(color_type, "#FFFFFF"))
 
-        icon_colors = notifications.get(
-            "icon_colors", DEFAULT_NOTIFICATION_SETTINGS["icon_colors"]
-        )
+        icon_colors = notifications.get("icon_colors", DEFAULT_NOTIFICATION_SETTINGS["icon_colors"])
         for color_type, icon_btn in self._icon_color_buttons.items():
             default_color = DEFAULT_NOTIFICATION_SETTINGS["icon_colors"].get(color_type, "#000000")
             icon_btn.set_color(icon_colors.get(color_type, default_color))
