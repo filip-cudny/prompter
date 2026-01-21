@@ -493,10 +493,6 @@ class PrompterApp(QObject):
 
             result = self.prompt_store_service.execute_active_prompt()
 
-            # Clear menu cache only (no auto-refresh)
-            if self.menu_coordinator:
-                self.menu_coordinator._clear_menu_cache()
-
             if self.event_handler:
                 self.event_handler.handle_execution_result(result)
         except Exception as e:
