@@ -40,10 +40,7 @@ class KeymapContext:
 
     def get_bindings(self) -> list[KeymapBinding]:
         """Get list of KeymapBinding objects."""
-        return [
-            KeymapBinding(key_combination=key, action=action)
-            for key, action in self.bindings.items()
-        ]
+        return [KeymapBinding(key_combination=key, action=action) for key, action in self.bindings.items()]
 
     def matches_current_os(self) -> bool:
         """Check if this context matches the current operating system."""
@@ -90,8 +87,7 @@ class KeymapManager:
         for binding in keymap_context.get_bindings():
             if binding.action not in available_actions:
                 raise ConfigurationError(
-                    f"Invalid action '{binding.action}'. "
-                    f"Available actions: {', '.join(sorted(available_actions))}"
+                    f"Invalid action '{binding.action}'. Available actions: {', '.join(sorted(available_actions))}"
                 )
 
     def _validate_keymaps(self) -> None:

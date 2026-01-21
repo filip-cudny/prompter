@@ -39,9 +39,7 @@ class ExecutionService:
         """Set the speech-to-text service instance."""
         self.speech_service = speech_service
         if speech_service:
-            speech_service.add_transcription_callback(
-                self._on_transcription_complete, run_always=True
-            )
+            speech_service.add_transcription_callback(self._on_transcription_complete, run_always=True)
 
     def is_recording(self) -> bool:
         """Check if currently recording."""
@@ -54,17 +52,17 @@ class ExecutionService:
     def is_executing(self) -> bool:
         """Check if any handler is executing (LLM request in progress)."""
         for handler in self.handlers:
-            if hasattr(handler, 'async_manager') and handler.async_manager.is_busy():
+            if hasattr(handler, "async_manager") and handler.async_manager.is_busy():
                 return True
         return False
 
     def get_executing_action_id(self) -> str | None:
         """Get the ID of the action that is currently executing."""
         for handler in self.handlers:
-            if hasattr(handler, 'async_manager') and handler.async_manager.is_busy():
+            if hasattr(handler, "async_manager") and handler.async_manager.is_busy():
                 current_item = handler.async_manager.current_item
                 if current_item:
-                    if current_item.data and current_item.data.get('prompt_id'):
+                    if current_item.data and current_item.data.get("prompt_id"):
                         return f"prompt_{current_item.data.get('prompt_id')}"
                     return current_item.id
         return None
@@ -72,7 +70,7 @@ class ExecutionService:
     def cancel_current_execution(self) -> bool:
         """Cancel any running execution. Returns True if execution was cancelled."""
         for handler in self.handlers:
-            if hasattr(handler, 'async_manager') and handler.async_manager.is_busy():
+            if hasattr(handler, "async_manager") and handler.async_manager.is_busy():
                 handler.async_manager.stop_execution()
                 return True
         return False
@@ -85,7 +83,7 @@ class ExecutionService:
             silent: If True, skip notification and signal emission (caller handles UI)
         """
         for handler in self.handlers:
-            if hasattr(handler, 'async_manager'):
+            if hasattr(handler, "async_manager"):
                 if handler.async_manager.has_execution(execution_id):
                     return handler.async_manager.stop_execution(execution_id, silent)
         return False
@@ -104,12 +102,12 @@ class ExecutionService:
     def get_disable_reason(self, action_id: str) -> str | None:
         """Returns 'recording', 'executing', or None."""
         if self.is_recording() and self.recording_action_id != action_id:
-            return 'recording'
+            return "recording"
         executing_id = self.get_executing_action_id()
         if executing_id:
             if executing_id == action_id:
                 return None
-            return 'executing'
+            return "executing"
         return None
 
     def execute_item(
@@ -134,17 +132,13 @@ class ExecutionService:
                 except Exception as e:
                     return ExecutionResult(success=False, error=str(e))
 
-        return ExecutionResult(
-            success=False, error="No handler found for this item type"
-        )
+        return ExecutionResult(success=False, error="No handler found for this item type")
 
     def _execute_with_speech(self, item: MenuItem) -> ExecutionResult:
         """Execute item with speech-to-text input."""
         try:
             if not self.speech_service:
-                return ExecutionResult(
-                    success=False, error="Speech service not available"
-                )
+                return ExecutionResult(success=False, error="Speech service not available")
 
             is_alternative = item.data and item.data.get("alternative_execution", False)
 
@@ -201,9 +195,7 @@ class ExecutionService:
                             # Always emit signal for failed executions so user gets feedback
                             # For successful alternative execution, async manager will handle it
                             if not result.success or not is_alternative:
-                                self.prompt_store_service.emit_execution_completed(
-                                    result
-                                )
+                                self.prompt_store_service.emit_execution_completed(result)
                             break
                         except Exception as e:
                             logger.error(f"Handler execution failed: {e}")
@@ -316,9 +308,7 @@ class SettingsService:
             # Parse models (keep as raw list for flexibility)
             models = data.get("models", [])
 
-            return SettingsConfig(
-                models=models, prompts=prompts, settings_path=self.settings_path
-            )
+            return SettingsConfig(models=models, prompts=prompts, settings_path=self.settings_path)
 
         except KeyError as e:
             raise DataError(f"Missing required field in settings: {str(e)}") from e
@@ -340,9 +330,7 @@ class SettingsService:
                 return f.read()
 
         except Exception as e:
-            raise DataError(
-                f"Failed to load file content from {file_path}: {str(e)}"
-            ) from e
+            raise DataError(f"Failed to load file content from {file_path}: {str(e)}") from e
 
     def convert_to_prompt_data(self, prompt_config: PromptConfig) -> PromptData:
         """Convert PromptConfig to PromptData for compatibility."""
@@ -374,9 +362,7 @@ class SettingsService:
                 return prompt
         return None
 
-    def get_resolved_prompt_messages(
-        self, prompt_id: str
-    ) -> list[dict[str, str]] | None:
+    def get_resolved_prompt_messages(self, prompt_id: str) -> list[dict[str, str]] | None:
         """Get resolved messages for a prompt (with file contents loaded)."""
         prompt_config = self.get_prompt_by_id(prompt_id)
         if not prompt_config:

@@ -224,9 +224,7 @@ def get_text_edit_content_height(text_edit, min_height: int = 100) -> int:
     return max(height, min_height)
 
 
-def apply_wrap_state(
-    text_edit, is_wrapped: bool, wrapped_height: int = DEFAULT_WRAPPED_HEIGHT
-):
+def apply_wrap_state(text_edit, is_wrapped: bool, wrapped_height: int = DEFAULT_WRAPPED_HEIGHT):
     """Apply wrap state to a text edit widget.
 
     This is the shared implementation for wrap/expand toggling across all dialogs.
@@ -251,9 +249,7 @@ def apply_wrap_state(
         text_edit.setMaximumHeight(QWIDGETSIZE_MAX)
 
 
-def apply_section_size_policy(
-    container: QWidget, expanding: bool = False, widget: QWidget = None
-):
+def apply_section_size_policy(container: QWidget, expanding: bool = False, widget: QWidget = None):
     """Apply size policy to a dialog section container.
 
     Args:

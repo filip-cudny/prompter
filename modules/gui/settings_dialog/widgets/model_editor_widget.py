@@ -174,12 +174,8 @@ class PasswordLineEdit(QWidget):
 
     def _toggle_visibility(self):
         self._visible = not self._visible
-        self._line_edit.setEchoMode(
-            QLineEdit.Normal if self._visible else QLineEdit.Password
-        )
-        self._toggle_btn.setIcon(
-            create_icon("eye-off" if self._visible else "eye")
-        )
+        self._line_edit.setEchoMode(QLineEdit.Normal if self._visible else QLineEdit.Password)
+        self._toggle_btn.setIcon(create_icon("eye-off" if self._visible else "eye"))
 
     def text(self) -> str:
         return self._line_edit.text()
@@ -328,9 +324,7 @@ class AddParameterDialog(QDialog):
 
         self._name_combo = QComboBox()
         self._name_combo.setEditable(True)
-        available_presets = [
-            name for name, _ in PARAMETER_PRESETS if name not in self._existing_params
-        ]
+        available_presets = [name for name, _ in PARAMETER_PRESETS if name not in self._existing_params]
         self._name_combo.addItems(available_presets)
         self._name_combo.setCurrentText("")
         self._name_combo.currentTextChanged.connect(self._on_name_changed)

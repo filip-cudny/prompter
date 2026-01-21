@@ -59,9 +59,7 @@ def create_icon(name: str, color: str = ICON_COLOR_NORMAL, size: int = 16) -> QI
     return QIcon(pixmap)
 
 
-def create_icon_pixmap(
-    name: str, color: str = ICON_COLOR_NORMAL, size: int = 16
-) -> QPixmap:
+def create_icon_pixmap(name: str, color: str = ICON_COLOR_NORMAL, size: int = 16) -> QPixmap:
     """Create a QPixmap from an SVG icon.
 
     Args:

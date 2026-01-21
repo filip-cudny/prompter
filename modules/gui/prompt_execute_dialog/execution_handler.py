@@ -86,9 +86,7 @@ class ExecutionHandler:
         service = self._get_prompt_store_service()
         if service and hasattr(service, "_menu_coordinator"):
             try:
-                service._menu_coordinator.execution_completed.connect(
-                    self.on_execution_result
-                )
+                service._menu_coordinator.execution_completed.connect(self.on_execution_result)
                 self._execution_signal_connected = True
             except Exception:
                 pass
@@ -100,9 +98,7 @@ class ExecutionHandler:
         service = self._get_prompt_store_service()
         if service and hasattr(service, "_menu_coordinator"):
             try:
-                service._menu_coordinator.execution_completed.disconnect(
-                    self.on_execution_result
-                )
+                service._menu_coordinator.execution_completed.disconnect(self.on_execution_result)
             except Exception:
                 pass
         self._execution_signal_connected = False
@@ -114,9 +110,7 @@ class ExecutionHandler:
         service = self._get_prompt_store_service()
         if service and hasattr(service, "_menu_coordinator"):
             try:
-                service._menu_coordinator.streaming_chunk.connect(
-                    self.on_streaming_chunk
-                )
+                service._menu_coordinator.streaming_chunk.connect(self.on_streaming_chunk)
                 self._streaming_signal_connected = True
             except Exception:
                 pass
@@ -128,9 +122,7 @@ class ExecutionHandler:
         service = self._get_prompt_store_service()
         if service and hasattr(service, "_menu_coordinator"):
             try:
-                service._menu_coordinator.streaming_chunk.disconnect(
-                    self.on_streaming_chunk
-                )
+                service._menu_coordinator.streaming_chunk.disconnect(self.on_streaming_chunk)
             except Exception:
                 pass
         self._streaming_signal_connected = False
@@ -142,12 +134,8 @@ class ExecutionHandler:
         service = self._get_prompt_store_service()
         if service and hasattr(service, "_menu_coordinator"):
             try:
-                service._menu_coordinator.execution_started.connect(
-                    self.on_global_execution_started
-                )
-                service._menu_coordinator.execution_completed.connect(
-                    self.on_global_execution_completed
-                )
+                service._menu_coordinator.execution_started.connect(self.on_global_execution_started)
+                service._menu_coordinator.execution_completed.connect(self.on_global_execution_completed)
                 self._global_execution_signal_connected = True
 
                 # Check if an execution is already running when dialog opens
@@ -164,15 +152,11 @@ class ExecutionHandler:
         service = self._get_prompt_store_service()
         if service and hasattr(service, "_menu_coordinator"):
             try:
-                service._menu_coordinator.execution_started.disconnect(
-                    self.on_global_execution_started
-                )
+                service._menu_coordinator.execution_started.disconnect(self.on_global_execution_started)
             except Exception:
                 pass
             try:
-                service._menu_coordinator.execution_completed.disconnect(
-                    self.on_global_execution_completed
-                )
+                service._menu_coordinator.execution_completed.disconnect(self.on_global_execution_completed)
             except Exception:
                 pass
         self._global_execution_signal_connected = False
@@ -202,19 +186,13 @@ class ExecutionHandler:
 
     # --- Streaming ---
 
-    def on_streaming_chunk(
-        self, chunk: str, accumulated: str, is_final: bool, execution_id: str = ""
-    ):
+    def on_streaming_chunk(self, chunk: str, accumulated: str, is_final: bool, execution_id: str = ""):
         """Handle streaming chunk with adaptive throttling."""
         if not self._waiting_for_result:
             return
 
         # Filter by execution_id - only process chunks for this dialog's execution
-        if (
-            execution_id
-            and self._current_execution_id
-            and execution_id != self._current_execution_id
-        ):
+        if execution_id and self._current_execution_id and execution_id != self._current_execution_id:
             return
 
         if not self._is_streaming and not is_final:
@@ -259,10 +237,7 @@ class ExecutionHandler:
 
     def _get_current_output_edit(self):
         """Get the current output text edit based on turn number."""
-        if (
-            self.dialog._current_turn_number == 1
-            or not self.dialog._output_sections
-        ):
+        if self.dialog._current_turn_number == 1 or not self.dialog._output_sections:
             return self.dialog.output_edit
         return self.dialog._output_sections[-1].text_edit
 
@@ -320,15 +295,15 @@ class ExecutionHandler:
         )
 
         # Restore version history for regeneration
-        if hasattr(dialog, '_pending_version_history'):
+        if hasattr(dialog, "_pending_version_history"):
             turn.output_versions = dialog._pending_version_history
-            delattr(dialog, '_pending_version_history')
-        if hasattr(dialog, '_pending_version_undo_states'):
+            delattr(dialog, "_pending_version_history")
+        if hasattr(dialog, "_pending_version_undo_states"):
             turn.version_undo_states = dialog._pending_version_undo_states
-            delattr(dialog, '_pending_version_undo_states')
-        if hasattr(dialog, '_pending_version_index'):
+            delattr(dialog, "_pending_version_undo_states")
+        if hasattr(dialog, "_pending_version_index"):
             turn.current_version_index = dialog._pending_version_index
-            delattr(dialog, '_pending_version_index')
+            delattr(dialog, "_pending_version_index")
 
         dialog._conversation_turns.append(turn)
 
@@ -343,9 +318,7 @@ class ExecutionHandler:
         working_context_text = dialog.context_text_edit.toPlainText().strip()
         full_message = msg_text
         if len(dialog._conversation_turns) == 1 and working_context_text:
-            full_message = (
-                f"<context>\n{working_context_text}\n</context>\n\n{msg_text}"
-            )
+            full_message = f"<context>\n{working_context_text}\n</context>\n\n{msg_text}"
 
         # Create a modified menu item with conversation data
         modified_item = MenuItem(
@@ -382,9 +355,7 @@ class ExecutionHandler:
             if handler.can_handle(modified_item):
                 if hasattr(handler, "async_manager"):
                     # Always use async execution so it's cancellable via context menu
-                    execution_id = handler.async_manager.execute_prompt_async(
-                        modified_item, full_message
-                    )
+                    execution_id = handler.async_manager.execute_prompt_async(modified_item, full_message)
 
                     if keep_open:
                         # Stay open and track execution for result display
@@ -432,9 +403,7 @@ class ExecutionHandler:
             output_section.text_edit.setMinimumHeight(content_height)
         else:
             # Subsequent turns create new output section
-            output_section = dialog._create_dynamic_output_section(
-                dialog._current_turn_number
-            )
+            output_section = dialog._create_dynamic_output_section(dialog._current_turn_number)
             dialog._output_sections.append(output_section)
             dialog.sections_layout.addWidget(output_section)
             output_section.text_edit.installEventFilter(dialog)
@@ -452,8 +421,7 @@ class ExecutionHandler:
         dialog = self.dialog
         context_text = dialog.context_text_edit.toPlainText().strip()
         context_images = [
-            {"data": img.data, "media_type": img.media_type or "image/png"}
-            for img in dialog._current_images
+            {"data": img.data, "media_type": img.media_type or "image/png"} for img in dialog._current_images
         ]
 
         turns = []
@@ -462,8 +430,7 @@ class ExecutionHandler:
                 "role": "user",
                 "text": turn.message_text,
                 "images": [
-                    {"data": img.data, "media_type": img.media_type or "image/png"}
-                    for img in turn.message_images
+                    {"data": img.data, "media_type": img.media_type or "image/png"} for img in turn.message_images
                 ],
             }
             # First turn includes context
@@ -486,9 +453,9 @@ class ExecutionHandler:
     def _clear_regeneration_flag(self) -> bool:
         """Clear regeneration flag and return whether it was set."""
         dialog = self.dialog
-        is_regeneration = getattr(dialog, '_pending_is_regeneration', False)
-        if hasattr(dialog, '_pending_is_regeneration'):
-            delattr(dialog, '_pending_is_regeneration')
+        is_regeneration = getattr(dialog, "_pending_is_regeneration", False)
+        if hasattr(dialog, "_pending_is_regeneration"):
+            delattr(dialog, "_pending_is_regeneration")
         return is_regeneration
 
     def _update_turn_with_output(self, output_text: str, is_regeneration: bool):
@@ -507,18 +474,12 @@ class ExecutionHandler:
         if is_regeneration and turn.output_versions:
             turn.output_versions[turn.current_version_index] = output_text
             turn.version_undo_states[turn.current_version_index] = OutputVersionState(
-                undo_stack=[],
-                redo_stack=[],
-                last_text=output_text
+                undo_stack=[], redo_stack=[], last_text=output_text
             )
         else:
             turn.output_versions.append(output_text)
             turn.current_version_index = len(turn.output_versions) - 1
-            turn.version_undo_states.append(OutputVersionState(
-                undo_stack=[],
-                redo_stack=[],
-                last_text=output_text
-            ))
+            turn.version_undo_states.append(OutputVersionState(undo_stack=[], redo_stack=[], last_text=output_text))
 
     def _update_version_ui(self, output_text: str):
         """Update version display and sync undo state in UI."""
@@ -529,10 +490,7 @@ class ExecutionHandler:
         turn = dialog._conversation_turns[-1]
 
         if turn.turn_number == 1 or not dialog._output_sections:
-            dialog.output_header.set_version_info(
-                turn.current_version_index + 1,
-                len(turn.output_versions)
-            )
+            dialog.output_header.set_version_info(turn.current_version_index + 1, len(turn.output_versions))
             if turn.output_versions:
                 dialog._output_undo_stack.clear()
                 dialog._output_redo_stack.clear()
@@ -540,10 +498,7 @@ class ExecutionHandler:
                 dialog._update_undo_redo_buttons()
         else:
             section = dialog._output_sections[-1]
-            section.header.set_version_info(
-                turn.current_version_index + 1,
-                len(turn.output_versions)
-            )
+            section.header.set_version_info(turn.current_version_index + 1, len(turn.output_versions))
             if turn.output_versions:
                 section.undo_stack.clear()
                 section.redo_stack.clear()
@@ -585,9 +540,7 @@ class ExecutionHandler:
 
         service = self._get_prompt_store_service()
         if service:
-            service.execution_service.cancel_execution(
-                execution_id_to_cancel, silent=True
-            )
+            service.execution_service.cancel_execution(execution_id_to_cancel, silent=True)
 
     # --- Result Handling ---
 
@@ -596,11 +549,7 @@ class ExecutionHandler:
         if not self._waiting_for_result:
             return
 
-        if (
-            execution_id
-            and self._current_execution_id
-            and execution_id != self._current_execution_id
-        ):
+        if execution_id and self._current_execution_id and execution_id != self._current_execution_id:
             return
 
         self._waiting_for_result = False
@@ -681,9 +630,7 @@ class ExecutionHandler:
             except TypeError:
                 pass
             dialog.send_show_btn.clicked.connect(dialog._on_send_show)
-            dialog.send_show_btn.setIcon(
-                create_icon("send-horizontal", "#444444", 16)
-            )
+            dialog.send_show_btn.setIcon(create_icon("send-horizontal", "#444444", 16))
             dialog.send_show_btn.setToolTip("Send & Show Result (Alt+Enter)")
         elif self._stop_button_active == "ctrl":
             try:

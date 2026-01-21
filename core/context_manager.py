@@ -59,9 +59,7 @@ class ContextManager:
     def append_context(self, value: str) -> None:
         """Append a new text item to context."""
         with self._lock:
-            self._items.append(
-                ContextItem(item_type=ContextItemType.TEXT, content=value)
-            )
+            self._items.append(ContextItem(item_type=ContextItemType.TEXT, content=value))
             logger.debug("Context text item appended")
         self._notify_change()
 
@@ -69,9 +67,7 @@ class ContextManager:
         """Get concatenated text from all text items."""
         with self._lock:
             text_items = [
-                item.content
-                for item in self._items
-                if item.item_type == ContextItemType.TEXT and item.content
+                item.content for item in self._items if item.item_type == ContextItemType.TEXT and item.content
             ]
             if not text_items:
                 return None
@@ -93,9 +89,7 @@ class ContextManager:
         """Get concatenated text or return default if no text items."""
         with self._lock:
             text_items = [
-                item.content
-                for item in self._items
-                if item.item_type == ContextItemType.TEXT and item.content
+                item.content for item in self._items if item.item_type == ContextItemType.TEXT and item.content
             ]
             if not text_items:
                 return default
@@ -105,18 +99,14 @@ class ContextManager:
         """Add a callback to be called when context changes."""
         with self._lock:
             self._change_callbacks.append(callback)
-            logger.debug(
-                f"Added context change callback, total callbacks: {len(self._change_callbacks)}"
-            )
+            logger.debug(f"Added context change callback, total callbacks: {len(self._change_callbacks)}")
 
     def remove_change_callback(self, callback: Callable[[], None]) -> None:
         """Remove a change callback."""
         with self._lock:
             if callback in self._change_callbacks:
                 self._change_callbacks.remove(callback)
-                logger.debug(
-                    f"Removed context change callback, total callbacks: {len(self._change_callbacks)}"
-                )
+                logger.debug(f"Removed context change callback, total callbacks: {len(self._change_callbacks)}")
 
     def _notify_change(self) -> None:
         """Notify all registered callbacks about context change.
@@ -161,9 +151,7 @@ class ContextManager:
             logger.debug("Context image set")
         self._notify_change()
 
-    def append_context_image(
-        self, image_data: str, image_type: str = "image/png"
-    ) -> None:
+    def append_context_image(self, image_data: str, image_type: str = "image/png") -> None:
         """Append a new image item to context."""
         with self._lock:
             self._items.append(
@@ -194,9 +182,7 @@ class ContextManager:
         """Get complete context including text and images (legacy format)."""
         with self._lock:
             text_items = [
-                item.content
-                for item in self._items
-                if item.item_type == ContextItemType.TEXT and item.content
+                item.content for item in self._items if item.item_type == ContextItemType.TEXT and item.content
             ]
             text = "\n".join(text_items) if text_items else None
             images = [
@@ -238,13 +224,9 @@ class ContextManager:
     def get_text_items(self) -> list[ContextItem]:
         """Get only text items in order."""
         with self._lock:
-            return [
-                item for item in self._items if item.item_type == ContextItemType.TEXT
-            ]
+            return [item for item in self._items if item.item_type == ContextItemType.TEXT]
 
     def get_image_items(self) -> list[ContextItem]:
         """Get only image items in order."""
         with self._lock:
-            return [
-                item for item in self._items if item.item_type == ContextItemType.IMAGE
-            ]
+            return [item for item in self._items if item.item_type == ContextItemType.IMAGE]

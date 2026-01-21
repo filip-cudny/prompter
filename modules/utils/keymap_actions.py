@@ -143,9 +143,7 @@ class SetContextValueAction(KeymapAction):
                     logger.info("Context image set from clipboard")
 
                     if self.notification_manager and is_notification_enabled("context_set"):
-                        self.notification_manager.show_success_notification(
-                            "Context image set"
-                        )
+                        self.notification_manager.show_success_notification("Context image set")
 
                     return True
                 else:
@@ -197,9 +195,7 @@ class AppendContextValueAction(KeymapAction):
                     logger.info("Context image appended from clipboard")
 
                     if self.notification_manager and is_notification_enabled("context_append"):
-                        self.notification_manager.show_success_notification(
-                            "Context image appended"
-                        )
+                        self.notification_manager.show_success_notification("Context image appended")
 
                     return True
                 else:
@@ -211,9 +207,7 @@ class AppendContextValueAction(KeymapAction):
                 logger.info("Context value appended from clipboard")
 
                 if self.notification_manager and is_notification_enabled("context_append"):
-                    self.notification_manager.show_success_notification(
-                        "Context appended"
-                    )
+                    self.notification_manager.show_success_notification("Context appended")
 
                 return True
         except Exception as e:
@@ -328,9 +322,7 @@ class ActionRegistry:
         """Get set of all available action names."""
         return set(self._actions.keys())
 
-    def execute_action(
-        self, action_name: str, context: dict[str, Any] | None = None
-    ) -> bool:
+    def execute_action(self, action_name: str, context: dict[str, Any] | None = None) -> bool:
         """Execute an action by name."""
         action = self.get_action(action_name)
         if action is None:
@@ -348,9 +340,7 @@ class ActionRegistry:
         result = action.execute(context)
 
         execution_time = time.time() - start_time
-        logger.debug(
-            f"Action '{action_name}' executed in {execution_time:.4f}s, result: {result}"
-        )
+        logger.debug(f"Action '{action_name}' executed in {execution_time:.4f}s, result: {result}")
 
         return result
 
@@ -377,15 +367,11 @@ def initialize_global_action_registry(
 ) -> ActionRegistry:
     """Initialize the global action registry with managers."""
     global _global_action_registry
-    _global_action_registry = ActionRegistry(
-        context_manager, clipboard_manager, notification_manager
-    )
+    _global_action_registry = ActionRegistry(context_manager, clipboard_manager, notification_manager)
     return _global_action_registry
 
 
-def execute_keymap_action(
-    action_name: str, context: dict[str, Any] | None = None
-) -> bool:
+def execute_keymap_action(action_name: str, context: dict[str, Any] | None = None) -> bool:
     """Execute a keymap action using the global registry."""
     registry = get_global_action_registry()
     return registry.execute_action(action_name, context)
@@ -394,6 +380,4 @@ def execute_keymap_action(
 def get_available_actions() -> dict[str, str]:
     """Get available actions with their descriptions."""
     registry = get_global_action_registry()
-    return {
-        name: action.description for name, action in registry.get_all_actions().items()
-    }
+    return {name: action.description for name, action in registry.get_all_actions().items()}

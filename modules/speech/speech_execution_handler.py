@@ -64,11 +64,11 @@ class PyQtSpeechExecutionHandler:
 
             # Handle speech-to-text recording
             if not self.speech_service:
-                error_msg = "Speech-to-text service not available. Please configure OPENAI_API_KEY and install sounddevice."
-
-                self.notification_manager.show_error_notification(
-                    "Speech-to-Text Error", error_msg
+                error_msg = (
+                    "Speech-to-text service not available. Please configure OPENAI_API_KEY and install sounddevice."
                 )
+
+                self.notification_manager.show_error_notification("Speech-to-Text Error", error_msg)
 
                 return ExecutionResult(
                     success=False,
@@ -80,11 +80,7 @@ class PyQtSpeechExecutionHandler:
             # Toggle recording
             self.speech_service.toggle_recording(self.__class__.__name__)
 
-            action = (
-                "speech_recording_started"
-                if self.speech_service.is_recording()
-                else "speech_recording_stopped"
-            )
+            action = "speech_recording_started" if self.speech_service.is_recording() else "speech_recording_stopped"
             return ExecutionResult(
                 success=True,
                 content="Speech recording toggled",
@@ -109,9 +105,7 @@ class PyQtSpeechExecutionHandler:
                 execution_time=execution_time,
             )
 
-            self.notification_manager.show_error_notification(
-                "Speech Error", truncate_text(error_msg)
-            )
+            self.notification_manager.show_error_notification("Speech Error", truncate_text(error_msg))
 
             return execution_result
 
@@ -135,7 +129,7 @@ class PyQtSpeechExecutionHandler:
                         content=transcription,
                         metadata={"action": "speech_recording_stopped"},
                     ),
-                    ""
+                    "",
                 )
                 if not success:
                     self.notification_manager.show_error_notification(
@@ -149,9 +143,7 @@ class PyQtSpeechExecutionHandler:
                 "Transcription Error", f"Failed to process transcription: {str(e)}"
             )
 
-    def _handle_speech_history_item(
-        self, item: MenuItem, start_time: float
-    ) -> ExecutionResult:
+    def _handle_speech_history_item(self, item: MenuItem, start_time: float) -> ExecutionResult:
         """Handle speech history menu items."""
         try:
             content = item.data.get("content") if item.data else None

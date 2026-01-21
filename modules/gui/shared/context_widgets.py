@@ -182,9 +182,7 @@ class ContextChipBase(QWidget):
         delete_btn_rect = self.delete_btn.geometry()
         copy_btn_rect = self.copy_btn.geometry()
 
-        if not delete_btn_rect.contains(event.pos()) and not copy_btn_rect.contains(
-            event.pos()
-        ):
+        if not delete_btn_rect.contains(event.pos()) and not copy_btn_rect.contains(event.pos()):
             self._on_copy_clicked()
         super().mousePressEvent(event)
 
@@ -607,23 +605,13 @@ class ContextSectionWidget(QWidget):
         if not items:
             # Show "No context" label when empty
             empty_label = QLabel("No context items")
-            empty_label.setStyleSheet(
-                "QLabel { color: #666666; font-size: 11px; padding: 4px 8px; }"
-            )
+            empty_label.setStyleSheet("QLabel { color: #666666; font-size: 11px; padding: 4px 8px; }")
             self.chips_layout.addWidget(empty_label)
             return
 
         # Separate images and text items, preserving original indices
-        image_items = [
-            (idx, item)
-            for idx, item in enumerate(items)
-            if item.item_type == ContextItemType.IMAGE
-        ]
-        text_items = [
-            (idx, item)
-            for idx, item in enumerate(items)
-            if item.item_type == ContextItemType.TEXT
-        ]
+        image_items = [(idx, item) for idx, item in enumerate(items) if item.item_type == ContextItemType.IMAGE]
+        text_items = [(idx, item) for idx, item in enumerate(items) if item.item_type == ContextItemType.TEXT]
 
         # Display images first (with ascending numbering), then text
         image_number = 0
@@ -690,9 +678,7 @@ class ContextSectionWidget(QWidget):
     def _on_edit_context(self):
         """Handle edit context request - open the context editor dialog."""
         if self.clipboard_manager is None:
-            logger.warning(
-                "Cannot open context editor: clipboard_manager not available"
-            )
+            logger.warning("Cannot open context editor: clipboard_manager not available")
             return
 
         from modules.gui.context_editor_dialog import show_context_editor
@@ -901,9 +887,7 @@ class LastInteractionChip(QWidget):
         # Copy icon at the beginning
         self.copy_btn = IconButton("copy", size=16)
         self.copy_btn.setStyleSheet(self._icon_btn_style)
-        self.copy_btn.setCursor(
-            Qt.PointingHandCursor if self._enabled else Qt.ArrowCursor
-        )
+        self.copy_btn.setCursor(Qt.PointingHandCursor if self._enabled else Qt.ArrowCursor)
         self.copy_btn.setToolTip("Copy to clipboard")
         self.copy_btn.setEnabled(self._enabled)
         self.copy_btn.clicked.connect(self._on_copy_clicked)
@@ -911,18 +895,14 @@ class LastInteractionChip(QWidget):
 
         # Label with type name
         self.label = QLabel()
-        self.label.setStyleSheet(
-            self._label_style if self._enabled else self._label_disabled_style
-        )
+        self.label.setStyleSheet(self._label_style if self._enabled else self._label_disabled_style)
         self._set_display_text()
         layout.addWidget(self.label)
 
         # Details button (preview icon) at the end
         self.details_btn = IconButton("preview", size=16)
         self.details_btn.setStyleSheet(self._icon_btn_style)
-        self.details_btn.setCursor(
-            Qt.PointingHandCursor if self._enabled else Qt.ArrowCursor
-        )
+        self.details_btn.setCursor(Qt.PointingHandCursor if self._enabled else Qt.ArrowCursor)
         self.details_btn.setToolTip("Show details")
         self.details_btn.setEnabled(self._enabled)
         self.details_btn.clicked.connect(self._on_details_clicked)
@@ -960,9 +940,7 @@ class LastInteractionChip(QWidget):
         details_btn_rect = self.details_btn.geometry()
         copy_btn_rect = self.copy_btn.geometry()
 
-        if not details_btn_rect.contains(event.pos()) and not copy_btn_rect.contains(
-            event.pos()
-        ):
+        if not details_btn_rect.contains(event.pos()) and not copy_btn_rect.contains(event.pos()):
             self._on_copy_clicked()
         super().mousePressEvent(event)
 
@@ -1123,18 +1101,12 @@ class LastInteractionSectionWidget(QWidget):
         last_speech_entry = None
 
         if self.history_service:
-            last_text_entry = self.history_service.get_last_item_by_type(
-                HistoryEntryType.TEXT
-            )
-            last_speech_entry = self.history_service.get_last_item_by_type(
-                HistoryEntryType.SPEECH
-            )
+            last_text_entry = self.history_service.get_last_item_by_type(HistoryEntryType.TEXT)
+            last_speech_entry = self.history_service.get_last_item_by_type(HistoryEntryType.SPEECH)
 
         input_content = last_text_entry.input_content if last_text_entry else None
         output_content = last_text_entry.output_content if last_text_entry else None
-        transcription_content = (
-            last_speech_entry.output_content if last_speech_entry else None
-        )
+        transcription_content = last_speech_entry.output_content if last_speech_entry else None
 
         # Create chips
         input_chip = LastInteractionChip(
@@ -1143,9 +1115,7 @@ class LastInteractionSectionWidget(QWidget):
             title="Input Content",
         )
         input_chip.copy_requested.connect(lambda: self._on_copy(input_chip))
-        input_chip.details_requested.connect(
-            lambda: self._on_details("Input Content", input_content)
-        )
+        input_chip.details_requested.connect(lambda: self._on_details("Input Content", input_content))
         self._chips.append(input_chip)
         self.chips_layout.addWidget(input_chip)
 
@@ -1155,9 +1125,7 @@ class LastInteractionSectionWidget(QWidget):
             title="Output Content",
         )
         output_chip.copy_requested.connect(lambda: self._on_copy(output_chip))
-        output_chip.details_requested.connect(
-            lambda: self._on_details("Output Content", output_content)
-        )
+        output_chip.details_requested.connect(lambda: self._on_details("Output Content", output_content))
         self._chips.append(output_chip)
         self.chips_layout.addWidget(output_chip)
 
@@ -1166,12 +1134,8 @@ class LastInteractionSectionWidget(QWidget):
             content=transcription_content,
             title="Transcription",
         )
-        transcription_chip.copy_requested.connect(
-            lambda: self._on_copy(transcription_chip)
-        )
-        transcription_chip.details_requested.connect(
-            lambda: self._on_details("Transcription", transcription_content)
-        )
+        transcription_chip.copy_requested.connect(lambda: self._on_copy(transcription_chip))
+        transcription_chip.details_requested.connect(lambda: self._on_details("Transcription", transcription_content))
         self._chips.append(transcription_chip)
         self.chips_layout.addWidget(transcription_chip)
 
@@ -1199,9 +1163,7 @@ class LastInteractionSectionWidget(QWidget):
         if content:
             from modules.gui.text_preview_dialog import show_preview_dialog
 
-            show_preview_dialog(
-                title, content, clipboard_manager=self.clipboard_manager
-            )
+            show_preview_dialog(title, content, clipboard_manager=self.clipboard_manager)
 
     def _on_history_requested(self):
         """Handle history button click - show history dialog."""
@@ -1354,9 +1316,7 @@ class SettingsSelectorChip(QWidget):
         if self.clearable and hasattr(self, "clear_btn"):
             has_value = new_value and new_value != "None"
             self.clear_btn.setEnabled(has_value)
-            self.clear_btn.setCursor(
-                Qt.PointingHandCursor if has_value else Qt.ArrowCursor
-            )
+            self.clear_btn.setCursor(Qt.PointingHandCursor if has_value else Qt.ArrowCursor)
 
     def update_options(self, options: list):
         """Update the available options."""
@@ -1404,9 +1364,7 @@ class SettingsSelectorChip(QWidget):
             action = menu.addAction(option.label)
             action.setEnabled(option.enabled)
             # Capture the option in the lambda
-            action.triggered.connect(
-                lambda checked, opt=option: self._on_option_selected(opt)
-            )
+            action.triggered.connect(lambda checked, opt=option: self._on_option_selected(opt))
 
         # Show menu below the chip
         menu.exec_(self.mapToGlobal(QPoint(0, self.height())))

@@ -84,9 +84,7 @@ def is_notification_enabled(event_name: str) -> bool:
 def get_background_color(notification_type: str) -> str:
     """Get background color for a notification type from settings."""
     settings = get_notification_settings()
-    bg_colors = settings.get(
-        "background_colors", DEFAULT_NOTIFICATION_SETTINGS["background_colors"]
-    )
+    bg_colors = settings.get("background_colors", DEFAULT_NOTIFICATION_SETTINGS["background_colors"])
     return bg_colors.get(notification_type, NOTIFICATION_BG_COLOR)
 
 

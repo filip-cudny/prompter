@@ -175,9 +175,7 @@ class PromptExecuteDialog(BaseDialog):
         self._max_tabs: int = 10
 
         # Extract prompt name for title
-        prompt_name = (
-            menu_item.data.get("prompt_name", "Prompt") if menu_item.data else "Prompt"
-        )
+        prompt_name = menu_item.data.get("prompt_name", "Prompt") if menu_item.data else "Prompt"
         self.setWindowTitle(f"Message to: {prompt_name}")
 
         self._setup_ui()
@@ -472,18 +470,12 @@ class PromptExecuteDialog(BaseDialog):
 
         # Separate images and text
         self._current_images = [
-            ContextItem(
-                item_type=item.item_type, data=item.data, media_type=item.media_type
-            )
+            ContextItem(item_type=item.item_type, data=item.data, media_type=item.media_type)
             for item in items
             if item.item_type == ContextItemType.IMAGE
         ]
 
-        text_items = [
-            item.content
-            for item in items
-            if item.item_type == ContextItemType.TEXT and item.content
-        ]
+        text_items = [item.content for item in items if item.item_type == ContextItemType.TEXT and item.content]
         text_content = "\n".join(text_items)
 
         self._rebuild_image_chips()
@@ -504,9 +496,7 @@ class PromptExecuteDialog(BaseDialog):
 
         # Add images first
         for image_item in self._current_images:
-            self.context_manager.append_context_image(
-                image_item.data, image_item.media_type or "image/png"
-            )
+            self.context_manager.append_context_image(image_item.data, image_item.media_type or "image/png")
 
         # Add text
         text_content = self.context_text_edit.toPlainText().strip()
@@ -644,9 +634,7 @@ class PromptExecuteDialog(BaseDialog):
         """Toggle context section visibility."""
         is_visible = self.context_text_edit.isVisible()
         self.context_text_edit.setVisible(not is_visible)
-        self.context_images_container.setVisible(
-            not is_visible and len(self._current_images) > 0
-        )
+        self.context_images_container.setVisible(not is_visible and len(self._current_images) > 0)
         self.context_header.set_collapsed(is_visible)
         if is_visible:
             self.context_section.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
@@ -723,9 +711,7 @@ class PromptExecuteDialog(BaseDialog):
 
     def _do_scroll_to_bottom(self):
         """Perform the actual scroll to bottom."""
-        self.scroll_area.verticalScrollBar().setValue(
-            self.scroll_area.verticalScrollBar().maximum()
-        )
+        self.scroll_area.verticalScrollBar().setValue(self.scroll_area.verticalScrollBar().maximum())
 
     # --- UI state persistence ---
 
@@ -739,9 +725,7 @@ class PromptExecuteDialog(BaseDialog):
             [self.context_text_edit, self.context_images_container],
             self.context_section,
         )
-        self.restore_section_collapsed(
-            "input", self.input_header, self.input_edit, self.input_section
-        )
+        self.restore_section_collapsed("input", self.input_header, self.input_edit, self.input_section)
 
         context_wrapped = self.get_section_state("context_wrapped", True)
         input_wrapped = self.get_section_state("input_wrapped", True)
@@ -777,9 +761,7 @@ class PromptExecuteDialog(BaseDialog):
         """Get current context state."""
         return ContextSectionState(
             images=[
-                ContextItem(
-                    item_type=img.item_type, data=img.data, media_type=img.media_type
-                )
+                ContextItem(item_type=img.item_type, data=img.data, media_type=img.media_type)
                 for img in self._current_images
             ],
             text=self.context_text_edit.toPlainText(),
@@ -788,10 +770,7 @@ class PromptExecuteDialog(BaseDialog):
     def _restore_context_state(self, state: ContextSectionState):
         """Restore context state."""
         self._current_images = [
-            ContextItem(
-                item_type=img.item_type, data=img.data, media_type=img.media_type
-            )
-            for img in state.images
+            ContextItem(item_type=img.item_type, data=img.data, media_type=img.media_type) for img in state.images
         ]
         self._rebuild_image_chips()
         self.context_text_edit.blockSignals(True)
@@ -962,10 +941,7 @@ class PromptExecuteDialog(BaseDialog):
         self.output_edit.blockSignals(True)
         self.output_edit.setPlainText(text)
         self.output_edit.blockSignals(False)
-        self.output_header.set_version_info(
-            turn.current_version_index + 1,
-            len(turn.output_versions)
-        )
+        self.output_header.set_version_info(turn.current_version_index + 1, len(turn.output_versions))
         self._restore_version_undo_state(turn)
 
     # --- Version Navigation for Dynamic Output Sections ---
@@ -1034,10 +1010,7 @@ class PromptExecuteDialog(BaseDialog):
         section.text_edit.blockSignals(True)
         section.text_edit.setPlainText(text)
         section.text_edit.blockSignals(False)
-        section.header.set_version_info(
-            turn.current_version_index + 1,
-            len(turn.output_versions)
-        )
+        section.header.set_version_info(turn.current_version_index + 1, len(turn.output_versions))
         self._restore_dynamic_version_undo_state(section, turn)
 
     # --- Common undo/redo ---
@@ -1101,9 +1074,7 @@ class PromptExecuteDialog(BaseDialog):
             section._save_timer = QTimer()
             section._save_timer.setSingleShot(True)
             section._save_timer.setInterval(500)
-            section._save_timer.timeout.connect(
-                lambda s=section: self._save_dynamic_state(s)
-            )
+            section._save_timer.timeout.connect(lambda s=section: self._save_dynamic_state(s))
         section._save_timer.start()
 
     def _save_dynamic_state(self, section: QWidget):
@@ -1120,9 +1091,7 @@ class PromptExecuteDialog(BaseDialog):
 
     def _update_dynamic_section_buttons(self, section: QWidget):
         """Update undo/redo buttons for a dynamic section."""
-        section.header.set_undo_redo_enabled(
-            len(section.undo_stack) > 0, len(section.redo_stack) > 0
-        )
+        section.header.set_undo_redo_enabled(len(section.undo_stack) > 0, len(section.redo_stack) > 0)
 
     def _update_dynamic_section_height(self, section: QWidget):
         """Update height for dynamic section when unwrapped."""
@@ -1294,10 +1263,7 @@ class PromptExecuteDialog(BaseDialog):
             section_data = {
                 "turn_number": section.turn_number,
                 "text": section.text_edit.toPlainText(),
-                "images": [
-                    {"data": img.data, "media_type": img.media_type}
-                    for img in section.turn_images
-                ],
+                "images": [{"data": img.data, "media_type": img.media_type} for img in section.turn_images],
                 "undo_stack": list(section.undo_stack),
                 "redo_stack": list(section.redo_stack),
                 "last_text": section.last_text,
@@ -1419,17 +1385,12 @@ class PromptExecuteDialog(BaseDialog):
         self._current_turn_number = state.current_turn_number
 
         # Restore dynamic sections
-        self._conversation_manager.restore_dynamic_sections(
-            state.dynamic_sections_data, state.output_sections_data
-        )
+        self._conversation_manager.restore_dynamic_sections(state.dynamic_sections_data, state.output_sections_data)
 
         # Restore version display for Output #1
         if self._conversation_turns and self._conversation_turns[0].output_versions:
             turn = self._conversation_turns[0]
-            self.output_header.set_version_info(
-                turn.current_version_index + 1,
-                len(turn.output_versions)
-            )
+            self.output_header.set_version_info(turn.current_version_index + 1, len(turn.output_versions))
 
         # Restore UI collapsed/wrapped states
         self._restore_section_ui_states(state)
@@ -1442,9 +1403,7 @@ class PromptExecuteDialog(BaseDialog):
         # Show reply button if needed
         has_output = self._output_section_shown or bool(self._output_sections)
         has_pending_reply = bool(self._dynamic_sections)
-        self.reply_btn.setVisible(
-            has_output and not self._waiting_for_result and not has_pending_reply
-        )
+        self.reply_btn.setVisible(has_output and not self._waiting_for_result and not has_pending_reply)
 
     def _clear_dynamic_sections(self):
         """Remove all dynamic reply and output sections from layout."""
@@ -1739,12 +1698,9 @@ class PromptExecuteDialog(BaseDialog):
         # Create a NEW version placeholder BEFORE execution
         # This isolates the previous version completely
         from modules.gui.prompt_execute_dialog.data import OutputVersionState
+
         existing_versions.append("")  # Placeholder for new output
-        existing_version_undo_states.append(OutputVersionState(
-            undo_stack=[],
-            redo_stack=[],
-            last_text=""
-        ))
+        existing_version_undo_states.append(OutputVersionState(undo_stack=[], redo_stack=[], last_text=""))
         new_version_index = len(existing_versions) - 1
 
         # Sync UI edits to conversation turns before removing last turn
@@ -1816,9 +1772,7 @@ class PromptExecuteDialog(BaseDialog):
         modifiers = event.modifiers()
 
         # Check if message has content (text or images)
-        has_content = bool(self.input_edit.toPlainText().strip()) or bool(
-            self._message_images
-        )
+        has_content = bool(self.input_edit.toPlainText().strip()) or bool(self._message_images)
 
         # Check if in regenerate mode
         is_regenerate = self._is_regenerate_mode()

@@ -79,9 +79,7 @@ class HistoryService:
                 return entry
         return None
 
-    def get_last_item_by_type(
-        self, entry_type: HistoryEntryType
-    ) -> HistoryEntry | None:
+    def get_last_item_by_type(self, entry_type: HistoryEntryType) -> HistoryEntry | None:
         """Get the most recent history entry of the specified type."""
         for entry in reversed(self._history):
             if entry.entry_type == entry_type:

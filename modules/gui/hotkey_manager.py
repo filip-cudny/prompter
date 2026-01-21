@@ -34,26 +34,16 @@ class HotkeyConfig:
         all_bindings = self.keymap_manager.get_all_bindings()
 
         # Find all hotkeys for each action
-        self.context_menu_hotkeys = self._find_hotkeys_for_action(
-            all_bindings, "open_context_menu"
-        ) or ["cmd+f1"]
-        self.re_execute_hotkeys = self._find_hotkeys_for_action(
-            all_bindings, "execute_active_prompt"
-        ) or ["cmd+f2"]
-        self.speech_toggle_hotkeys = self._find_hotkeys_for_action(
-            all_bindings, "speech_to_text_toggle"
-        ) or ["shift+f1"]
+        self.context_menu_hotkeys = self._find_hotkeys_for_action(all_bindings, "open_context_menu") or ["cmd+f1"]
+        self.re_execute_hotkeys = self._find_hotkeys_for_action(all_bindings, "execute_active_prompt") or ["cmd+f2"]
+        self.speech_toggle_hotkeys = self._find_hotkeys_for_action(all_bindings, "speech_to_text_toggle") or [
+            "shift+f1"
+        ]
 
         # Parse hotkeys to extract keys and modifiers
-        self.context_menu_parsed = [
-            self._parse_hotkey(hotkey) for hotkey in self.context_menu_hotkeys
-        ]
-        self.re_execute_parsed = [
-            self._parse_hotkey(hotkey) for hotkey in self.re_execute_hotkeys
-        ]
-        self.speech_toggle_parsed = [
-            self._parse_hotkey(hotkey) for hotkey in self.speech_toggle_hotkeys
-        ]
+        self.context_menu_parsed = [self._parse_hotkey(hotkey) for hotkey in self.context_menu_hotkeys]
+        self.re_execute_parsed = [self._parse_hotkey(hotkey) for hotkey in self.re_execute_hotkeys]
+        self.speech_toggle_parsed = [self._parse_hotkey(hotkey) for hotkey in self.speech_toggle_hotkeys]
 
         # Keep first hotkey for backward compatibility
         self.context_menu_hotkey = self.context_menu_hotkeys[0]
@@ -214,9 +204,7 @@ class PyQtHotkeyListener:
             HOTKEY_CONFIG = HotkeyConfig(self.keymap_manager)
 
         try:
-            self.listener = keyboard.Listener(
-                on_press=self._on_press, on_release=self._on_release, suppress=False
-            )
+            self.listener = keyboard.Listener(on_press=self._on_press, on_release=self._on_release, suppress=False)
             self.listener.start()
             self.running = True
         except Exception as e:
@@ -284,9 +272,7 @@ class PyQtHotkeyListener:
         if key in self.pressed_keys:
             self.pressed_keys.remove(key)
 
-    def _is_action_hotkey_pressed(
-        self, action_name: str, hotkey_combination: str
-    ) -> bool:
+    def _is_action_hotkey_pressed(self, action_name: str, hotkey_combination: str) -> bool:
         """Check if a specific action's hotkey combination is pressed."""
         if not hotkey_combination:
             return False
@@ -302,9 +288,7 @@ class PyQtHotkeyListener:
             return False
         # Check all configured hotkey combinations for re-execute
         for config in HOTKEY_CONFIG.re_execute_parsed:
-            modifier_pressed = any(
-                mod in self.pressed_keys for mod in config["modifiers"]
-            )
+            modifier_pressed = any(mod in self.pressed_keys for mod in config["modifiers"])
             key_pressed = config["key"] in self.pressed_keys
             if modifier_pressed and key_pressed:
                 return True
@@ -316,9 +300,7 @@ class PyQtHotkeyListener:
             return False
         # Check all configured hotkey combinations for context menu
         for config in HOTKEY_CONFIG.context_menu_parsed:
-            modifier_pressed = any(
-                mod in self.pressed_keys for mod in config["modifiers"]
-            )
+            modifier_pressed = any(mod in self.pressed_keys for mod in config["modifiers"])
             key_pressed = config["key"] in self.pressed_keys
             if modifier_pressed and key_pressed:
                 return True
@@ -330,9 +312,7 @@ class PyQtHotkeyListener:
             return False
         # Check all configured hotkey combinations for speech toggle
         for config in HOTKEY_CONFIG.speech_toggle_parsed:
-            modifier_pressed = any(
-                mod in self.pressed_keys for mod in config["modifiers"]
-            )
+            modifier_pressed = any(mod in self.pressed_keys for mod in config["modifiers"])
             key_pressed = config["key"] in self.pressed_keys
             if modifier_pressed and key_pressed:
                 return True
@@ -350,9 +330,7 @@ class PyQtHotkeyListener:
             execute_keymap_action(action_name)
 
             # Set reset timer
-            self.action_timers[action_name] = threading.Timer(
-                1.0, lambda: self._reset_action_flag(action_name)
-            )
+            self.action_timers[action_name] = threading.Timer(1.0, lambda: self._reset_action_flag(action_name))
             self.action_timers[action_name].start()
 
     def _trigger_re_execute_hotkey(self) -> None:
@@ -360,9 +338,7 @@ class PyQtHotkeyListener:
         if not self.re_execute_hotkey_pressed:
             self.re_execute_hotkey_pressed = True
             self.signals.re_execute_hotkey_pressed.emit()
-            self.re_execute_reset_timer = threading.Timer(
-                1.0, self._reset_re_execute_hotkey_flag
-            )
+            self.re_execute_reset_timer = threading.Timer(1.0, self._reset_re_execute_hotkey_flag)
             self.re_execute_reset_timer.start()
 
     def _trigger_context_menu_hotkey(self) -> None:
@@ -370,9 +346,7 @@ class PyQtHotkeyListener:
         if not self.context_menu_hotkey_pressed:
             self.context_menu_hotkey_pressed = True
             self.signals.context_menu_hotkey_pressed.emit()
-            self.context_menu_reset_timer = threading.Timer(
-                1.0, self._reset_context_menu_hotkey_flag
-            )
+            self.context_menu_reset_timer = threading.Timer(1.0, self._reset_context_menu_hotkey_flag)
             self.context_menu_reset_timer.start()
 
     def _trigger_speech_toggle_hotkey(self) -> None:
@@ -380,9 +354,7 @@ class PyQtHotkeyListener:
         if not self.speech_toggle_hotkey_pressed:
             self.speech_toggle_hotkey_pressed = True
             self.signals.speech_toggle_hotkey_pressed.emit()
-            self.speech_toggle_reset_timer = threading.Timer(
-                1.0, self._reset_speech_toggle_hotkey_flag
-            )
+            self.speech_toggle_reset_timer = threading.Timer(1.0, self._reset_speech_toggle_hotkey_flag)
             self.speech_toggle_reset_timer.start()
 
     def _reset_action_flag(self, action_name: str) -> None:

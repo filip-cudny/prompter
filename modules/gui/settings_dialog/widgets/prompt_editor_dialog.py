@@ -109,10 +109,12 @@ class DescriptionGeneratorWorker(QThread):
 
             from core.openai_service import OpenAiService
 
-            single_model_config = [{
-                "id": model_id,
-                **model_config,
-            }]
+            single_model_config = [
+                {
+                    "id": model_id,
+                    **model_config,
+                }
+            ]
 
             service = OpenAiService(models_config=single_model_config)
 
@@ -456,9 +458,7 @@ class PromptEditorDialog(QDialog):
     def _update_generate_button_state(self):
         """Update the generate button enabled state and tooltip."""
         content_len = self._get_combined_content_length()
-        is_generating = (
-            self._generator_worker is not None and self._generator_worker.isRunning()
-        )
+        is_generating = self._generator_worker is not None and self._generator_worker.isRunning()
 
         if is_generating:
             self._generate_btn.setEnabled(False)

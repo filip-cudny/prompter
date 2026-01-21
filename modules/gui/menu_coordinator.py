@@ -63,9 +63,7 @@ class PyQtMenuCoordinator(QObject):
         }
 
         # All dynamic provider classes
-        self._dynamic_provider_classes = (
-            self._top_dynamic_provider_classes | self._bottom_dynamic_provider_classes
-        )
+        self._dynamic_provider_classes = self._top_dynamic_provider_classes | self._bottom_dynamic_provider_classes
 
         # Connect internal signals
         self.execution_completed.connect(self._handle_execution_result)
@@ -120,9 +118,7 @@ class PyQtMenuCoordinator(QObject):
         if provider in self.providers:
             self.providers.remove(provider)
 
-    def set_execution_callback(
-        self, callback: Callable[[ExecutionResult], None]
-    ) -> None:
+    def set_execution_callback(self, callback: Callable[[ExecutionResult], None]) -> None:
         """Set callback for execution results."""
         self.execution_callback = callback
 
@@ -195,9 +191,7 @@ class PyQtMenuCoordinator(QObject):
                             wrapped_items = self._wrap_provider_items(items)
                             all_items.extend(wrapped_items)
                     except (RuntimeError, Exception) as e:
-                        logger.error(
-                            f"Error getting items from provider {provider.__class__.__name__}: {e}"
-                        )
+                        logger.error(f"Error getting items from provider {provider.__class__.__name__}: {e}")
                         continue
 
             # Build bottom dynamic items (Speech, Settings, Active Prompt)
@@ -218,9 +212,7 @@ class PyQtMenuCoordinator(QObject):
                 id=item.id,
                 label=item.label,
                 item_type=item.item_type,
-                action=lambda captured_item=item: self._execute_menu_item(
-                    captured_item
-                ),
+                action=lambda captured_item=item: self._execute_menu_item(captured_item),
                 data=item.data,
                 enabled=item.enabled,
                 tooltip=getattr(item, "tooltip", None),
@@ -245,11 +237,7 @@ class PyQtMenuCoordinator(QObject):
             logger.debug(f"Executing menu item: {item.id} (type: {item.item_type})")
             # For system items with direct actions (like set default model, set active prompt),
             # call the action directly instead of going through the execution service
-            if (
-                item.item_type == MenuItemType.SYSTEM
-                and item.action is not None
-                and callable(item.action)
-            ):
+            if item.item_type == MenuItemType.SYSTEM and item.action is not None and callable(item.action):
                 # Call the action directly - it will emit its own execution_completed signal
                 item.action()
             else:
@@ -306,9 +294,7 @@ class PyQtMenuCoordinator(QObject):
                         wrapped_items = self._wrap_provider_items(items)
                         dynamic_items.extend(wrapped_items)
                 except (RuntimeError, Exception) as e:
-                    print(
-                        f"Error getting items from dynamic provider {provider.__class__.__name__}: {e}"
-                    )
+                    print(f"Error getting items from dynamic provider {provider.__class__.__name__}: {e}")
                     continue
 
         return dynamic_items
@@ -326,9 +312,7 @@ class PyQtMenuCoordinator(QObject):
                         wrapped_items = self._wrap_provider_items(items)
                         bottom_items.extend(wrapped_items)
                 except (RuntimeError, Exception) as e:
-                    print(
-                        f"Error getting items from dynamic provider {provider.__class__.__name__}: {e}"
-                    )
+                    print(f"Error getting items from dynamic provider {provider.__class__.__name__}: {e}")
                     continue
 
         # Add active prompt info (Settings, Active Prompt)
@@ -339,6 +323,7 @@ class PyQtMenuCoordinator(QObject):
     def _open_settings_dialog(self):
         """Open the settings dialog."""
         from modules.gui.settings_dialog import show_settings_dialog
+
         show_settings_dialog()
 
     def _add_active_prompt_info(self, all_items: list[MenuItem]) -> None:
@@ -352,9 +337,7 @@ class PyQtMenuCoordinator(QObject):
         if config.models and config.default_model:
             for model in config.models:
                 if model.get("id") == config.default_model:
-                    default_model_display_name = model.get(
-                        "display_name", config.default_model
-                    )
+                    default_model_display_name = model.get("display_name", config.default_model)
                     break
 
         # Get active prompt display name
@@ -590,9 +573,7 @@ class PyQtMenuEventHandler:
         """Handle execution error."""
         try:
             if self.notification_manager:
-                self.notification_manager.show_error_notification(
-                    "Execution Error", error_message
-                )
+                self.notification_manager.show_error_notification("Execution Error", error_message)
             else:
                 print(f"Execution error: {error_message}")
 
@@ -615,9 +596,7 @@ class PyQtMenuEventHandler:
             # Get prompt/preset name from metadata if available
             prompt_name = None
             if result.metadata:
-                prompt_name = result.metadata.get("prompt_name") or result.metadata.get(
-                    "preset_name"
-                )
+                prompt_name = result.metadata.get("prompt_name") or result.metadata.get("preset_name")
 
             # Format error message with prompt name if available
             error_message = result.error

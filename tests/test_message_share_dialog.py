@@ -67,12 +67,7 @@ def _can_send_standalone(
     waiting_for_result: bool,
     disable_for_global_execution: bool,
 ) -> bool:
-    return (
-        has_message
-        and not has_conversation_error
-        and not waiting_for_result
-        and not disable_for_global_execution
-    )
+    return has_message and not has_conversation_error and not waiting_for_result and not disable_for_global_execution
 
 
 def _can_act_standalone(
@@ -100,16 +95,12 @@ def _build_conversation_data_standalone(
         turn_data = {
             "role": "user",
             "text": turn.message_text,
-            "images": [
-                {"data": img.data, "media_type": img.media_type or "image/png"}
-                for img in turn.message_images
-            ],
+            "images": [{"data": img.data, "media_type": img.media_type or "image/png"} for img in turn.message_images],
         }
         if i == 0:
             turn_data["context_text"] = context_text
             turn_data["context_images"] = [
-                {"data": img.data, "media_type": img.media_type or "image/png"}
-                for img in context_images
+                {"data": img.data, "media_type": img.media_type or "image/png"} for img in context_images
             ]
 
         turns.append(turn_data)
@@ -140,7 +131,11 @@ def _redo_stack_operation(undo_stack: list, redo_stack: list, get_current_state,
 
 def _save_text_state(current_text: str, last_text: str, undo_stack: list, redo_stack: list, state_class):
     if current_text != last_text:
-        state = state_class(text=last_text) if state_class == PromptInputState or state_class == OutputState else state_class
+        state = (
+            state_class(text=last_text)
+            if state_class == PromptInputState or state_class == OutputState
+            else state_class
+        )
         undo_stack.append(state)
         redo_stack.clear()
         return current_text
@@ -522,13 +517,15 @@ class TestUpdateSendButtonsState:
 class TestBuildConversationData:
     def test_first_turn_includes_context(self):
         context_images = [ContextItem(item_type="image", data="ctx_img", media_type="image/png")]
-        turns = [ConversationTurn(
-            turn_number=1,
-            message_text="Hello",
-            message_images=[],
-            output_text="Hi there",
-            is_complete=True,
-        )]
+        turns = [
+            ConversationTurn(
+                turn_number=1,
+                message_text="Hello",
+                message_images=[],
+                output_text="Hi there",
+                is_complete=True,
+            )
+        ]
 
         result = _build_conversation_data_standalone(
             context_text="System context",
@@ -557,12 +554,14 @@ class TestBuildConversationData:
 
     def test_images_serialized_correctly(self):
         img = ContextItem(item_type="image", data="base64data", media_type="image/jpeg")
-        turns = [ConversationTurn(
-            turn_number=1,
-            message_text="Look at this",
-            message_images=[img],
-            is_complete=False,
-        )]
+        turns = [
+            ConversationTurn(
+                turn_number=1,
+                message_text="Look at this",
+                message_images=[img],
+                is_complete=False,
+            )
+        ]
 
         result = _build_conversation_data_standalone(
             context_text="",
@@ -1238,15 +1237,15 @@ def _restore_pending_version_data(dialog, turn):
     This MUST match the actual implementation in execute_with_message.
     Update this when the fix is applied to execution_handler.py.
     """
-    if hasattr(dialog, '_pending_version_history'):
+    if hasattr(dialog, "_pending_version_history"):
         turn.output_versions = dialog._pending_version_history
-        delattr(dialog, '_pending_version_history')
-    if hasattr(dialog, '_pending_version_undo_states'):
+        delattr(dialog, "_pending_version_history")
+    if hasattr(dialog, "_pending_version_undo_states"):
         turn.version_undo_states = dialog._pending_version_undo_states
-        delattr(dialog, '_pending_version_undo_states')
-    if hasattr(dialog, '_pending_version_index'):
+        delattr(dialog, "_pending_version_undo_states")
+    if hasattr(dialog, "_pending_version_index"):
         turn.current_version_index = dialog._pending_version_index
-        delattr(dialog, '_pending_version_index')
+        delattr(dialog, "_pending_version_index")
 
 
 class TestRegenerationPreservesVersionIndex:
@@ -1318,16 +1317,12 @@ def _build_conversation_data_with_versions(
         turn_data = {
             "role": "user",
             "text": turn.message_text,
-            "images": [
-                {"data": img.data, "media_type": img.media_type or "image/png"}
-                for img in turn.message_images
-            ],
+            "images": [{"data": img.data, "media_type": img.media_type or "image/png"} for img in turn.message_images],
         }
         if i == 0:
             turn_data["context_text"] = context_text
             turn_data["context_images"] = [
-                {"data": img.data, "media_type": img.media_type or "image/png"}
-                for img in context_images
+                {"data": img.data, "media_type": img.media_type or "image/png"} for img in context_images
             ]
 
         turns.append(turn_data)
@@ -1395,6 +1390,7 @@ class TestSendMethodsCallSync:
     def test_on_send_copy_source_contains_sync_call(self):
         """Verify _on_send_copy calls _sync_all_outputs_to_versions in source."""
         import os
+
         dialog_path = os.path.join(
             os.path.dirname(__file__),
             "..",
@@ -1408,22 +1404,19 @@ class TestSendMethodsCallSync:
 
         # Find _on_send_copy method
         import re
-        match = re.search(
-            r'def _on_send_copy\(self\):.*?(?=\n    def |\nclass |\Z)',
-            source,
-            re.DOTALL
-        )
+
+        match = re.search(r"def _on_send_copy\(self\):.*?(?=\n    def |\nclass |\Z)", source, re.DOTALL)
         assert match, "_on_send_copy method not found in dialog.py"
 
         method_source = match.group(0)
-        assert '_sync_all_outputs_to_versions' in method_source, (
-            "_on_send_copy must call _sync_all_outputs_to_versions() "
-            "to sync edited outputs before sending"
+        assert "_sync_all_outputs_to_versions" in method_source, (
+            "_on_send_copy must call _sync_all_outputs_to_versions() to sync edited outputs before sending"
         )
 
     def test_on_send_show_source_contains_sync_call(self):
         """Verify _on_send_show calls _sync_all_outputs_to_versions in source."""
         import os
+
         dialog_path = os.path.join(
             os.path.dirname(__file__),
             "..",
@@ -1437,22 +1430,19 @@ class TestSendMethodsCallSync:
 
         # Find _on_send_show method
         import re
-        match = re.search(
-            r'def _on_send_show\(self\):.*?(?=\n    def |\nclass |\Z)',
-            source,
-            re.DOTALL
-        )
+
+        match = re.search(r"def _on_send_show\(self\):.*?(?=\n    def |\nclass |\Z)", source, re.DOTALL)
         assert match, "_on_send_show method not found in dialog.py"
 
         method_source = match.group(0)
-        assert '_sync_all_outputs_to_versions' in method_source, (
-            "_on_send_show must call _sync_all_outputs_to_versions() "
-            "to sync edited outputs before sending"
+        assert "_sync_all_outputs_to_versions" in method_source, (
+            "_on_send_show must call _sync_all_outputs_to_versions() to sync edited outputs before sending"
         )
 
     def test_sync_method_exists(self):
         """Verify _sync_all_outputs_to_versions method exists in dialog.py."""
         import os
+
         dialog_path = os.path.join(
             os.path.dirname(__file__),
             "..",
@@ -1464,7 +1454,7 @@ class TestSendMethodsCallSync:
         with open(dialog_path) as f:
             source = f.read()
 
-        assert 'def _sync_all_outputs_to_versions(self)' in source, (
+        assert "def _sync_all_outputs_to_versions(self)" in source, (
             "_sync_all_outputs_to_versions method must exist in dialog.py "
             "to sync edited outputs to version arrays before sending"
         )

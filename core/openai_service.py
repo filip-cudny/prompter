@@ -42,9 +42,7 @@ class OpenAiService:
             try:
                 api_key = model_config.get("api_key")
                 if not api_key:
-                    raise Exception(
-                        "OpenAI API key not found. Set OPENAI_API_KEY environment variable."
-                    )
+                    raise Exception("OpenAI API key not found. Set OPENAI_API_KEY environment variable.")
 
                 client = OpenAI(
                     api_key=api_key,
@@ -52,17 +50,13 @@ class OpenAiService:
                 )
                 self._clients[model_id] = client
             except Exception as e:
-                raise ConfigurationError(
-                    f"Failed to initialize OpenAI client for model '{model_id}': {e}"
-                ) from e
+                raise ConfigurationError(f"Failed to initialize OpenAI client for model '{model_id}': {e}") from e
 
         if self._speech_to_text_config:
             try:
                 api_key = self._speech_to_text_config.get("api_key")
                 if not api_key:
-                    raise Exception(
-                        "OpenAI API key not found. Set OPENAI_API_KEY environment variable."
-                    )
+                    raise Exception("OpenAI API key not found. Set OPENAI_API_KEY environment variable.")
 
                 client = OpenAI(
                     api_key=api_key,
@@ -70,9 +64,7 @@ class OpenAiService:
                 )
                 self._clients["speech_to_text"] = client
             except Exception as e:
-                raise ConfigurationError(
-                    f"Failed to initialize OpenAI client for speech-to-text: {e}"
-                ) from e
+                raise ConfigurationError(f"Failed to initialize OpenAI client for speech-to-text: {e}") from e
 
     def complete(
         self,

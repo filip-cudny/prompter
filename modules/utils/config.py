@@ -73,9 +73,7 @@ class ConfigService:
             self._on_save_callbacks = []
             self._initialized = True
 
-    def initialize(
-        self, env_file: str | None = None, settings_file: str | None = None
-    ):
+    def initialize(self, env_file: str | None = None, settings_file: str | None = None):
         """Initialize the configuration service."""
         self._config = self._load_config(env_file, settings_file)
         return self._config
@@ -87,17 +85,13 @@ class ConfigService:
     def get_config(self) -> AppConfig:
         """Get the current configuration."""
         if self._config is None:
-            raise ConfigurationError(
-                "ConfigService not initialized. Call initialize() first."
-            )
+            raise ConfigurationError("ConfigService not initialized. Call initialize() first.")
         return self._config
 
     def get_settings_data(self) -> dict[str, Any]:
         """Get the raw settings data."""
         if self._settings_data is None:
-            raise ConfigurationError(
-                "ConfigService not initialized. Call initialize() first."
-            )
+            raise ConfigurationError("ConfigService not initialized. Call initialize() first.")
         return self._settings_data
 
     def reload_settings(self) -> None:
@@ -110,24 +104,18 @@ class ConfigService:
 
         if self._config:
             self._config.models = self._settings_data.get("models", [])
-            self._config.speech_to_text_model = self._settings_data.get(
-                "speech_to_text_model"
-            )
+            self._config.speech_to_text_model = self._settings_data.get("speech_to_text_model")
             self._config.default_model = self._settings_data.get("default_model")
 
             _migrate_model_params(self._config.models)
             _load_api_keys(self._config.models)
             if self._config.speech_to_text_model:
-                _load_api_key_for_model(
-                    self._config.speech_to_text_model, "speech_to_text_model"
-                )
+                _load_api_key_for_model(self._config.speech_to_text_model, "speech_to_text_model")
 
     def update_default_model(self, model_id: str) -> None:
         """Update the default model configuration."""
         if self._config is None:
-            raise ConfigurationError(
-                "ConfigService not initialized. Call initialize() first."
-            )
+            raise ConfigurationError("ConfigService not initialized. Call initialize() first.")
 
         if not self.get_model_by_id(model_id):
             raise ConfigurationError(f"Model '{model_id}' not found in configuration")
@@ -152,9 +140,7 @@ class ConfigService:
     def save_settings(self) -> None:
         """Save current settings to JSON file."""
         if self._settings_data is None:
-            raise ConfigurationError(
-                "ConfigService not initialized. Call initialize() first."
-            )
+            raise ConfigurationError("ConfigService not initialized. Call initialize() first.")
 
         settings_file = Path("settings/settings.json")
         settings_to_save = self._sanitize_settings_for_save(self._settings_data)
@@ -188,15 +174,11 @@ class ConfigService:
             persist: Whether to save settings to file immediately
         """
         if self._settings_data is None:
-            raise ConfigurationError(
-                "ConfigService not initialized. Call initialize() first."
-            )
+            raise ConfigurationError("ConfigService not initialized. Call initialize() first.")
 
         prompts = self._settings_data.get("prompts", [])
         id_to_prompt = {p["id"]: p for p in prompts}
-        self._settings_data["prompts"] = [
-            id_to_prompt[pid] for pid in prompt_ids if pid in id_to_prompt
-        ]
+        self._settings_data["prompts"] = [id_to_prompt[pid] for pid in prompt_ids if pid in id_to_prompt]
         if persist:
             self.save_settings()
 
@@ -209,9 +191,7 @@ class ConfigService:
             persist: Whether to save settings to file immediately
         """
         if self._settings_data is None:
-            raise ConfigurationError(
-                "ConfigService not initialized. Call initialize() first."
-            )
+            raise ConfigurationError("ConfigService not initialized. Call initialize() first.")
 
         self._settings_data[key] = value
         if persist:
@@ -228,9 +208,7 @@ class ConfigService:
             persist: Whether to save settings to file immediately
         """
         if self._settings_data is None:
-            raise ConfigurationError(
-                "ConfigService not initialized. Call initialize() first."
-            )
+            raise ConfigurationError("ConfigService not initialized. Call initialize() first.")
 
         if "prompts" not in self._settings_data:
             self._settings_data["prompts"] = []
@@ -239,9 +217,7 @@ class ConfigService:
         if persist:
             self.save_settings()
 
-    def update_prompt(
-        self, prompt_id: str, prompt_data: dict[str, Any], persist: bool = True
-    ) -> None:
+    def update_prompt(self, prompt_id: str, prompt_data: dict[str, Any], persist: bool = True) -> None:
         """Update an existing prompt.
 
         Args:
@@ -250,9 +226,7 @@ class ConfigService:
             persist: Whether to save settings to file immediately
         """
         if self._settings_data is None:
-            raise ConfigurationError(
-                "ConfigService not initialized. Call initialize() first."
-            )
+            raise ConfigurationError("ConfigService not initialized. Call initialize() first.")
 
         prompts = self._settings_data.get("prompts", [])
         for i, prompt in enumerate(prompts):
@@ -270,20 +244,14 @@ class ConfigService:
             persist: Whether to save settings to file immediately
         """
         if self._settings_data is None:
-            raise ConfigurationError(
-                "ConfigService not initialized. Call initialize() first."
-            )
+            raise ConfigurationError("ConfigService not initialized. Call initialize() first.")
 
         prompts = self._settings_data.get("prompts", [])
-        self._settings_data["prompts"] = [
-            p for p in prompts if p.get("id") != prompt_id
-        ]
+        self._settings_data["prompts"] = [p for p in prompts if p.get("id") != prompt_id]
         if persist:
             self.save_settings()
 
-    def add_model(
-        self, model_id: str, model_config: dict[str, Any], persist: bool = True
-    ) -> None:
+    def add_model(self, model_id: str, model_config: dict[str, Any], persist: bool = True) -> None:
         """Add a new model to settings.
 
         Args:
@@ -292,9 +260,7 @@ class ConfigService:
             persist: Whether to save settings to file immediately
         """
         if self._settings_data is None:
-            raise ConfigurationError(
-                "ConfigService not initialized. Call initialize() first."
-            )
+            raise ConfigurationError("ConfigService not initialized. Call initialize() first.")
 
         if "models" not in self._settings_data:
             self._settings_data["models"] = []
@@ -308,9 +274,7 @@ class ConfigService:
         if persist:
             self.save_settings()
 
-    def update_model(
-        self, model_id: str, model_config: dict[str, Any], persist: bool = True
-    ) -> None:
+    def update_model(self, model_id: str, model_config: dict[str, Any], persist: bool = True) -> None:
         """Update an existing model configuration or add if not found.
 
         Args:
@@ -319,9 +283,7 @@ class ConfigService:
             persist: Whether to save settings to file immediately
         """
         if self._settings_data is None:
-            raise ConfigurationError(
-                "ConfigService not initialized. Call initialize() first."
-            )
+            raise ConfigurationError("ConfigService not initialized. Call initialize() first.")
 
         if "models" not in self._settings_data:
             self._settings_data["models"] = []
@@ -361,9 +323,7 @@ class ConfigService:
             persist: Whether to save settings to file immediately
         """
         if self._settings_data is None:
-            raise ConfigurationError(
-                "ConfigService not initialized. Call initialize() first."
-            )
+            raise ConfigurationError("ConfigService not initialized. Call initialize() first.")
 
         models = self._settings_data.get("models", [])
         self._settings_data["models"] = [m for m in models if m.get("id") != model_id]
@@ -374,9 +334,7 @@ class ConfigService:
         if persist:
             self.save_settings()
 
-    def update_notifications(
-        self, notifications_config: dict[str, Any], persist: bool = True
-    ) -> None:
+    def update_notifications(self, notifications_config: dict[str, Any], persist: bool = True) -> None:
         """Update notifications configuration.
 
         Args:
@@ -384,17 +342,13 @@ class ConfigService:
             persist: Whether to save settings to file immediately
         """
         if self._settings_data is None:
-            raise ConfigurationError(
-                "ConfigService not initialized. Call initialize() first."
-            )
+            raise ConfigurationError("ConfigService not initialized. Call initialize() first.")
 
         self._settings_data["notifications"] = notifications_config
         if persist:
             self.save_settings()
 
-    def update_speech_model(
-        self, speech_config: dict[str, Any], persist: bool = True
-    ) -> None:
+    def update_speech_model(self, speech_config: dict[str, Any], persist: bool = True) -> None:
         """Update speech-to-text model configuration.
 
         Args:
@@ -402,9 +356,7 @@ class ConfigService:
             persist: Whether to save settings to file immediately
         """
         if self._settings_data is None:
-            raise ConfigurationError(
-                "ConfigService not initialized. Call initialize() first."
-            )
+            raise ConfigurationError("ConfigService not initialized. Call initialize() first.")
 
         self._settings_data["speech_to_text_model"] = speech_config
         if self._config:
@@ -412,9 +364,7 @@ class ConfigService:
         if persist:
             self.save_settings()
 
-    def update_keymaps(
-        self, keymaps: list[dict[str, Any]], persist: bool = True
-    ) -> None:
+    def update_keymaps(self, keymaps: list[dict[str, Any]], persist: bool = True) -> None:
         """Update keymaps configuration.
 
         Args:
@@ -422,9 +372,7 @@ class ConfigService:
             persist: Whether to save settings to file immediately
         """
         if self._settings_data is None:
-            raise ConfigurationError(
-                "ConfigService not initialized. Call initialize() first."
-            )
+            raise ConfigurationError("ConfigService not initialized. Call initialize() first.")
 
         self._settings_data["keymaps"] = keymaps
         if persist:
@@ -437,9 +385,7 @@ class ConfigService:
             Dict with 'model' and 'system_prompt' keys
         """
         if self._settings_data is None:
-            raise ConfigurationError(
-                "ConfigService not initialized. Call initialize() first."
-            )
+            raise ConfigurationError("ConfigService not initialized. Call initialize() first.")
 
         default_system_prompt = (
             "You are an AI assistant whose sole task is to generate a short, concise "
@@ -483,9 +429,7 @@ class ConfigService:
 
         return result
 
-    def update_description_generator_config(
-        self, config: dict[str, Any], persist: bool = True
-    ) -> None:
+    def update_description_generator_config(self, config: dict[str, Any], persist: bool = True) -> None:
         """Update description generator configuration.
 
         Args:
@@ -493,9 +437,7 @@ class ConfigService:
             persist: Whether to save settings to file immediately
         """
         if self._settings_data is None:
-            raise ConfigurationError(
-                "ConfigService not initialized. Call initialize() first."
-            )
+            raise ConfigurationError("ConfigService not initialized. Call initialize() first.")
 
         if "description_generator" not in self._settings_data:
             self._settings_data["description_generator"] = {}
@@ -504,9 +446,7 @@ class ConfigService:
         if persist:
             self.save_settings()
 
-    def _load_config(
-        self, env_file: str | None = None, settings_file: str | None = None
-    ) -> AppConfig:
+    def _load_config(self, env_file: str | None = None, settings_file: str | None = None) -> AppConfig:
         """Load configuration from environment variables and settings file."""
         if env_file:
             load_dotenv(env_file, override=True)
@@ -539,15 +479,11 @@ class ConfigService:
                 # Load keymap configuration
                 from .keymap import KeymapManager
 
-                config.keymap_manager = KeymapManager(
-                    self._settings_data.get("keymaps", [])
-                )
+                config.keymap_manager = KeymapManager(self._settings_data.get("keymaps", []))
 
                 # Load models and speech_to_text_model configuration (now array)
                 config.models = self._settings_data.get("models", [])
-                config.speech_to_text_model = self._settings_data.get(
-                    "speech_to_text_model"
-                )
+                config.speech_to_text_model = self._settings_data.get("speech_to_text_model")
 
                 # Migrate legacy model params to nested parameters dict
                 _migrate_model_params(config.models)
@@ -560,18 +496,14 @@ class ConfigService:
                 # Load number input debounce delay from settings if available
                 if "number_input_debounce_ms" in self._settings_data:
                     try:
-                        config.number_input_debounce_ms = int(
-                            self._settings_data["number_input_debounce_ms"]
-                        )
+                        config.number_input_debounce_ms = int(self._settings_data["number_input_debounce_ms"])
                     except (ValueError, TypeError):
                         pass
 
                 # Load API keys from environment variables
                 _load_api_keys(config.models)
                 if config.speech_to_text_model:
-                    _load_api_key_for_model(
-                        config.speech_to_text_model, "speech_to_text_model"
-                    )
+                    _load_api_key_for_model(config.speech_to_text_model, "speech_to_text_model")
 
             except Exception as e:
                 raise ConfigurationError(f"Failed to load configuration: {e}")
@@ -582,9 +514,7 @@ class ConfigService:
         return config
 
 
-def get_config_service(
-    env_file: str | None = None, settings_file: str | None = None
-) -> ConfigService:
+def get_config_service(env_file: str | None = None, settings_file: str | None = None) -> ConfigService:
     """Get initialized ConfigService singleton."""
     config_service = ConfigService()
     if config_service._config is None:
@@ -592,9 +522,7 @@ def get_config_service(
     return config_service
 
 
-def initialize_config(
-    env_file: str | None = None, settings_file: str | None = None
-) -> AppConfig:
+def initialize_config(env_file: str | None = None, settings_file: str | None = None) -> AppConfig:
     """Initialize configuration for the application.
 
     Usage example:
@@ -612,9 +540,7 @@ def initialize_config(
     return config_service.get_config()
 
 
-def load_config(
-    env_file: str | None = None, settings_file: str | None = None
-) -> AppConfig:
+def load_config(env_file: str | None = None, settings_file: str | None = None) -> AppConfig:
     """Load configuration from environment variables and .env file."""
     config_service = get_config_service(env_file, settings_file)
     return config_service.get_config()
@@ -650,33 +576,23 @@ def validate_config(config: AppConfig) -> None:
         required_fields = ["model", "display_name"]
         for field in required_fields:
             if field not in model_config:
-                raise ConfigurationError(
-                    f"Model '{model_display}' missing required field: {field}"
-                )
+                raise ConfigurationError(f"Model '{model_display}' missing required field: {field}")
 
             if not model_config[field]:
-                raise ConfigurationError(
-                    f"Model '{model_display}' field '{field}' cannot be empty"
-                )
+                raise ConfigurationError(f"Model '{model_display}' field '{field}' cannot be empty")
 
         api_key_source = model_config.get("api_key_source", "env")
         if api_key_source == "env":
             if "api_key_env" not in model_config or not model_config["api_key_env"]:
-                raise ConfigurationError(
-                    f"Model '{model_display}' requires 'api_key_env' when api_key_source is 'env'"
-                )
+                raise ConfigurationError(f"Model '{model_display}' requires 'api_key_env' when api_key_source is 'env'")
         elif api_key_source == "direct":
             if "api_key" not in model_config or not model_config["api_key"]:
-                raise ConfigurationError(
-                    f"Model '{model_display}' requires 'api_key' when api_key_source is 'direct'"
-                )
+                raise ConfigurationError(f"Model '{model_display}' requires 'api_key' when api_key_source is 'direct'")
 
         if "parameters" in model_config:
             params = model_config["parameters"]
             if not isinstance(params, dict):
-                raise ConfigurationError(
-                    f"Model '{model_display}' parameters must be a dictionary"
-                )
+                raise ConfigurationError(f"Model '{model_display}' parameters must be a dictionary")
             for param_name, param_value in params.items():
                 if not isinstance(param_value, (int, float, str, bool)):
                     raise ConfigurationError(
@@ -685,18 +601,14 @@ def validate_config(config: AppConfig) -> None:
 
         if "base_url" in model_config and model_config["base_url"]:
             if not model_config["base_url"].startswith(("http://", "https://")):
-                raise ConfigurationError(
-                    f"Model '{model_display}' base_url must start with http:// or https://"
-                )
+                raise ConfigurationError(f"Model '{model_display}' base_url must start with http:// or https://")
 
     # Validate number_input_debounce_ms
     if config.number_input_debounce_ms is not None:
         try:
             debounce_ms = int(config.number_input_debounce_ms)
             if debounce_ms < 0 or debounce_ms > 10000:
-                raise ConfigurationError(
-                    "number_input_debounce_ms must be between 0 and 10000 milliseconds"
-                )
+                raise ConfigurationError("number_input_debounce_ms must be between 0 and 10000 milliseconds")
         except (ValueError, TypeError):
             raise ConfigurationError("number_input_debounce_ms must be a valid integer")
 
@@ -709,26 +621,15 @@ def validate_config(config: AppConfig) -> None:
         required_fields = ["model", "display_name", "api_key_env"]
         for field in required_fields:
             if field not in config.speech_to_text_model:
-                raise ConfigurationError(
-                    f"speech_to_text_model missing required field: {field}"
-                )
+                raise ConfigurationError(f"speech_to_text_model missing required field: {field}")
 
             if not config.speech_to_text_model[field]:
-                raise ConfigurationError(
-                    f"speech_to_text_model field '{field}' cannot be empty"
-                )
+                raise ConfigurationError(f"speech_to_text_model field '{field}' cannot be empty")
 
         # Validate base_url if present (optional field)
-        if (
-            "base_url" in config.speech_to_text_model
-            and config.speech_to_text_model["base_url"]
-        ):
-            if not config.speech_to_text_model["base_url"].startswith(
-                ("http://", "https://")
-            ):
-                raise ConfigurationError(
-                    "speech_to_text_model base_url must start with http:// or https://"
-                )
+        if "base_url" in config.speech_to_text_model and config.speech_to_text_model["base_url"]:
+            if not config.speech_to_text_model["base_url"].startswith(("http://", "https://")):
+                raise ConfigurationError("speech_to_text_model base_url must start with http:// or https://")
 
 
 def _load_api_keys(models: list[dict[str, Any]]) -> None:
@@ -749,10 +650,7 @@ def _load_api_key_for_model(model_config: dict[str, Any], model_name: str) -> No
 
 def _migrate_model_params(models: list[dict[str, Any]]) -> None:
     """Migrate top-level model params to nested 'parameters' dict."""
-    KNOWN_PARAMS = {
-        "temperature", "max_tokens", "top_p", "frequency_penalty",
-        "presence_penalty", "reasoning_effort"
-    }
+    KNOWN_PARAMS = {"temperature", "max_tokens", "top_p", "frequency_penalty", "presence_penalty", "reasoning_effort"}
 
     for model in models:
         if "parameters" not in model:

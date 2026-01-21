@@ -304,9 +304,7 @@ class ContextEditorDialog(BaseDialog):
         """Restore collapsed and wrap states from saved state."""
         self.restore_geometry_from_state()
 
-        self.restore_section_collapsed(
-            "context", self.context_header, self.text_edit, self.context_section
-        )
+        self.restore_section_collapsed("context", self.context_header, self.text_edit, self.context_section)
         self.restore_section_collapsed(
             "clipboard",
             self.clipboard_header,
@@ -371,11 +369,7 @@ class ContextEditorDialog(BaseDialog):
             if item.item_type == ContextItemType.IMAGE
         ]
 
-        text_items = [
-            item.content
-            for item in items
-            if item.item_type == ContextItemType.TEXT and item.content
-        ]
+        text_items = [item.content for item in items if item.item_type == ContextItemType.TEXT and item.content]
         text_content = "\n".join(text_items)
 
         self._rebuild_image_chips()
@@ -771,7 +765,7 @@ class ContextEditorDialog(BaseDialog):
                 selected_text = focused_edit.textCursor().selectedText()
                 if selected_text:
                     # Replace paragraph separators with newlines
-                    selected_text = selected_text.replace('\u2029', '\n')
+                    selected_text = selected_text.replace("\u2029", "\n")
                     self.clipboard_manager.set_content(selected_text)
                     event.accept()
                     return
@@ -824,7 +818,7 @@ class ContextEditorDialog(BaseDialog):
                 selected_text = obj.textCursor().selectedText()
                 if selected_text:
                     # Replace paragraph separators with newlines
-                    selected_text = selected_text.replace('\u2029', '\n')
+                    selected_text = selected_text.replace("\u2029", "\n")
                     self.clipboard_manager.set_content(selected_text)
                     return True  # Event handled
             # Ctrl+V for paste image

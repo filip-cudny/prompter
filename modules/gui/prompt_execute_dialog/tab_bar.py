@@ -1,6 +1,5 @@
 """Conversation tab bar widget for PromptExecuteDialog."""
 
-
 from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QWidget
 

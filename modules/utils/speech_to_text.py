@@ -36,9 +36,7 @@ class AudioRecorder:
             return
 
         if not SOUNDDEVICE_AVAILABLE:
-            raise Exception(
-                "sounddevice is not available. Please install it with: pip install sounddevice"
-            )
+            raise Exception("sounddevice is not available. Please install it with: pip install sounddevice")
 
         try:
             if self.input_device_index is None:
@@ -57,9 +55,7 @@ class AudioRecorder:
                     break
                 except Exception as e:
                     if rate == rates_to_try[-1]:
-                        raise Exception(
-                            f"Could not find working audio configuration: {e}"
-                        ) from e
+                        raise Exception(f"Could not find working audio configuration: {e}") from e
                     continue
 
             self.recording = True
@@ -80,7 +76,9 @@ class AudioRecorder:
             if "ALSA" in str(e) or "jack" in str(e).lower():
                 error_msg += "\n\nLinux audio troubleshooting:\n"
                 error_msg += "1. Install ALSA dev packages: sudo apt-get install libasound2-dev\n"
-                error_msg += "2. Check audio devices: python -c 'import sounddevice; print(sounddevice.query_devices())'\n"
+                error_msg += (
+                    "2. Check audio devices: python -c 'import sounddevice; print(sounddevice.query_devices())'\n"
+                )
                 error_msg += "3. Test microphone: python -c 'import sounddevice; sounddevice.rec(44100, samplerate=44100, channels=1)'\n"
                 error_msg += "4. Try PulseAudio: pulseaudio --start"
             raise Exception(error_msg) from e
@@ -164,9 +162,7 @@ class AudioRecorder:
             for i, device_info in enumerate(devices):
                 if device_info["max_input_channels"] > 0:
                     try:
-                        sd.check_input_settings(
-                            device=i, channels=1, samplerate=self.rate
-                        )
+                        sd.check_input_settings(device=i, channels=1, samplerate=self.rate)
                         return i
                     except Exception:
                         continue
@@ -217,9 +213,7 @@ class SpeechToTextService:
             raise ValueError("handler_name and run_always are mutually exclusive")
 
         if handler_name is None and not run_always:
-            raise ValueError(
-                "Either handler_name must be provided or run_always must be True"
-            )
+            raise ValueError("Either handler_name must be provided or run_always must be True")
 
         callback_id = str(uuid.uuid4())
         self.transcription_callbacks[callback_id] = {
@@ -290,15 +284,11 @@ class SpeechToTextService:
         """Check if currently recording."""
         return self.recorder.is_recording()
 
-    def _transcribe_async(
-        self, audio_file_path: str, handler_name: str | None = None
-    ) -> None:
+    def _transcribe_async(self, audio_file_path: str, handler_name: str | None = None) -> None:
         """Transcribe audio file asynchronously."""
         try:
             start_time = time.time()
-            transcription = self.openai_service.transcribe_audio_file(
-                audio_file_path, "speech_to_text"
-            )
+            transcription = self.openai_service.transcribe_audio_file(audio_file_path, "speech_to_text")
             transcription_duration = time.time() - start_time
 
             try:
@@ -307,9 +297,7 @@ class SpeechToTextService:
                 pass
 
             if transcription:
-                self._execute_transcription_callbacks(
-                    transcription, transcription_duration, handler_name
-                )
+                self._execute_transcription_callbacks(transcription, transcription_duration, handler_name)
 
         except Exception as e:
             try:
@@ -331,10 +319,12 @@ class SpeechToTextService:
         for callback_info in self.transcription_callbacks.values():
             should_execute = False
 
-            if callback_info["run_always"] or (
-                handler_name is not None
-                and callback_info["handler_name"] == handler_name
-            ) or handler_name is None and callback_info["handler_name"] is None:
+            if (
+                callback_info["run_always"]
+                or (handler_name is not None and callback_info["handler_name"] == handler_name)
+                or handler_name is None
+                and callback_info["handler_name"] is None
+            ):
                 should_execute = True
 
             if should_execute:

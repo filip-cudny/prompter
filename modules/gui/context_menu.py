@@ -118,9 +118,7 @@ class InvisibleFocusWindow(QWidget):
             try:
                 from Foundation import NSRunningApplication
 
-                app = NSRunningApplication.runningApplicationWithProcessIdentifier_(
-                    os.getpid()
-                )
+                app = NSRunningApplication.runningApplicationWithProcessIdentifier_(os.getpid())
                 if app:
                     app.activateWithOptions_(1)
                     return
@@ -132,9 +130,7 @@ class InvisibleFocusWindow(QWidget):
                 set frontmost of first process whose unix id is {os.getpid()} to true
             end tell
             """
-            subprocess.run(
-                ["osascript", "-e", script], capture_output=True, timeout=2, check=False
-            )
+            subprocess.run(["osascript", "-e", script], capture_output=True, timeout=2, check=False)
 
         except Exception:
             pass
@@ -218,7 +214,8 @@ class PyQtContextMenu(QObject):
         self._execution_signal_connected = False
         self._last_menu_position = None
 
-        self._menu_stylesheet = """
+        self._menu_stylesheet = (
+            """
             QMenu {
                 background-color: #2b2b2b;
                 border: 1px solid #555555;
@@ -254,7 +251,9 @@ class PyQtContextMenu(QObject):
                 height: 16px;
                 margin-left: 4px;
             }
-        """ + TOOLTIP_STYLE
+        """
+            + TOOLTIP_STYLE
+        )
 
     def set_execution_callback(self, callback: Callable):
         """Set callback for menu item execution."""
@@ -265,7 +264,7 @@ class PyQtContextMenu(QObject):
         # Clean up any existing tracked widgets before creating new menu
         for widget in self._cleanable_widgets:
             try:
-                if hasattr(widget, 'cleanup') and callable(widget.cleanup):
+                if hasattr(widget, "cleanup") and callable(widget.cleanup):
                     if isValid(widget):
                         widget.cleanup()
             except Exception:
@@ -279,13 +278,9 @@ class PyQtContextMenu(QObject):
             # macOS needs different flags for external app focus
             menu.setWindowFlags(Qt.Popup | Qt.FramelessWindowHint)
         else:
-            menu.setWindowFlags(
-                Qt.Popup | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint
-            )
+            menu.setWindowFlags(Qt.Popup | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint)
 
-        menu.setAttribute(
-            Qt.WA_TranslucentBackground, True
-        )  # Enable transparency for rounded corners
+        menu.setAttribute(Qt.WA_TranslucentBackground, True)  # Enable transparency for rounded corners
         menu.setAttribute(Qt.WA_ShowWithoutActivating, False)  # Allow activation
         menu.setStyleSheet(self._menu_stylesheet)
 
@@ -304,14 +299,10 @@ class PyQtContextMenu(QObject):
 
         return menu
 
-    def create_submenu(
-        self, parent_menu: QMenu, title: str, items: list[MenuItem]
-    ) -> QMenu:
+    def create_submenu(self, parent_menu: QMenu, title: str, items: list[MenuItem]) -> QMenu:
         """Create a submenu with consistent styling."""
         submenu = QMenu(title, parent_menu)
-        submenu.setWindowFlags(
-            Qt.Popup | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint
-        )
+        submenu.setWindowFlags(Qt.Popup | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint)
         submenu.setAttribute(Qt.WA_TranslucentBackground, True)
         submenu.setStyleSheet(self._menu_stylesheet)
         submenu.setFocusPolicy(Qt.StrongFocus)
@@ -325,9 +316,7 @@ class PyQtContextMenu(QObject):
         cursor_pos = self.get_cursor_position()
         self.show_at_position(items, cursor_pos)
 
-    def show_at_position(
-        self, items: list[MenuItem], position: tuple[int, int]
-    ) -> None:
+    def show_at_position(self, items: list[MenuItem], position: tuple[int, int]) -> None:
         """Show context menu at specific position with invisible focus window for keyboard navigation."""
         if not items:
             return
@@ -340,9 +329,7 @@ class PyQtContextMenu(QObject):
             x, y = position
             offset_x, offset_y = self.menu_position_offset
 
-            self.shift_pressed = bool(
-                QApplication.keyboardModifiers() & Qt.ShiftModifier
-            )
+            self.shift_pressed = bool(QApplication.keyboardModifiers() & Qt.ShiftModifier)
 
             self.menu = self.create_menu(items)
 
@@ -422,13 +409,9 @@ class PyQtContextMenu(QObject):
             try:
                 from Foundation import NSRunningApplication
 
-                app = NSRunningApplication.runningApplicationWithProcessIdentifier_(
-                    os.getpid()
-                )
+                app = NSRunningApplication.runningApplicationWithProcessIdentifier_(os.getpid())
                 if app:
-                    app.activateWithOptions_(
-                        1
-                    )  # NSApplicationActivateIgnoringOtherApps
+                    app.activateWithOptions_(1)  # NSApplicationActivateIgnoringOtherApps
                     return
             except ImportError:
                 pass
@@ -439,9 +422,7 @@ class PyQtContextMenu(QObject):
                 set frontmost of first process whose unix id is {os.getpid()} to true
             end tell
             """
-            subprocess.run(
-                ["osascript", "-e", script], capture_output=True, timeout=2, check=False
-            )
+            subprocess.run(["osascript", "-e", script], capture_output=True, timeout=2, check=False)
 
             # Additional activation attempt
             script2 = f"""
@@ -511,11 +492,9 @@ class PyQtContextMenu(QObject):
         """Connect to execution_completed signal for auto-refresh."""
         if self._execution_signal_connected:
             return
-        if hasattr(self, 'menu_coordinator') and self.menu_coordinator:
+        if hasattr(self, "menu_coordinator") and self.menu_coordinator:
             try:
-                self.menu_coordinator.execution_completed.connect(
-                    self._on_execution_completed_while_open
-                )
+                self.menu_coordinator.execution_completed.connect(self._on_execution_completed_while_open)
                 self._execution_signal_connected = True
             except Exception:
                 pass
@@ -524,11 +503,9 @@ class PyQtContextMenu(QObject):
         """Disconnect from execution_completed signal."""
         if not self._execution_signal_connected:
             return
-        if hasattr(self, 'menu_coordinator') and self.menu_coordinator:
+        if hasattr(self, "menu_coordinator") and self.menu_coordinator:
             try:
-                self.menu_coordinator.execution_completed.disconnect(
-                    self._on_execution_completed_while_open
-                )
+                self.menu_coordinator.execution_completed.disconnect(self._on_execution_completed_while_open)
             except Exception:
                 pass
         self._execution_signal_connected = False
@@ -541,7 +518,7 @@ class PyQtContextMenu(QObject):
 
     def _rebuild_and_show_menu(self):
         """Rebuild and show the menu at the stored position."""
-        if not hasattr(self, 'menu_coordinator') or not self.menu_coordinator:
+        if not hasattr(self, "menu_coordinator") or not self.menu_coordinator:
             return
 
         pos = self._last_menu_position
@@ -589,7 +566,7 @@ class PyQtContextMenu(QObject):
         # Clean up tracked widgets FIRST
         for widget in self._cleanable_widgets:
             try:
-                if hasattr(widget, 'cleanup') and callable(widget.cleanup):
+                if hasattr(widget, "cleanup") and callable(widget.cleanup):
                     if isValid(widget):
                         widget.cleanup()
             except Exception:
@@ -656,9 +633,7 @@ class PyQtContextMenu(QObject):
             if hasattr(item, "separator_after") and item.separator_after:
                 menu.addSeparator()
 
-    def _create_context_section_item(
-        self, menu: QMenu, item: MenuItem
-    ) -> QAction | None:
+    def _create_context_section_item(self, menu: QMenu, item: MenuItem) -> QAction | None:
         """Create a context section widget action."""
         from modules.gui.shared.context_widgets import ContextSectionWidget
 
@@ -678,9 +653,7 @@ class PyQtContextMenu(QObject):
         action.setDefaultWidget(widget)
         return action
 
-    def _create_last_interaction_section_item(
-        self, menu: QMenu, item: MenuItem
-    ) -> QAction | None:
+    def _create_last_interaction_section_item(self, menu: QMenu, item: MenuItem) -> QAction | None:
         """Create a last interaction section widget action."""
         from modules.gui.shared.context_widgets import LastInteractionSectionWidget
 
@@ -700,9 +673,7 @@ class PyQtContextMenu(QObject):
         action.setDefaultWidget(widget)
         return action
 
-    def _create_settings_section_item(
-        self, menu: QMenu, item: MenuItem
-    ) -> QAction | None:
+    def _create_settings_section_item(self, menu: QMenu, item: MenuItem) -> QAction | None:
         """Create a settings section widget action with model and prompt chips."""
         from modules.gui.shared.context_widgets import SettingsSectionWidget
 
@@ -730,9 +701,7 @@ class PyQtContextMenu(QObject):
         action.setDefaultWidget(widget)
         return action
 
-    def _create_custom_menu_item(
-        self, menu: QMenu, item: MenuItem
-    ) -> QAction | None:
+    def _create_custom_menu_item(self, menu: QMenu, item: MenuItem) -> QAction | None:
         """Create a custom menu item with hover effects."""
         from PySide6.QtWidgets import QGraphicsOpacityEffect, QHBoxLayout
 
@@ -891,7 +860,7 @@ class PyQtContextMenu(QObject):
 
             def _check_is_recording_action(self) -> bool:
                 """Check if this menu item is the currently recording action."""
-                if hasattr(self._context_menu, 'menu_coordinator') and self._context_menu.menu_coordinator:
+                if hasattr(self._context_menu, "menu_coordinator") and self._context_menu.menu_coordinator:
                     prompt_store_service = self._context_menu.menu_coordinator.prompt_store_service
                     if prompt_store_service:
                         recording_action_id = prompt_store_service.get_recording_action_id()
@@ -927,7 +896,7 @@ class PyQtContextMenu(QObject):
 
                     # Update mic button state based on reason - disabled with opacity
                     if self._mic_btn:
-                        if disable_reason in ('recording', 'executing'):
+                        if disable_reason in ("recording", "executing"):
                             self._mic_btn.setEnabled(False)
                             self._mic_btn.setCursor(Qt.ArrowCursor)
                             # Apply opacity to disabled mic button
@@ -1069,15 +1038,16 @@ class PyQtContextMenu(QObject):
                 context_manager = None
                 clipboard_manager = None
                 notification_manager = None
-                if hasattr(self._context_menu, 'menu_coordinator') and self._context_menu.menu_coordinator:
+                if hasattr(self._context_menu, "menu_coordinator") and self._context_menu.menu_coordinator:
                     prompt_store_service = self._context_menu.menu_coordinator.prompt_store_service
                     context_manager = self._context_menu.menu_coordinator.context_manager
                     notification_manager = self._context_menu.menu_coordinator.notification_manager
-                    if prompt_store_service and hasattr(prompt_store_service, 'clipboard_manager'):
+                    if prompt_store_service and hasattr(prompt_store_service, "clipboard_manager"):
                         clipboard_manager = prompt_store_service.clipboard_manager
 
                 # Open message share dialog
                 from modules.gui.prompt_execute_dialog import show_prompt_execute_dialog
+
                 show_prompt_execute_dialog(
                     self._menu_item,
                     self._context_menu.execution_callback,
@@ -1102,9 +1072,7 @@ class PyQtContextMenu(QObject):
                             self._context_menu.focus_window.hide()
                         # Restore focus after execution
                         self._context_menu._focus_restore_pending = True
-                        QTimer.singleShot(
-                            100, self._context_menu._restore_focus_with_cleanup
-                        )
+                        QTimer.singleShot(100, self._context_menu._restore_focus_with_cleanup)
 
             def mousePressEvent(self, event):
                 # Check if click is on a button - if so, let the button handle it
@@ -1117,7 +1085,7 @@ class PyQtContextMenu(QObject):
                 if event.button() == Qt.LeftButton:
                     # If this is the executing action, clicking cancels execution
                     if self._is_executing_action:
-                        if hasattr(self._context_menu, 'menu_coordinator') and self._context_menu.menu_coordinator:
+                        if hasattr(self._context_menu, "menu_coordinator") and self._context_menu.menu_coordinator:
                             # Cancel will emit execution_completed signal which triggers auto-refresh
                             self._context_menu.menu_coordinator.prompt_store_service.cancel_current_execution()
                         event.accept()
@@ -1130,12 +1098,8 @@ class PyQtContextMenu(QObject):
 
                     if self._menu_item.enabled or self._is_recording_action:
                         if self._context_menu.execution_callback:
-                            shift_pressed = bool(
-                                QApplication.keyboardModifiers() & Qt.ShiftModifier
-                            )
-                            self._context_menu.execution_callback(
-                                self._menu_item, shift_pressed
-                            )
+                            shift_pressed = bool(QApplication.keyboardModifiers() & Qt.ShiftModifier)
+                            self._context_menu.execution_callback(self._menu_item, shift_pressed)
                             # Close the menu after execution
                             if self._context_menu.menu:
                                 self._context_menu.menu.close()
@@ -1143,9 +1107,7 @@ class PyQtContextMenu(QObject):
                                 self._context_menu.focus_window.hide()
                             # Restore focus after execution
                             self._context_menu._focus_restore_pending = True
-                            QTimer.singleShot(
-                                100, self._context_menu._restore_focus_with_cleanup
-                            )
+                            QTimer.singleShot(100, self._context_menu._restore_focus_with_cleanup)
 
             def enterEvent(self, event):
                 if self._menu_item.enabled or self._is_recording_action or self._is_executing_action:
@@ -1155,7 +1117,9 @@ class PyQtContextMenu(QObject):
                 super().enterEvent(event)
 
             def leaveEvent(self, event):
-                if (self._menu_item.enabled or self._is_recording_action or self._is_executing_action) and not self.hasFocus():
+                if (
+                    self._menu_item.enabled or self._is_recording_action or self._is_executing_action
+                ) and not self.hasFocus():
                     self._is_highlighted = False
                     self._update_style(False)
                     self._context_menu.hovered_widgets.discard(self)
@@ -1177,7 +1141,7 @@ class PyQtContextMenu(QObject):
                 if event.key() in (Qt.Key_Return, Qt.Key_Enter):
                     # If this is the executing action, Enter cancels execution
                     if self._is_executing_action:
-                        if hasattr(self._context_menu, 'menu_coordinator') and self._context_menu.menu_coordinator:
+                        if hasattr(self._context_menu, "menu_coordinator") and self._context_menu.menu_coordinator:
                             # Cancel will emit execution_completed signal which triggers auto-refresh
                             self._context_menu.menu_coordinator.prompt_store_service.cancel_current_execution()
                         event.accept()
@@ -1185,12 +1149,8 @@ class PyQtContextMenu(QObject):
 
                     if self._menu_item.enabled or self._is_recording_action:
                         if self._context_menu.execution_callback:
-                            shift_pressed = bool(
-                                QApplication.keyboardModifiers() & Qt.ShiftModifier
-                            )
-                            self._context_menu.execution_callback(
-                                self._menu_item, shift_pressed
-                            )
+                            shift_pressed = bool(QApplication.keyboardModifiers() & Qt.ShiftModifier)
+                            self._context_menu.execution_callback(self._menu_item, shift_pressed)
                             # Close the menu after execution
                             if self._context_menu.menu:
                                 self._context_menu.menu.close()
@@ -1198,9 +1158,7 @@ class PyQtContextMenu(QObject):
                                 self._context_menu.focus_window.hide()
                             # Restore focus after execution
                             self._context_menu._focus_restore_pending = True
-                            QTimer.singleShot(
-                                100, self._context_menu._restore_focus_with_cleanup
-                            )
+                            QTimer.singleShot(100, self._context_menu._restore_focus_with_cleanup)
                         event.accept()
                 else:
                     super().keyPressEvent(event)
@@ -1268,9 +1226,7 @@ class PyQtContextMenu(QObject):
                 elif event.key() >= Qt.Key_0 and event.key() <= Qt.Key_9:
                     # Handle number key presses for prompt execution (including 0 for multi-digait)
                     digit = event.key() - Qt.Key_0
-                    self.shift_pressed = bool(
-                        QApplication.keyboardModifiers() & Qt.ShiftModifier
-                    )
+                    self.shift_pressed = bool(QApplication.keyboardModifiers() & Qt.ShiftModifier)
                     is_alternative = self.shift_pressed
                     if self._handle_number_input(obj, str(digit), is_alternative):
                         return True
@@ -1278,9 +1234,7 @@ class PyQtContextMenu(QObject):
                     # Handle any key that produces a digit character (including shifted numbers)
                     text = event.text()
                     if text and len(text) == 1 and text.isdigit():
-                        self.shift_pressed = bool(
-                            QApplication.keyboardModifiers() & Qt.ShiftModifier
-                        )
+                        self.shift_pressed = bool(QApplication.keyboardModifiers() & Qt.ShiftModifier)
                         is_alternative = self.shift_pressed
                         if self._handle_number_input(obj, text, is_alternative):
                             return True
@@ -1306,9 +1260,7 @@ class PyQtContextMenu(QObject):
                 if event.key() == Qt.Key_Shift:
                     self.shift_pressed = False
             elif event.type() == QEvent.MouseButtonPress:
-                current_shift = bool(
-                    QApplication.keyboardModifiers() & Qt.ShiftModifier
-                )
+                current_shift = bool(QApplication.keyboardModifiers() & Qt.ShiftModifier)
                 if current_shift != self.shift_pressed:
                     self.shift_pressed = current_shift
 
@@ -1318,9 +1270,7 @@ class PyQtContextMenu(QObject):
                         self._handle_shift_right_click(action)
                         return True
             elif event.type() == QEvent.Show:
-                self.shift_pressed = bool(
-                    QApplication.keyboardModifiers() & Qt.ShiftModifier
-                )
+                self.shift_pressed = bool(QApplication.keyboardModifiers() & Qt.ShiftModifier)
             elif event.type() == QEvent.Leave:
                 self._clear_all_hover_states()
 
@@ -1339,9 +1289,7 @@ class PyQtContextMenu(QObject):
         # Create new timer to execute after 300ms
         self.number_timer = QTimer()
         self.number_timer.setSingleShot(True)
-        self.number_timer.timeout.connect(
-            lambda: self._execute_buffered_number(menu, is_alternative)
-        )
+        self.number_timer.timeout.connect(lambda: self._execute_buffered_number(menu, is_alternative))
         self.number_timer.start(self.number_input_debounce_ms)
 
         return True
@@ -1400,15 +1348,10 @@ class PyQtContextMenu(QObject):
         for action in menu.actions():
             if isinstance(action, QWidgetAction):
                 widget = action.defaultWidget()
-                if (
-                    hasattr(widget, "_menu_item")
-                    and widget._menu_item.item_type.name == "PROMPT"
-                ):
+                if hasattr(widget, "_menu_item") and widget._menu_item.item_type.name == "PROMPT":
                     menu_item = widget._menu_item
                     if hasattr(menu_item, "data") and "menu_index" in menu_item.data:
-                        prompt_items.append(
-                            (menu_item.data["menu_index"], widget, menu_item)
-                        )
+                        prompt_items.append((menu_item.data["menu_index"], widget, menu_item))
 
         # Sort by menu index
         prompt_items.sort(key=lambda x: x[0])
@@ -1526,11 +1469,7 @@ class PyQtContextMenu(QObject):
                             text=True,
                             timeout=1,
                         )
-                        window_name = (
-                            result.stdout.strip()
-                            if result.returncode == 0
-                            else "Unknown"
-                        )
+                        window_name = result.stdout.strip() if result.returncode == 0 else "Unknown"
 
                         # Get process info
                         result = subprocess.run(

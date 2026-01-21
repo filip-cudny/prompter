@@ -174,8 +174,6 @@ class ExecutionHandler(Protocol):
         """Check if this handler can handle the given menu item."""
         ...
 
-    def execute(
-        self, item: MenuItem, input_content: str | None = None
-    ) -> ExecutionResult:
+    def execute(self, item: MenuItem, input_content: str | None = None) -> ExecutionResult:
         """Execute the menu item with optional input content."""
         ...

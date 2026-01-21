@@ -56,11 +56,7 @@ def get_available_icons() -> list[str]:
     if not os.path.exists(_SVG_DIR):
         return []
 
-    return [
-        os.path.splitext(f)[0]
-        for f in os.listdir(_SVG_DIR)
-        if f.endswith(".svg")
-    ]
+    return [os.path.splitext(f)[0] for f in os.listdir(_SVG_DIR) if f.endswith(".svg")]
 
 
 def get_svg_data_url(name: str, color: str) -> str:

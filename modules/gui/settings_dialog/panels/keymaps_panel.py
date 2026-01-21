@@ -1,6 +1,5 @@
 """Keymaps settings panel."""
 
-
 from PySide6.QtWidgets import (
     QComboBox,
     QHBoxLayout,
@@ -83,7 +82,8 @@ TABLE_STYLE = f"""
     }}
 """
 
-TOOLBAR_BTN_STYLE = f"""
+TOOLBAR_BTN_STYLE = (
+    f"""
     QPushButton {{
         background-color: {COLOR_BUTTON_BG};
         color: {COLOR_TEXT};
@@ -98,7 +98,9 @@ TOOLBAR_BTN_STYLE = f"""
         background-color: {COLOR_DIALOG_BG};
         color: #666666;
     }}
-""" + TOOLTIP_STYLE
+"""
+    + TOOLTIP_STYLE
+)
 
 
 class KeymapsPanel(SettingsPanelBase):
@@ -114,8 +116,7 @@ class KeymapsPanel(SettingsPanelBase):
         self._os_tabs: dict[str, QTableWidget] = {}
 
         description = QLabel(
-            "Configure keyboard shortcuts for each operating system.\n"
-            "Format: modifier+key (e.g., cmd+f1, ctrl+shift+a)"
+            "Configure keyboard shortcuts for each operating system.\nFormat: modifier+key (e.g., cmd+f1, ctrl+shift+a)"
         )
         description.setStyleSheet("color: #888888; margin-bottom: 16px;")
         description.setWordWrap(True)
@@ -304,10 +305,12 @@ class KeymapsPanel(SettingsPanelBase):
                         bindings[shortcut] = action
 
             if bindings:
-                keymaps.append({
-                    "context": f"os == {os_context}",
-                    "bindings": bindings,
-                })
+                keymaps.append(
+                    {
+                        "context": f"os == {os_context}",
+                        "bindings": bindings,
+                    }
+                )
 
         return keymaps
 

@@ -80,10 +80,6 @@ class PromptExecutionHandler:
         # Start async execution
         if self.async_manager.execute_prompt_async(item, context):
             # Return immediate success - actual result will be handled by signals
-            return ExecutionResult(
-                success=True, content="Execution started asynchronously"
-            )
+            return ExecutionResult(success=True, content="Execution started asynchronously")
         else:
-            return ExecutionResult(
-                success=False, error="Failed to start async execution"
-            )
+            return ExecutionResult(success=False, error="Failed to start async execution")

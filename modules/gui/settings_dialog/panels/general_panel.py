@@ -1,6 +1,5 @@
 """General settings panel."""
 
-
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QComboBox,
@@ -111,9 +110,7 @@ class GeneralPanel(SettingsPanelBase):
         self._debounce_spin.valueChanged.connect(self._on_debounce_changed)
 
         debounce_label = QLabel("Number Input Debounce:")
-        debounce_label.setToolTip(
-            "Delay before processing number input in menus (milliseconds)"
-        )
+        debounce_label.setToolTip("Delay before processing number input in menus (milliseconds)")
         form_layout.addRow(debounce_label, self._debounce_spin)
 
         layout.addWidget(form_container)
@@ -158,9 +155,7 @@ class GeneralPanel(SettingsPanelBase):
             self._config_service.update_default_model(model_key)
 
         debounce_value = self._debounce_spin.value()
-        self._config_service.update_setting(
-            "number_input_debounce_ms", debounce_value, persist=False
-        )
+        self._config_service.update_setting("number_input_debounce_ms", debounce_value, persist=False)
 
         self.mark_clean()
         return True

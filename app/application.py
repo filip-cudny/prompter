@@ -124,9 +124,7 @@ class PromtheusApp(QObject):
             self.notification_manager = PyQtNotificationManager(self.app)
 
             # Re-initialize global action registry with notification manager
-            initialize_global_action_registry(
-                self.context_manager, self.clipboard_manager, self.notification_manager
-            )
+            initialize_global_action_registry(self.context_manager, self.clipboard_manager, self.notification_manager)
 
             # Initialize OpenAI service
             self._initialize_openai_service()
@@ -147,9 +145,7 @@ class PromtheusApp(QObject):
 
             # Register callback to invalidate prompt cache when settings are saved
             config_service = ConfigService()
-            config_service.register_on_save_callback(
-                self.prompt_store_service.invalidate_cache
-            )
+            config_service.register_on_save_callback(self.prompt_store_service.invalidate_cache)
 
             # Initialize GUI components
             self._initialize_gui()
@@ -183,9 +179,7 @@ class PromtheusApp(QObject):
             from modules.utils.speech_to_text import SpeechToTextService
 
             if self.config and self.config.speech_to_text_model and self.openai_service:
-                self.speech_service = SpeechToTextService(
-                    openai_service=self.openai_service
-                )
+                self.speech_service = SpeechToTextService(openai_service=self.openai_service)
                 self._setup_common_speech_notifications()
             else:
                 self.speech_service = None
@@ -206,16 +200,12 @@ class PromtheusApp(QObject):
         if self.speech_service and self.notification_manager:
             from modules.utils.notifications import format_execution_time
 
-            def _on_transcription_notification(
-                transcription: str, duration: float
-            ) -> None:
+            def _on_transcription_notification(transcription: str, duration: float) -> None:
                 """Handle common transcription notifications."""
                 try:
                     if transcription:
                         if is_notification_enabled("speech_transcription_success"):
-                            notification_message = (
-                                f"Processed in {format_execution_time(duration)}"
-                            )
+                            notification_message = f"Processed in {format_execution_time(duration)}"
                             self.notification_manager.show_success_notification(
                                 "Transcription completed", notification_message
                             )
@@ -248,9 +238,7 @@ class PromtheusApp(QObject):
             self.speech_service.set_recording_started_callback(_on_recording_started)
             self.speech_service.set_recording_stopped_callback(_on_recording_stopped)
 
-            self.speech_service.add_transcription_callback(
-                _on_transcription_notification, run_always=True
-            )
+            self.speech_service.add_transcription_callback(_on_transcription_notification, run_always=True)
 
     def _initialize_prompt_providers(self) -> None:
         """Initialize prompt providers."""
@@ -306,25 +294,15 @@ class PromtheusApp(QObject):
             raise RuntimeError("Configuration or PromptStore service not initialized")
 
         # Initialize hotkey manager
-        self.hotkey_manager = PyQtHotkeyManager(
-            keymap_manager=self.config.keymap_manager
-        )
-        self.hotkey_manager.connect_context_menu_callback(
-            self._on_show_menu_hotkey_pressed
-        )
-        self.hotkey_manager.connect_re_execute_callback(
-            self._on_active_prompt_hotkey_pressed
-        )
-        self.hotkey_manager.connect_speech_toggle_callback(
-            self._on_speech_to_text_hotkey_pressed
-        )
+        self.hotkey_manager = PyQtHotkeyManager(keymap_manager=self.config.keymap_manager)
+        self.hotkey_manager.connect_context_menu_callback(self._on_show_menu_hotkey_pressed)
+        self.hotkey_manager.connect_re_execute_callback(self._on_active_prompt_hotkey_pressed)
+        self.hotkey_manager.connect_speech_toggle_callback(self._on_speech_to_text_hotkey_pressed)
 
         # Initialize menu coordinator
         self.menu_coordinator = PyQtMenuCoordinator(self.prompt_store_service, self.app)
         self.menu_coordinator.set_menu_position_offset(self.config.menu_position_offset)
-        self.menu_coordinator.set_number_input_debounce_ms(
-            self.config.number_input_debounce_ms
-        )
+        self.menu_coordinator.set_number_input_debounce_ms(self.config.number_input_debounce_ms)
         self.menu_coordinator.notification_manager = self.notification_manager
 
         # Initialize event handler
@@ -332,9 +310,7 @@ class PromtheusApp(QObject):
         self.event_handler.set_notification_manager(self.notification_manager)
 
         # Connect coordinator callbacks
-        self.menu_coordinator.set_execution_callback(
-            self.event_handler.handle_execution_result
-        )
+        self.menu_coordinator.set_execution_callback(self.event_handler.handle_execution_result)
         self.menu_coordinator.set_error_callback(self.event_handler.handle_error)
 
         # Connect context manager for cache invalidation
@@ -472,9 +448,7 @@ class PromtheusApp(QObject):
         except Exception as e:
             error_msg = f"Failed to execute speech-to-text: {e}"
             if self.notification_manager:
-                self.notification_manager.show_error_notification(
-                    "Speech Error", error_msg
-                )
+                self.notification_manager.show_error_notification("Speech Error", error_msg)
             else:
                 print(error_msg)
 
@@ -564,12 +538,8 @@ class PromtheusApp(QObject):
             "hotkey": (self.hotkey_manager.hotkey if self.hotkey_manager else None),
             "prompt_providers_count": len(self.prompt_providers),
             "menu_providers_count": len(self.menu_providers),
-            "hotkey_active": self.hotkey_manager.is_running()
-            if self.hotkey_manager
-            else False,
-            "last_execution_results": (
-                self.event_handler.get_recent_results(5) if self.event_handler else []
-            ),
+            "hotkey_active": self.hotkey_manager.is_running() if self.hotkey_manager else False,
+            "last_execution_results": (self.event_handler.get_recent_results(5) if self.event_handler else []),
         }
 
     def get_prompt_providers_info(self) -> list[dict]:
@@ -615,14 +585,8 @@ class PromtheusApp(QObject):
                 print(f"Removed prompt provider: {type(removed_provider).__name__}")
 
                 # Update primary provider in service if we removed the first one
-                if (
-                    provider_index == 0
-                    and self.prompt_store_service
-                    and self.prompt_providers
-                ):
-                    self.prompt_store_service.primary_provider = self.prompt_providers[
-                        0
-                    ]
+                if provider_index == 0 and self.prompt_store_service and self.prompt_providers:
+                    self.prompt_store_service.primary_provider = self.prompt_providers[0]
 
                 return True
             else:
@@ -681,12 +645,8 @@ class PromtheusApp(QObject):
 
             # Update menu position offset
             if self.menu_coordinator and self.config:
-                self.menu_coordinator.set_menu_position_offset(
-                    self.config.menu_position_offset
-                )
-                self.menu_coordinator.set_number_input_debounce_ms(
-                    self.config.number_input_debounce_ms
-                )
+                self.menu_coordinator.set_menu_position_offset(self.config.menu_position_offset)
+                self.menu_coordinator.set_number_input_debounce_ms(self.config.number_input_debounce_ms)
 
             # Restart if was running
             if was_running and self.hotkey_manager:
