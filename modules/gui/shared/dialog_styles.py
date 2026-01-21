@@ -1,11 +1,11 @@
 """Shared dialog styling constants and functions."""
 
-from typing import Callable, Dict, Optional, TypeVar
+import os
+from collections.abc import Callable
+from typing import TypeVar
 
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QDialog, QSizePolicy, QWidget
-
-import os
 
 # Timing constants
 DIALOG_SHOW_DELAY_MS = 75
@@ -284,13 +284,13 @@ def create_singleton_dialog_manager() -> Callable:
         def show_my_dialog(...):
             _show_dialog("my_dialog", lambda: MyDialog(...))
     """
-    _dialogs: Dict[str, QDialog] = {}
+    _dialogs: dict[str, QDialog] = {}
 
     def show_dialog(
         key: str,
         create_fn: Callable[[], T],
         delay_ms: int = DIALOG_SHOW_DELAY_MS,
-    ) -> Optional[T]:
+    ) -> T | None:
         """Show a singleton dialog, bringing existing one to front if open.
 
         Args:

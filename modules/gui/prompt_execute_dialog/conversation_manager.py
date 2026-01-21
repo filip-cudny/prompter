@@ -1,8 +1,8 @@
 """Conversation management for PromptExecuteDialog."""
 
-from typing import List, Dict, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QSizePolicy
+from PySide6.QtWidgets import QHBoxLayout, QSizePolicy, QVBoxLayout, QWidget
 
 from core.context_manager import ContextItem, ContextItemType
 from modules.gui.shared.dialog_styles import (
@@ -10,12 +10,11 @@ from modules.gui.shared.dialog_styles import (
     get_text_edit_content_height,
 )
 from modules.gui.shared.widgets import (
+    TEXT_EDIT_MIN_HEIGHT,
     CollapsibleSectionHeader,
     ImageChipWidget,
     create_text_edit,
-    TEXT_EDIT_MIN_HEIGHT,
 )
-from modules.gui.prompt_execute_dialog.data import ConversationTurn, TabState
 
 if TYPE_CHECKING:
     from modules.gui.prompt_execute_dialog.dialog import PromptExecuteDialog
@@ -465,7 +464,7 @@ class ConversationManager:
     # --- State Capture/Restore ---
 
     def restore_dynamic_sections(
-        self, reply_data: List[Dict], output_data: List[Dict]
+        self, reply_data: list[dict], output_data: list[dict]
     ):
         """Recreate dynamic sections from serialized data."""
         dialog = self.dialog

@@ -1,10 +1,9 @@
 """Keymap actions module - defines and handles available Promptheus actions."""
 
-from typing import Dict, Any, Optional
-from abc import ABC, abstractmethod
 import logging
 import time
-from typing import TYPE_CHECKING
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, Any, Optional
 
 from modules.utils.notification_config import is_notification_enabled
 
@@ -32,7 +31,7 @@ class KeymapAction(ABC):
         pass
 
     @abstractmethod
-    def execute(self, context: Optional[Dict[str, Any]] = None) -> bool:
+    def execute(self, context: dict[str, Any] | None = None) -> bool:
         """Execute the action. Returns True if successful, False otherwise."""
         pass
 
@@ -48,7 +47,7 @@ class OpenContextMenuAction(KeymapAction):
     def description(self) -> str:
         return "Open the context menu with available prompts"
 
-    def execute(self, context: Optional[Dict[str, Any]] = None) -> bool:
+    def execute(self, context: dict[str, Any] | None = None) -> bool:
         """Execute context menu opening."""
         try:
             logger.info("Opening context menu via keymap action")
@@ -73,7 +72,7 @@ class SpeechToTextToggleAction(KeymapAction):
     def description(self) -> str:
         return "Toggle speech-to-text input mode"
 
-    def execute(self, context: Optional[Dict[str, Any]] = None) -> bool:
+    def execute(self, context: dict[str, Any] | None = None) -> bool:
         """Execute speech-to-text toggle."""
         try:
             logger.info("Toggling speech-to-text via keymap action")
@@ -98,7 +97,7 @@ class ExecuteActivePromptAction(KeymapAction):
     def description(self) -> str:
         return "Execute the currently selected/active prompt"
 
-    def execute(self, context: Optional[Dict[str, Any]] = None) -> bool:
+    def execute(self, context: dict[str, Any] | None = None) -> bool:
         """Execute the active prompt."""
         try:
             logger.info("Executing active prompt via keymap action")
@@ -133,7 +132,7 @@ class SetContextValueAction(KeymapAction):
     def description(self) -> str:
         return "Set context value from clipboard content (text or image)"
 
-    def execute(self, context: Optional[Dict[str, Any]] = None) -> bool:
+    def execute(self, context: dict[str, Any] | None = None) -> bool:
         """Set context value from clipboard (handles both text and images)."""
         try:
             if self.clipboard_manager.has_image():
@@ -187,7 +186,7 @@ class AppendContextValueAction(KeymapAction):
     def description(self) -> str:
         return "Append clipboard content to context value (text or image)"
 
-    def execute(self, context: Optional[Dict[str, Any]] = None) -> bool:
+    def execute(self, context: dict[str, Any] | None = None) -> bool:
         """Append clipboard content to context value (handles both text and images)."""
         try:
             if self.clipboard_manager.has_image():
@@ -241,7 +240,7 @@ class ClearContextAction(KeymapAction):
     def description(self) -> str:
         return "Clear the stored context value"
 
-    def execute(self, context: Optional[Dict[str, Any]] = None) -> bool:
+    def execute(self, context: dict[str, Any] | None = None) -> bool:
         """Clear the context value."""
         try:
             self.context_manager.clear_context()
@@ -266,7 +265,7 @@ class ActionRegistry:
         notification_manager: Optional["PyQtNotificationManager"] = None,
     ):
         """Initialize the action registry with default actions."""
-        self._actions: Dict[str, KeymapAction] = {}
+        self._actions: dict[str, KeymapAction] = {}
         self.context_manager = context_manager
         self.clipboard_manager = clipboard_manager
         self.notification_manager = notification_manager
@@ -317,11 +316,11 @@ class ActionRegistry:
             return True
         return False
 
-    def get_action(self, action_name: str) -> Optional[KeymapAction]:
+    def get_action(self, action_name: str) -> KeymapAction | None:
         """Get an action by name."""
         return self._actions.get(action_name)
 
-    def get_all_actions(self) -> Dict[str, KeymapAction]:
+    def get_all_actions(self) -> dict[str, KeymapAction]:
         """Get all registered actions."""
         return self._actions.copy()
 
@@ -330,7 +329,7 @@ class ActionRegistry:
         return set(self._actions.keys())
 
     def execute_action(
-        self, action_name: str, context: Optional[Dict[str, Any]] = None
+        self, action_name: str, context: dict[str, Any] | None = None
     ) -> bool:
         """Execute an action by name."""
         action = self.get_action(action_name)
@@ -360,7 +359,7 @@ class ActionRegistry:
         return action_name in self._actions
 
 
-_global_action_registry: Optional[ActionRegistry] = None
+_global_action_registry: ActionRegistry | None = None
 
 
 def get_global_action_registry() -> ActionRegistry:
@@ -385,14 +384,14 @@ def initialize_global_action_registry(
 
 
 def execute_keymap_action(
-    action_name: str, context: Optional[Dict[str, Any]] = None
+    action_name: str, context: dict[str, Any] | None = None
 ) -> bool:
     """Execute a keymap action using the global registry."""
     registry = get_global_action_registry()
     return registry.execute_action(action_name, context)
 
 
-def get_available_actions() -> Dict[str, str]:
+def get_available_actions() -> dict[str, str]:
     """Get available actions with their descriptions."""
     registry = get_global_action_registry()
     return {

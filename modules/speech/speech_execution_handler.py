@@ -1,23 +1,23 @@
 """PyQt5-specific execution handlers that accept shared notification manager."""
 
-from typing import Optional
-import time
 import logging
+import time
+
 from core.interfaces import ClipboardManager
 from core.models import (
+    ErrorCode,
+    ExecutionResult,
+    HistoryEntryType,
     MenuItem,
     MenuItemType,
-    ExecutionResult,
-    ErrorCode,
-    HistoryEntryType,
 )
-from modules.utils.speech_to_text import SpeechToTextService
 from modules.gui.menu_coordinator import PyQtMenuCoordinator
+from modules.utils.notification_config import is_notification_enabled
 from modules.utils.notifications import (
     PyQtNotificationManager,
     truncate_text,
 )
-from modules.utils.notification_config import is_notification_enabled
+from modules.utils.speech_to_text import SpeechToTextService
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ class PyQtSpeechExecutionHandler:
     def __init__(
         self,
         clipboard_manager: ClipboardManager,
-        notification_manager: Optional[PyQtNotificationManager] = None,
+        notification_manager: PyQtNotificationManager | None = None,
         history_service=None,
         speech_service=SpeechToTextService,
         menu_coordinator=PyQtMenuCoordinator,
@@ -37,7 +37,7 @@ class PyQtSpeechExecutionHandler:
         self.notification_manager = notification_manager or PyQtNotificationManager()
         self.history_service = history_service
         self.speech_service = speech_service
-        self._transcription_start_time: Optional[float] = None
+        self._transcription_start_time: float | None = None
         self.menu_coordinator = menu_coordinator
         self._setup_speech_callbacks()
 
@@ -53,7 +53,7 @@ class PyQtSpeechExecutionHandler:
         """Check if this handler can execute the given menu item."""
         return item.item_type == MenuItemType.SPEECH
 
-    def execute(self, item: MenuItem, context: Optional[str] = None) -> ExecutionResult:
+    def execute(self, item: MenuItem, context: str | None = None) -> ExecutionResult:
         """Execute a speech-to-text menu item."""
         start_time = time.time()
 

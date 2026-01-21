@@ -2,31 +2,31 @@
 
 import base64
 import logging
-from typing import Optional, Callable
+from collections.abc import Callable
 
+from PySide6.QtCore import QBuffer, QByteArray, QPoint, QSize, Qt, Signal
+from PySide6.QtGui import QImage
 from PySide6.QtWidgets import (
-    QWidget,
-    QHBoxLayout,
-    QVBoxLayout,
-    QLabel,
-    QPushButton,
-    QSizePolicy,
     QApplication,
     QGraphicsOpacityEffect,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
     QScrollArea,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
 )
-from PySide6.QtCore import Qt, Signal, QByteArray, QBuffer, QSize, QPoint
-from PySide6.QtGui import QImage
 
-from core.context_manager import ContextManager, ContextItemType
-from modules.gui.shared.dialog_styles import TOOLTIP_STYLE
+from core.context_manager import ContextItemType, ContextManager
 from modules.gui.icons import (
-    create_icon,
-    ICON_COLOR_NORMAL,
-    ICON_COLOR_HOVER,
-    ICON_COLOR_DISABLED,
     DISABLED_OPACITY,
+    ICON_COLOR_DISABLED,
+    ICON_COLOR_HOVER,
+    ICON_COLOR_NORMAL,
+    create_icon,
 )
+from modules.gui.shared.dialog_styles import TOOLTIP_STYLE
 
 
 class IconButton(QPushButton):
@@ -36,7 +36,7 @@ class IconButton(QPushButton):
         self,
         icon_name: str,
         size: int = 16,
-        parent: Optional[QWidget] = None,
+        parent: QWidget | None = None,
     ):
         super().__init__(parent)
         self._icon_name = icon_name
@@ -134,7 +134,7 @@ class ContextChipBase(QWidget):
         + TOOLTIP_STYLE
     )
 
-    def __init__(self, index: int, parent: Optional[QWidget] = None):
+    def __init__(self, index: int, parent: QWidget | None = None):
         super().__init__(parent)
         self.index = index
         self.setObjectName("chip")
@@ -214,7 +214,7 @@ class TextContextChip(ContextChipBase):
         self,
         index: int,
         text_content: str,
-        parent: Optional[QWidget] = None,
+        parent: QWidget | None = None,
     ):
         super().__init__(index, parent)
         self.full_text = text_content
@@ -243,7 +243,7 @@ class ImageContextChip(ContextChipBase):
         image_number: int,
         image_data: str,
         media_type: str,
-        parent: Optional[QWidget] = None,
+        parent: QWidget | None = None,
     ):
         super().__init__(index, parent)
         self.image_data = image_data
@@ -357,7 +357,7 @@ class ContextHeaderWidget(QWidget):
         + TOOLTIP_STYLE
     )
 
-    def __init__(self, parent: Optional[QWidget] = None):
+    def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
         self.setStyleSheet(self._header_style)
 
@@ -452,7 +452,7 @@ class ContextHeaderWidget(QWidget):
 class FlowLayout(QVBoxLayout):
     """Simple flow-like layout using horizontal layouts that wrap."""
 
-    def __init__(self, parent: Optional[QWidget] = None):
+    def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
         self.setContentsMargins(4, 0, 4, 0)
         self.setSpacing(2)
@@ -516,10 +516,10 @@ class ContextSectionWidget(QWidget):
     def __init__(
         self,
         context_manager: ContextManager,
-        copy_callback: Optional[Callable[[], None]] = None,
+        copy_callback: Callable[[], None] | None = None,
         notification_manager=None,
         clipboard_manager=None,
-        parent: Optional[QWidget] = None,
+        parent: QWidget | None = None,
     ):
         super().__init__(parent)
         self.context_manager = context_manager
@@ -874,9 +874,9 @@ class LastInteractionChip(QWidget):
     def __init__(
         self,
         chip_type: str,
-        content: Optional[str],
+        content: str | None,
         title: str,
-        parent: Optional[QWidget] = None,
+        parent: QWidget | None = None,
     ):
         super().__init__(parent)
         self.chip_type = chip_type
@@ -1023,7 +1023,7 @@ class LastInteractionHeaderWidget(QWidget):
         + TOOLTIP_STYLE
     )
 
-    def __init__(self, parent: Optional[QWidget] = None):
+    def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
         self.setStyleSheet(self._header_style)
 
@@ -1065,7 +1065,7 @@ class LastInteractionSectionWidget(QWidget):
         history_service,
         notification_manager=None,
         clipboard_manager=None,
-        parent: Optional[QWidget] = None,
+        parent: QWidget | None = None,
     ):
         super().__init__(parent)
         self.history_service = history_service
@@ -1194,7 +1194,7 @@ class LastInteractionSectionWidget(QWidget):
         if self.notification_manager and is_notification_enabled("clipboard_copy"):
             self.notification_manager.show_success_notification("Copied")
 
-    def _on_details(self, title: str, content: Optional[str]):
+    def _on_details(self, title: str, content: str | None):
         """Handle details request - show preview dialog."""
         if content:
             from modules.gui.text_preview_dialog import show_preview_dialog
@@ -1283,9 +1283,9 @@ class SettingsSelectorChip(QWidget):
         current_value: str,
         options: list,
         clearable: bool = False,
-        on_select: Optional[Callable[[str], None]] = None,
-        on_clear: Optional[Callable[[], None]] = None,
-        parent: Optional[QWidget] = None,
+        on_select: Callable[[str], None] | None = None,
+        on_clear: Callable[[], None] | None = None,
+        parent: QWidget | None = None,
     ):
         super().__init__(parent)
         self.prefix = prefix
@@ -1486,7 +1486,7 @@ class SettingsHeaderWidget(QWidget):
         + TOOLTIP_STYLE
     )
 
-    def __init__(self, parent: Optional[QWidget] = None):
+    def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
         self.setStyleSheet(self._header_style)
 
@@ -1539,12 +1539,12 @@ class SettingsSectionWidget(QWidget):
         prompt_options: list,
         current_model: str,
         current_prompt: str,
-        on_model_select: Optional[Callable[[str], None]] = None,
-        on_prompt_select: Optional[Callable[[str], None]] = None,
-        on_prompt_clear: Optional[Callable[[], None]] = None,
-        on_settings_click: Optional[Callable[[], None]] = None,
-        on_close_app_click: Optional[Callable[[], None]] = None,
-        parent: Optional[QWidget] = None,
+        on_model_select: Callable[[str], None] | None = None,
+        on_prompt_select: Callable[[str], None] | None = None,
+        on_prompt_clear: Callable[[], None] | None = None,
+        on_settings_click: Callable[[], None] | None = None,
+        on_close_app_click: Callable[[], None] | None = None,
+        parent: QWidget | None = None,
     ):
         super().__init__(parent)
         self.setStyleSheet(self._section_style)

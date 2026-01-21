@@ -3,7 +3,6 @@
 import platform
 import subprocess
 import sys
-from typing import Tuple
 
 _open_dialog_count = 0
 
@@ -28,7 +27,7 @@ def is_windows() -> bool:
     return platform.system() == "Windows"
 
 
-def get_cursor_position() -> Tuple[int, int]:
+def get_cursor_position() -> tuple[int, int]:
     """Get absolute cursor position across all displays."""
     try:
         from pynput.mouse import Controller
@@ -82,6 +81,7 @@ def show_macos_permissions_help() -> None:
 def get_process_info() -> dict:
     """Get information about the current process."""
     import os
+
     import psutil
 
     try:

@@ -1,16 +1,18 @@
 """PySide6-based context menu system for the Promptheus application."""
 
-from typing import List, Optional, Tuple, Callable
-from PySide6.QtWidgets import QMenu, QApplication, QWidgetAction, QLabel, QWidget
-from PySide6.QtCore import Qt, QPoint, QTimer, QObject, QEvent
-from PySide6.QtGui import QCursor, QAction
-from shiboken6 import isValid
-from core.models import MenuItem, MenuItemType
-from modules.gui.shared import TOOLTIP_STYLE
-from modules.gui.icons import DISABLED_OPACITY
+import os
 import platform
 import subprocess
-import os
+from collections.abc import Callable
+
+from PySide6.QtCore import QEvent, QObject, QPoint, Qt, QTimer
+from PySide6.QtGui import QAction, QCursor
+from PySide6.QtWidgets import QApplication, QLabel, QMenu, QWidget, QWidgetAction
+from shiboken6 import isValid
+
+from core.models import MenuItem, MenuItemType
+from modules.gui.icons import DISABLED_OPACITY
+from modules.gui.shared import TOOLTIP_STYLE
 
 
 def _set_macos_window_move_to_active_space(widget):
@@ -25,6 +27,7 @@ def _set_macos_window_move_to_active_space(widget):
 
     try:
         from ctypes import c_void_p
+
         import objc
 
         # NSWindowCollectionBehaviorMoveToActiveSpace = 1 << 1 = 2
@@ -59,7 +62,7 @@ class InvisibleFocusWindow(QWidget):
 
     def __init__(self, context_menu=None):
         super().__init__()
-        self.menu: Optional[QMenu] = None
+        self.menu: QMenu | None = None
         self.context_menu = context_menu
         self.setup_window()
 
@@ -198,16 +201,16 @@ class PyQtContextMenu(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.parent = parent
-        self.menu: Optional[QMenu] = None
+        self.menu: QMenu | None = None
         self.menu_position_offset = (0, 0)
         self.number_input_debounce_ms = 200
-        self.execution_callback: Optional[Callable] = None
+        self.execution_callback: Callable | None = None
         self.shift_pressed = False
         self.event_filter_installed = False
         self.hovered_widgets = set()
         self.original_active_window = None
         self.qt_active_window = None
-        self.focus_window: Optional[InvisibleFocusWindow] = None
+        self.focus_window: InvisibleFocusWindow | None = None
         self.number_input_buffer = ""
         self.number_timer = None
         self._focus_restore_pending = False
@@ -257,7 +260,7 @@ class PyQtContextMenu(QObject):
         """Set callback for menu item execution."""
         self.execution_callback = callback
 
-    def create_menu(self, items: List[MenuItem]) -> QMenu:
+    def create_menu(self, items: list[MenuItem]) -> QMenu:
         """Create a QMenu from menu items with keyboard navigation support."""
         # Clean up any existing tracked widgets before creating new menu
         for widget in self._cleanable_widgets:
@@ -302,7 +305,7 @@ class PyQtContextMenu(QObject):
         return menu
 
     def create_submenu(
-        self, parent_menu: QMenu, title: str, items: List[MenuItem]
+        self, parent_menu: QMenu, title: str, items: list[MenuItem]
     ) -> QMenu:
         """Create a submenu with consistent styling."""
         submenu = QMenu(title, parent_menu)
@@ -317,13 +320,13 @@ class PyQtContextMenu(QObject):
         self._add_menu_items(submenu, items)
         return submenu
 
-    def show_at_cursor(self, items: List[MenuItem]) -> None:
+    def show_at_cursor(self, items: list[MenuItem]) -> None:
         """Show context menu at cursor position."""
         cursor_pos = self.get_cursor_position()
         self.show_at_position(items, cursor_pos)
 
     def show_at_position(
-        self, items: List[MenuItem], position: Tuple[int, int]
+        self, items: list[MenuItem], position: tuple[int, int]
     ) -> None:
         """Show context menu at specific position with invisible focus window for keyboard navigation."""
         if not items:
@@ -484,12 +487,12 @@ class PyQtContextMenu(QObject):
         except Exception:
             pass
 
-    def get_cursor_position(self) -> Tuple[int, int]:
+    def get_cursor_position(self) -> tuple[int, int]:
         """Get current cursor position."""
         cursor_pos = QCursor.pos()
         return (cursor_pos.x(), cursor_pos.y())
 
-    def set_menu_position_offset(self, offset: Tuple[int, int]) -> None:
+    def set_menu_position_offset(self, offset: tuple[int, int]) -> None:
         """Set offset for menu positioning."""
         self.menu_position_offset = offset
 
@@ -622,7 +625,7 @@ class PyQtContextMenu(QObject):
         self.original_active_window = None
         self.qt_active_window = None
 
-    def _add_menu_items(self, menu: QMenu, items: List[MenuItem]) -> None:
+    def _add_menu_items(self, menu: QMenu, items: list[MenuItem]) -> None:
         """Add menu items to a QMenu."""
         for item in items:
             if item.item_type == MenuItemType.CONTEXT:
@@ -655,7 +658,7 @@ class PyQtContextMenu(QObject):
 
     def _create_context_section_item(
         self, menu: QMenu, item: MenuItem
-    ) -> Optional[QAction]:
+    ) -> QAction | None:
         """Create a context section widget action."""
         from modules.gui.shared.context_widgets import ContextSectionWidget
 
@@ -677,7 +680,7 @@ class PyQtContextMenu(QObject):
 
     def _create_last_interaction_section_item(
         self, menu: QMenu, item: MenuItem
-    ) -> Optional[QAction]:
+    ) -> QAction | None:
         """Create a last interaction section widget action."""
         from modules.gui.shared.context_widgets import LastInteractionSectionWidget
 
@@ -699,7 +702,7 @@ class PyQtContextMenu(QObject):
 
     def _create_settings_section_item(
         self, menu: QMenu, item: MenuItem
-    ) -> Optional[QAction]:
+    ) -> QAction | None:
         """Create a settings section widget action with model and prompt chips."""
         from modules.gui.shared.context_widgets import SettingsSectionWidget
 
@@ -729,10 +732,11 @@ class PyQtContextMenu(QObject):
 
     def _create_custom_menu_item(
         self, menu: QMenu, item: MenuItem
-    ) -> Optional[QAction]:
+    ) -> QAction | None:
         """Create a custom menu item with hover effects."""
-        from PySide6.QtWidgets import QHBoxLayout, QGraphicsOpacityEffect
-        from modules.gui.icons import create_icon_pixmap, ICON_COLOR_NORMAL, ICON_COLOR_DISABLED
+        from PySide6.QtWidgets import QGraphicsOpacityEffect, QHBoxLayout
+
+        from modules.gui.icons import ICON_COLOR_DISABLED, ICON_COLOR_NORMAL, create_icon_pixmap
         from modules.gui.shared.context_widgets import IconButton
 
         class ClickableMenuItem(QWidget):
@@ -901,7 +905,7 @@ class PyQtContextMenu(QObject):
                     self._info_btn.setToolTip(wrapped_text)
                     self._info_btn.show()
 
-            def set_disabled_state(self, disable_reason: Optional[str]):
+            def set_disabled_state(self, disable_reason: str | None):
                 """Set disabled state with visual feedback based on reason."""
                 self._disable_reason = disable_reason
                 self._is_recording_action = self._check_is_recording_action()

@@ -1,13 +1,7 @@
 import logging
-from typing import List, Optional
+
 from core.exceptions import DataError
-from core.services import ExecutionService
-from modules.utils.speech_to_text import SpeechToTextService
 from core.interfaces import PromptStoreServiceProtocol
-from modules.history.history_service import HistoryService
-from modules.utils.notifications import PyQtNotificationManager
-from modules.utils.notification_config import is_notification_enabled
-from core.openai_service import OpenAiService
 from core.models import (
     ErrorCode,
     ExecutionResult,
@@ -16,6 +10,12 @@ from core.models import (
     MenuItemType,
     PromptData,
 )
+from core.openai_service import OpenAiService
+from core.services import ExecutionService
+from modules.history.history_service import HistoryService
+from modules.utils.notification_config import is_notification_enabled
+from modules.utils.notifications import PyQtNotificationManager
+from modules.utils.speech_to_text import SpeechToTextService
 
 logger = logging.getLogger(__name__)
 
@@ -28,10 +28,10 @@ class PromptStoreService(PromptStoreServiceProtocol):
         prompt_providers,
         clipboard_manager,
         notification_manager=None,
-        speech_service: Optional[SpeechToTextService] = None,
-        openai_service: Optional[OpenAiService] = None,
+        speech_service: SpeechToTextService | None = None,
+        openai_service: OpenAiService | None = None,
         context_manager=None,
-        history_service: Optional[HistoryService] = None,
+        history_service: HistoryService | None = None,
     ):
         self.prompt_providers = (
             prompt_providers
@@ -53,7 +53,7 @@ class PromptStoreService(PromptStoreServiceProtocol):
         self.active_prompt_service = ActivePromptService()
         self._prompts_cache = None
 
-    def get_prompts(self) -> List[PromptData]:
+    def get_prompts(self) -> list[PromptData]:
         """Get prompts with caching."""
 
         if self._prompts_cache is None:
@@ -61,7 +61,7 @@ class PromptStoreService(PromptStoreServiceProtocol):
 
         return self._prompts_cache
 
-    def _refresh_prompts(self) -> List[PromptData]:
+    def _refresh_prompts(self) -> list[PromptData]:
         """Refresh prompts cache."""
         try:
             all_prompts = []
@@ -118,7 +118,7 @@ class PromptStoreService(PromptStoreServiceProtocol):
         """Check if currently recording."""
         return bool(self.speech_service and self.speech_service.is_recording())
 
-    def get_recording_action_id(self) -> Optional[str]:
+    def get_recording_action_id(self) -> str | None:
         """Get the ID of the action that started recording."""
         return self.execution_service.get_recording_action_id()
 
@@ -130,11 +130,11 @@ class PromptStoreService(PromptStoreServiceProtocol):
         """Check if any handler is executing (LLM request in progress)."""
         return self.execution_service.is_executing()
 
-    def get_disable_reason(self, action_id: str) -> Optional[str]:
+    def get_disable_reason(self, action_id: str) -> str | None:
         """Get the reason for disabling an action ('recording', 'executing', or None)."""
         return self.execution_service.get_disable_reason(action_id)
 
-    def get_executing_action_id(self) -> Optional[str]:
+    def get_executing_action_id(self) -> str | None:
         """Get the ID of the action that is currently executing."""
         return self.execution_service.get_executing_action_id()
 
@@ -187,7 +187,7 @@ class PromptStoreService(PromptStoreServiceProtocol):
                     prompt_name=item.data.get("prompt_name") if item.data else None,
                 )
 
-    def get_active_prompt(self) -> Optional[MenuItem]:
+    def get_active_prompt(self) -> MenuItem | None:
         """Get the active prompt/preset."""
         return self.active_prompt_service.get_active_prompt()
 
@@ -217,7 +217,7 @@ class PromptStoreService(PromptStoreServiceProtocol):
 
         return self.execute_item(active_prompt)
 
-    def get_all_available_prompts(self) -> List[MenuItem]:
+    def get_all_available_prompts(self) -> list[MenuItem]:
         """Get all available prompts as menu items."""
         items = []
         for prompt in self.get_prompts():
@@ -262,19 +262,19 @@ class ActivePromptService:
     """Service for tracking the actively selected prompt or preset."""
 
     def __init__(self):
-        self._active_prompt: Optional[MenuItem] = None
+        self._active_prompt: MenuItem | None = None
 
     def set_active_prompt(self, item: MenuItem) -> None:
         """Set the active prompt/preset."""
         if item.item_type in [MenuItemType.PROMPT, MenuItemType.PRESET]:
             self._active_prompt = item
 
-    def get_active_prompt(self) -> Optional[MenuItem]:
+    def get_active_prompt(self) -> MenuItem | None:
         """Get the active prompt/preset."""
 
         return self._active_prompt
 
-    def get_active_prompt_display_name(self) -> Optional[str]:
+    def get_active_prompt_display_name(self) -> str | None:
         """Get a display name for the active prompt/preset."""
         if not self._active_prompt or not self._active_prompt.data:
             return None

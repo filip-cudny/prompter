@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Entry point for the Promptheus application."""
 
-import sys
 import logging
+import sys
+
 from app.application import PromtheusApp
 from modules.utils.system import is_macos
 

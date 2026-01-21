@@ -1,6 +1,5 @@
 """Dialog for editing the description generator prompt template."""
 
-from typing import Optional
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -60,11 +59,11 @@ class PromptTemplateDialog(QDialog):
     def __init__(
         self,
         current_prompt: str,
-        parent: Optional[QWidget] = None,
+        parent: QWidget | None = None,
     ):
         super().__init__(parent)
         self._current_prompt = current_prompt or DEFAULT_SYSTEM_PROMPT
-        self._result_prompt: Optional[str] = None
+        self._result_prompt: str | None = None
 
         self.setWindowTitle("Edit Description Generator System Prompt")
         self.setMinimumSize(500, 400)
@@ -165,7 +164,7 @@ class PromptTemplateDialog(QDialog):
         self._result_prompt = self._prompt_edit.toPlainText().strip()
         self.accept()
 
-    def get_result(self) -> Optional[str]:
+    def get_result(self) -> str | None:
         """Get the edited prompt template."""
         return self._result_prompt
 

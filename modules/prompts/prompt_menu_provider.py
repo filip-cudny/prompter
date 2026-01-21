@@ -1,6 +1,7 @@
 """Menu item providers for the Promptheus application."""
 
-from typing import List, Callable
+from collections.abc import Callable
+
 from core.models import MenuItem, MenuItemType
 from modules.prompts.prompt_service import PromptStoreService
 
@@ -18,7 +19,7 @@ class PromptMenuProvider:
         self.execute_callback = execute_callback
         self.prompt_store_service = prompt_store_service
 
-    def get_menu_items(self) -> List[MenuItem]:
+    def get_menu_items(self) -> list[MenuItem]:
         """Return menu items for all available prompts."""
         items = []
 

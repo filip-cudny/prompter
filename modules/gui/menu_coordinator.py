@@ -1,14 +1,16 @@
 """PySide6-based menu coordinator for the Promptheus application."""
 
 import logging
-from typing import List, Optional, Callable, Tuple
+from collections.abc import Callable
+
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtWidgets import QApplication
 
-from core.models import MenuItem, ExecutionResult, MenuItemType, ErrorCode
 from core.exceptions import MenuError
+from core.models import ErrorCode, ExecutionResult, MenuItem, MenuItemType
 from modules.utils.config import ConfigService
 from modules.utils.notification_config import is_notification_enabled
+
 from .context_menu import PyQtContextMenu
 
 logger = logging.getLogger(__name__)
@@ -37,8 +39,8 @@ class PyQtMenuCoordinator(QObject):
             self.prompt_store_service.set_menu_coordinator(self)
 
         # Callbacks
-        self.execution_callback: Optional[Callable[[ExecutionResult], None]] = None
-        self.error_callback: Optional[Callable[[str], None]] = None
+        self.execution_callback: Callable[[ExecutionResult], None] | None = None
+        self.error_callback: Callable[[str], None] | None = None
 
         # Context manager for change notifications
         self.context_manager = None
@@ -47,7 +49,7 @@ class PyQtMenuCoordinator(QObject):
         self.notification_manager = None
 
         # Menu state
-        self.last_menu_items: List[MenuItem] = []
+        self.last_menu_items: list[MenuItem] = []
 
         # Providers whose items appear at TOP of menu (before prompts)
         self._top_dynamic_provider_classes = {
@@ -128,7 +130,7 @@ class PyQtMenuCoordinator(QObject):
         """Set callback for errors."""
         self.error_callback = callback
 
-    def set_menu_position_offset(self, offset: Tuple[int, int]) -> None:
+    def set_menu_position_offset(self, offset: tuple[int, int]) -> None:
         """Set menu positioning offset."""
         self.context_menu.set_menu_position_offset(offset)
 
@@ -152,7 +154,7 @@ class PyQtMenuCoordinator(QObject):
         except (RuntimeError, Exception) as e:
             self._handle_error(f"Failed to show menu: {str(e)}")
 
-    def show_menu_at_position(self, position: Tuple[int, int]) -> None:
+    def show_menu_at_position(self, position: tuple[int, int]) -> None:
         """Show the context menu at specific position."""
         try:
             items = self._get_all_menu_items()
@@ -176,7 +178,7 @@ class PyQtMenuCoordinator(QObject):
 
         self.providers.clear()
 
-    def _get_all_menu_items(self) -> List[MenuItem]:
+    def _get_all_menu_items(self) -> list[MenuItem]:
         """Get all menu items from providers."""
         try:
             all_items = []
@@ -206,7 +208,7 @@ class PyQtMenuCoordinator(QObject):
         except Exception as e:
             raise MenuError(f"Failed to build menu items: {str(e)}") from e
 
-    def _wrap_provider_items(self, items: List[MenuItem]) -> List[MenuItem]:
+    def _wrap_provider_items(self, items: list[MenuItem]) -> list[MenuItem]:
         """Wrap provider items to handle execution through the service."""
         wrapped_items = []
 
@@ -283,7 +285,7 @@ class PyQtMenuCoordinator(QObject):
         else:
             print(f"Menu error: {error_message}")
 
-    def get_last_menu_items(self) -> List[MenuItem]:
+    def get_last_menu_items(self) -> list[MenuItem]:
         """Get the last displayed menu items."""
         return self.last_menu_items
 
@@ -291,7 +293,7 @@ class PyQtMenuCoordinator(QObject):
         """Get the number of registered providers."""
         return len(self.providers)
 
-    def _build_dynamic_items(self) -> List[MenuItem]:
+    def _build_dynamic_items(self) -> list[MenuItem]:
         """Build TOP dynamic menu items (Context, Last Interaction - appear before prompts)."""
         dynamic_items = []
 
@@ -311,7 +313,7 @@ class PyQtMenuCoordinator(QObject):
 
         return dynamic_items
 
-    def _build_bottom_dynamic_items(self) -> List[MenuItem]:
+    def _build_bottom_dynamic_items(self) -> list[MenuItem]:
         """Build BOTTOM dynamic menu items (Speech, Settings, Active Prompt - appear after prompts)."""
         bottom_items = []
 
@@ -339,7 +341,7 @@ class PyQtMenuCoordinator(QObject):
         from modules.gui.settings_dialog import show_settings_dialog
         show_settings_dialog()
 
-    def _add_active_prompt_info(self, all_items: List[MenuItem]) -> None:
+    def _add_active_prompt_info(self, all_items: list[MenuItem]) -> None:
         """Add settings section with model and prompt chips to the menu."""
         if not self.prompt_store_service:
             return
@@ -371,7 +373,7 @@ class PyQtMenuCoordinator(QObject):
             if hasattr(all_items[-1], "separator_after"):
                 all_items[-1].separator_after = True
             else:
-                setattr(all_items[-1], "separator_after", True)
+                all_items[-1].separator_after = True
 
         # Create settings section item
         settings_section_item = MenuItem(
@@ -405,7 +407,7 @@ class PyQtMenuCoordinator(QObject):
             )
             self.execution_completed.emit(result, "")
 
-    def _get_prompt_selector_items(self) -> List[MenuItem]:
+    def _get_prompt_selector_items(self) -> list[MenuItem]:
         """Get prompt selector submenu items."""
         try:
             # Get prompts and presets directly from service
@@ -477,7 +479,7 @@ class PyQtMenuCoordinator(QObject):
                 )
             ]
 
-    def _get_settings_submenu_items(self) -> List[MenuItem]:
+    def _get_settings_submenu_items(self) -> list[MenuItem]:
         """Get settings submenu items."""
         try:
             from modules.utils.config import ConfigService
@@ -561,7 +563,7 @@ class PyQtMenuEventHandler:
     def __init__(self, menu_coordinator: PyQtMenuCoordinator):
         self.menu_coordinator = menu_coordinator
         self.notification_manager = None
-        self.recent_results: List[ExecutionResult] = []
+        self.recent_results: list[ExecutionResult] = []
         self.max_recent_results = 10
 
     def set_notification_manager(self, notification_manager) -> None:
@@ -597,7 +599,7 @@ class PyQtMenuEventHandler:
         except (RuntimeError, Exception) as e:
             print(f"Error handling error message: {e}")
 
-    def get_recent_results(self, count: int = 5) -> List[ExecutionResult]:
+    def get_recent_results(self, count: int = 5) -> list[ExecutionResult]:
         """Get recent execution results."""
         return self.recent_results[-count:] if self.recent_results else []
 

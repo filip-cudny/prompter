@@ -1,6 +1,5 @@
 """Notifications settings panel."""
 
-from typing import Any, Dict, Optional
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -24,8 +23,8 @@ from modules.gui.shared.dialog_styles import (
 )
 from modules.utils.config import ConfigService
 from modules.utils.notification_config import DEFAULT_NOTIFICATION_SETTINGS
-from ..settings_panel_base import SettingsPanelBase
 
+from ..settings_panel_base import SettingsPanelBase
 
 EVENT_LABELS = {
     "prompt_execution_success": "Prompt execution success",
@@ -70,7 +69,7 @@ CHECKBOX_STYLE = f"""
 class ColorButton(QPushButton):
     """Button that shows and allows selection of a color."""
 
-    def __init__(self, color: str = "#FFFFFF", parent: Optional[QWidget] = None):
+    def __init__(self, color: str = "#FFFFFF", parent: QWidget | None = None):
         super().__init__(parent)
         self._color = color
         self.setFixedSize(80, 28)
@@ -136,9 +135,9 @@ class NotificationsPanel(SettingsPanelBase):
     def _setup_content(self, layout: QVBoxLayout) -> None:
         """Set up the notifications panel content."""
         self._config_service = ConfigService()
-        self._event_checkboxes: Dict[str, QCheckBox] = {}
-        self._color_buttons: Dict[str, ColorButton] = {}
-        self._icon_color_buttons: Dict[str, ColorButton] = {}
+        self._event_checkboxes: dict[str, QCheckBox] = {}
+        self._color_buttons: dict[str, ColorButton] = {}
+        self._icon_color_buttons: dict[str, ColorButton] = {}
 
         events_group = QGroupBox("Notification Events")
         events_group.setStyleSheet(GROUP_STYLE)

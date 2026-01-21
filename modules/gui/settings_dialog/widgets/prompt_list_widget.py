@@ -1,6 +1,6 @@
 """Widget for displaying and managing a list of prompts."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
@@ -23,7 +23,6 @@ from modules.gui.shared.dialog_styles import (
     COLOR_TEXT_EDIT_BG,
     TOOLTIP_STYLE,
 )
-
 
 TOOLBAR_BTN_STYLE = f"""
     QPushButton {{
@@ -72,9 +71,9 @@ class PromptListWidget(QWidget):
     prompt_delete_requested = Signal(str)
     order_changed = Signal(list)
 
-    def __init__(self, parent: Optional[QWidget] = None):
+    def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
-        self._prompts: List[Dict[str, Any]] = []
+        self._prompts: list[dict[str, Any]] = []
         self._setup_ui()
 
     def _setup_ui(self):
@@ -151,7 +150,7 @@ class PromptListWidget(QWidget):
         self._list_widget.itemDoubleClicked.connect(self._on_item_double_clicked)
         layout.addWidget(self._list_widget, 1)
 
-    def set_prompts(self, prompts: List[Dict[str, Any]]):
+    def set_prompts(self, prompts: list[dict[str, Any]]):
         """Set the list of prompts.
 
         Args:
@@ -249,6 +248,6 @@ class PromptListWidget(QWidget):
         order = [p.get("id") for p in self._prompts]
         self.order_changed.emit(order)
 
-    def get_prompt_ids(self) -> List[str]:
+    def get_prompt_ids(self) -> list[str]:
         """Get the current order of prompt IDs."""
         return [p.get("id") for p in self._prompts]

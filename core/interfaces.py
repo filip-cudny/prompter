@@ -1,18 +1,19 @@
 """Abstract interfaces and protocols for the Promptheus application."""
 
 from abc import ABC, abstractmethod
-from typing import List, Optional, Protocol, Tuple
+from typing import Protocol
+
 from .models import (
+    ExecutionResult,
     MenuItem,
     PromptData,
-    ExecutionResult,
 )
 
 
 class MenuItemProvider(Protocol):
     """Protocol for providing menu items to the context menu."""
 
-    def get_menu_items(self) -> List[MenuItem]:
+    def get_menu_items(self) -> list[MenuItem]:
         """Return a list of menu items to be displayed."""
         ...
 
@@ -24,11 +25,11 @@ class MenuItemProvider(Protocol):
 class PromptProvider(Protocol):
     """Protocol for providing prompts from different sources."""
 
-    def get_prompts(self) -> List[PromptData]:
+    def get_prompts(self) -> list[PromptData]:
         """Return a list of available prompts."""
         ...
 
-    def get_prompt_details(self, prompt_id: str) -> Optional[PromptData]:
+    def get_prompt_details(self, prompt_id: str) -> PromptData | None:
         """Get detailed information about a specific prompt."""
         ...
 
@@ -44,7 +45,7 @@ class ExecutionHandler(Protocol):
         """Check if this handler can execute the given menu item."""
         ...
 
-    def execute(self, item: MenuItem, context: Optional[str] = None) -> ExecutionResult:
+    def execute(self, item: MenuItem, context: str | None = None) -> ExecutionResult:
         """Execute the menu item and return the result."""
         ...
 
@@ -73,7 +74,7 @@ class ClipboardManager(ABC):
         pass
 
     @abstractmethod
-    def get_image_data(self) -> Optional[Tuple[str, str]]:
+    def get_image_data(self) -> tuple[str, str] | None:
         """Get image data from clipboard as (base64_data, media_type) tuple."""
         pass
 
@@ -85,7 +86,7 @@ class PromptStoreServiceProtocol(Protocol):
         """Refresh all data from providers."""
         ...
 
-    def get_prompts(self) -> List[PromptData]:
+    def get_prompts(self) -> list[PromptData]:
         """Get all available prompts."""
         ...
 
@@ -97,7 +98,7 @@ class PromptStoreServiceProtocol(Protocol):
         """Check if currently recording."""
         ...
 
-    def get_recording_action_id(self) -> Optional[str]:
+    def get_recording_action_id(self) -> str | None:
         """Get the ID of the action that started recording."""
         ...
 
@@ -118,7 +119,7 @@ class PromptStoreServiceProtocol(Protocol):
         """Add entry to history service for prompt and preset executions."""
         ...
 
-    def get_active_prompt(self) -> Optional[MenuItem]:
+    def get_active_prompt(self) -> MenuItem | None:
         """Get the active prompt/preset."""
         ...
 
@@ -130,6 +131,6 @@ class PromptStoreServiceProtocol(Protocol):
         """Execute the active prompt/preset with current clipboard content."""
         ...
 
-    def get_all_available_prompts(self) -> List[MenuItem]:
+    def get_all_available_prompts(self) -> list[MenuItem]:
         """Get all available prompts and presets as menu items."""
         ...

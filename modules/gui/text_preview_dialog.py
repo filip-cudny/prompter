@@ -1,10 +1,10 @@
 """Text preview dialog for displaying and editing content."""
 
-from typing import Optional
 
-from PySide6.QtWidgets import QVBoxLayout, QHBoxLayout, QApplication, QScrollArea, QFrame, QWidget
 from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QApplication, QFrame, QHBoxLayout, QScrollArea, QVBoxLayout, QWidget
 
+from core.interfaces import ClipboardManager
 from modules.gui.shared.base_dialog import BaseDialog
 from modules.gui.shared.context_widgets import IconButton
 from modules.gui.shared.dialog_styles import (
@@ -15,9 +15,8 @@ from modules.gui.shared.dialog_styles import (
     apply_wrap_state,
     create_singleton_dialog_manager,
 )
-from modules.gui.shared.widgets import create_text_edit, ICON_BTN_STYLE
 from modules.gui.shared.undo_redo import TextEditUndoHelper
-from core.interfaces import ClipboardManager
+from modules.gui.shared.widgets import ICON_BTN_STYLE, create_text_edit
 
 # Singleton dialog manager for this module
 _show_dialog = create_singleton_dialog_manager()
@@ -26,7 +25,7 @@ _show_dialog = create_singleton_dialog_manager()
 def show_preview_dialog(
     title: str,
     content: str,
-    clipboard_manager: Optional[ClipboardManager] = None,
+    clipboard_manager: ClipboardManager | None = None,
 ):
     """Show a preview dialog with the given title and content. If already open, bring to front."""
     _show_dialog(
@@ -47,14 +46,14 @@ class TextPreviewDialog(BaseDialog):
         title: str,
         content: str,
         parent=None,
-        clipboard_manager: Optional[ClipboardManager] = None,
+        clipboard_manager: ClipboardManager | None = None,
     ):
         super().__init__(parent)
         self.setWindowTitle(title)
 
         self._clipboard_manager = clipboard_manager
         self._wrapped: bool = True  # Default wrapped state
-        self._undo_helper: Optional[TextEditUndoHelper] = None
+        self._undo_helper: TextEditUndoHelper | None = None
 
         self._setup_ui(content)
         self.apply_dialog_styles()

@@ -4,7 +4,7 @@ import json
 import logging
 from pathlib import Path
 from threading import Lock
-from typing import Any, Dict
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ class UIStateManager:
     def __init__(self):
         if not hasattr(self, "_initialized"):
             self._state_file = Path("settings/ui_state.json")
-            self._state: Dict[str, Any] = {}
+            self._state: dict[str, Any] = {}
             self._load_state()
             self._initialized = True
 
@@ -33,7 +33,7 @@ class UIStateManager:
         """Load state from file."""
         if self._state_file.exists():
             try:
-                with open(self._state_file, "r") as f:
+                with open(self._state_file) as f:
                     self._state = json.load(f)
             except Exception as e:
                 logger.warning(f"Failed to load UI state: {e}")

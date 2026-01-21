@@ -1,8 +1,8 @@
 """Image chip management for dialog sections."""
 
-from typing import List, Optional, Callable
+from collections.abc import Callable
 
-from PySide6.QtWidgets import QWidget, QHBoxLayout
+from PySide6.QtWidgets import QHBoxLayout, QWidget
 
 from core.context_manager import ContextItem, ContextItemType
 from modules.gui.shared.widgets import ImageChipWidget
@@ -20,13 +20,13 @@ class SectionImageHandler:
 
     def rebuild_chips(
         self,
-        images: List[ContextItem],
+        images: list[ContextItem],
         container: QWidget,
         layout: QHBoxLayout,
-        chips_list: List[ImageChipWidget],
+        chips_list: list[ImageChipWidget],
         on_delete: Callable[[int], None],
         on_copy: Callable[[int], None],
-    ) -> List[ImageChipWidget]:
+    ) -> list[ImageChipWidget]:
         """Rebuild image chips from current image list.
 
         Args:
@@ -70,9 +70,9 @@ class SectionImageHandler:
 
     def paste_from_clipboard(
         self,
-        images_list: List[ContextItem],
+        images_list: list[ContextItem],
         on_rebuild: Callable[[], None],
-        on_state_save: Optional[Callable[[], None]] = None,
+        on_state_save: Callable[[], None] | None = None,
     ) -> bool:
         """Paste image from clipboard to images list.
 
@@ -104,10 +104,10 @@ class SectionImageHandler:
 
     def delete_image(
         self,
-        images_list: List[ContextItem],
+        images_list: list[ContextItem],
         index: int,
         on_rebuild: Callable[[], None],
-        on_state_save: Optional[Callable[[], None]] = None,
+        on_state_save: Callable[[], None] | None = None,
     ) -> bool:
         """Delete image at index from images list.
 
@@ -128,7 +128,7 @@ class SectionImageHandler:
             return True
         return False
 
-    def copy_image(self, chips_list: List[ImageChipWidget], index: int) -> bool:
+    def copy_image(self, chips_list: list[ImageChipWidget], index: int) -> bool:
         """Copy image at index to clipboard.
 
         Args:

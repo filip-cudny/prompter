@@ -1,13 +1,13 @@
 """PyQt5-specific execution handlers that accept shared notification manager."""
 
-from typing import Optional
 import logging
+
 from core.interfaces import ClipboardManager
-from core.models import MenuItem, MenuItemType, ExecutionResult, ErrorCode
-from modules.utils.config import AppConfig
+from core.models import ErrorCode, ExecutionResult, MenuItem, MenuItemType
 from core.openai_service import OpenAiService
-from modules.utils.notifications import PyQtNotificationManager
 from modules.prompts.async_execution import AsyncPromptExecutionManager
+from modules.utils.config import AppConfig
+from modules.utils.notifications import PyQtNotificationManager
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +19,7 @@ class PromptExecutionHandler:
         self,
         settings_prompt_provider,
         clipboard_manager: ClipboardManager,
-        notification_manager: Optional[PyQtNotificationManager],
+        notification_manager: PyQtNotificationManager | None,
         openai_service: OpenAiService,
         config: AppConfig,
         context_manager,
@@ -55,7 +55,7 @@ class PromptExecutionHandler:
         # Only handle items that explicitly have "settings" source
         return source == "settings"
 
-    def execute(self, item: MenuItem, context: Optional[str] = None) -> ExecutionResult:
+    def execute(self, item: MenuItem, context: str | None = None) -> ExecutionResult:
         """Execute a settings prompt menu item asynchronously."""
         # Check if execution is already in progress
         if self.async_manager.is_busy():

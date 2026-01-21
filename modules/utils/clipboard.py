@@ -1,11 +1,11 @@
 """Cross-platform clipboard utilities."""
 
-import subprocess
-import platform
 import base64
 import io
 import logging
-from typing import Optional, Tuple
+import platform
+import subprocess
+
 from core.exceptions import ClipboardError
 from core.interfaces import ClipboardManager
 
@@ -101,7 +101,7 @@ class SystemClipboardManager(ClipboardManager):
             logger.error(f"Error checking for images on macOS: {e}")
             return False
 
-    def _get_image_data_macos(self) -> Optional[Tuple[str, str]]:
+    def _get_image_data_macos(self) -> tuple[str, str] | None:
         """Get image data from clipboard on macOS."""
         try:
             from AppKit import NSPasteboard
@@ -239,15 +239,15 @@ class SystemClipboardManager(ClipboardManager):
         logger.debug("No clipboard tools available for image detection")
         return False
 
-    def _get_image_data_linux(self) -> Optional[Tuple[str, str]]:
+    def _get_image_data_linux(self) -> tuple[str, str] | None:
         """Get image data from clipboard on Linux."""
         logger.debug("Attempting to get image data from Linux clipboard")
 
         # Try Qt's clipboard first (handles Qt-set images)
         try:
-            from PySide6.QtWidgets import QApplication
             from PySide6.QtCore import QBuffer, QIODevice
             from PySide6.QtGui import QPixmap
+            from PySide6.QtWidgets import QApplication
 
             app = QApplication.instance()
             if app:
@@ -342,12 +342,12 @@ class SystemClipboardManager(ClipboardManager):
         except Exception:
             return False
 
-    def _get_image_data_windows(self) -> Optional[Tuple[str, str]]:
+    def _get_image_data_windows(self) -> tuple[str, str] | None:
         """Get image data from clipboard on Windows."""
         try:
-            from PySide6.QtWidgets import QApplication
             from PySide6.QtCore import QBuffer, QIODevice
             from PySide6.QtGui import QPixmap
+            from PySide6.QtWidgets import QApplication
 
             app = QApplication.instance()
             if app is None:
@@ -370,7 +370,7 @@ class SystemClipboardManager(ClipboardManager):
 
         return None
 
-    def get_image_data(self) -> Optional[Tuple[str, str]]:
+    def get_image_data(self) -> tuple[str, str] | None:
         """Get image data from clipboard as (base64_data, media_type) tuple."""
         try:
             if self.platform == "Darwin":

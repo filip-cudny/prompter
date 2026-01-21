@@ -7,7 +7,7 @@ import threading
 import time
 import uuid
 import wave
-from typing import Callable, Dict, Optional
+from collections.abc import Callable
 
 try:
     import sounddevice as sd
@@ -147,7 +147,7 @@ class AudioRecorder:
             self.stream = None
         self.frames = []
 
-    def _find_working_input_device(self) -> Optional[int]:
+    def _find_working_input_device(self) -> int | None:
         """Find a working audio input device."""
         try:
             devices = sd.query_devices()
@@ -183,11 +183,11 @@ class SpeechToTextService:
     def __init__(self, openai_service: OpenAiService):
         self.openai_service = openai_service
         self.recorder = AudioRecorder()
-        self.recording_started_callback: Optional[Callable[[], None]] = None
-        self.recording_stopped_callback: Optional[Callable[[], None]] = None
-        self.transcription_callbacks: Dict[str, Dict] = {}
-        self.error_callback: Optional[Callable[[str], None]] = None
-        self.current_handler_name: Optional[str] = None
+        self.recording_started_callback: Callable[[], None] | None = None
+        self.recording_stopped_callback: Callable[[], None] | None = None
+        self.transcription_callbacks: dict[str, dict] = {}
+        self.error_callback: Callable[[str], None] | None = None
+        self.current_handler_name: str | None = None
 
     def set_recording_started_callback(self, callback: Callable[[], None]) -> None:
         """Set callback for when recording starts."""
@@ -200,7 +200,7 @@ class SpeechToTextService:
     def add_transcription_callback(
         self,
         callback: Callable[[str, float], None],
-        handler_name: Optional[str] = None,
+        handler_name: str | None = None,
         run_always: bool = False,
     ) -> Callable[[], None]:
         """Add a transcription callback.
@@ -237,14 +237,14 @@ class SpeechToTextService:
         """Set callback for error handling."""
         self.error_callback = callback
 
-    def toggle_recording(self, handler_name: Optional[str] = None) -> None:
+    def toggle_recording(self, handler_name: str | None = None) -> None:
         """Toggle recording state - start if stopped, stop if started."""
         if self.recorder.is_recording():
             self.stop_recording()
         else:
             self.start_recording(handler_name)
 
-    def start_recording(self, handler_name: Optional[str] = None) -> None:
+    def start_recording(self, handler_name: str | None = None) -> None:
         """Start audio recording.
 
         Args:
@@ -291,7 +291,7 @@ class SpeechToTextService:
         return self.recorder.is_recording()
 
     def _transcribe_async(
-        self, audio_file_path: str, handler_name: Optional[str] = None
+        self, audio_file_path: str, handler_name: str | None = None
     ) -> None:
         """Transcribe audio file asynchronously."""
         try:
@@ -325,20 +325,16 @@ class SpeechToTextService:
         self,
         transcription: str,
         transcription_duration: float,
-        handler_name: Optional[str] = None,
+        handler_name: str | None = None,
     ) -> None:
         """Execute appropriate transcription callbacks based on handler_name."""
         for callback_info in self.transcription_callbacks.values():
             should_execute = False
 
-            if callback_info["run_always"]:
-                should_execute = True
-            elif (
+            if callback_info["run_always"] or (
                 handler_name is not None
                 and callback_info["handler_name"] == handler_name
-            ):
-                should_execute = True
-            elif handler_name is None and callback_info["handler_name"] is None:
+            ) or handler_name is None and callback_info["handler_name"] is None:
                 should_execute = True
 
             if should_execute:

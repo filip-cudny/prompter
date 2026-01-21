@@ -5,66 +5,77 @@ multiple GUI components.
 """
 
 # Dialog styles and constants
-from modules.gui.shared.dialog_styles import (
-    DIALOG_SHOW_DELAY_MS,
-    TEXT_CHANGE_DEBOUNCE_MS,
-    DEFAULT_WRAPPED_HEIGHT,
-    QWIDGETSIZE_MAX,
-    DIALOG_CONTENT_MARGINS,
-    SCROLL_CONTENT_MARGINS,
-    SCROLL_CONTENT_SPACING,
-    BUTTON_ROW_SPACING,
-    DEFAULT_DIALOG_SIZE,
-    MIN_DIALOG_SIZE,
-    SMALL_DIALOG_SIZE,
-    SMALL_MIN_DIALOG_SIZE,
-    COLOR_DIALOG_BG,
-    COLOR_TEXT_EDIT_BG,
-    COLOR_TEXT,
-    COLOR_TEXT_SECONDARY,
-    COLOR_BORDER,
-    COLOR_BUTTON_BG,
-    COLOR_BUTTON_HOVER,
-    COLOR_BUTTON_PRESSED,
-    COLOR_BUTTON_DISABLED_BG,
-    COLOR_BUTTON_DISABLED_TEXT,
-    COLOR_SELECTION,
-    COLOR_SCROLLBAR_HANDLE,
-    COLOR_SCROLLBAR_HANDLE_HOVER,
-    COLOR_TOOLTIP_BG,
-    COLOR_TOOLTIP_BORDER,
-    COLOR_COMBOBOX_ARROW,
-    TOOLTIP_STYLE,
-    SVG_CHEVRON_DOWN_PATH,
-    SVG_CHEVRON_UP_PATH,
-    COMBOBOX_STYLE,
-    SPINBOX_STYLE,
-    DIALOG_STYLESHEET,
-    get_dialog_stylesheet,
-    get_text_edit_content_height,
-    apply_wrap_state,
-    apply_section_size_policy,
-    create_singleton_dialog_manager,
-)
-
 # Base dialog class
 from modules.gui.shared.base_dialog import BaseDialog
 
 # Context widgets
 from modules.gui.shared.context_widgets import (
-    IconButton,
     ContextChipBase,
-    TextContextChip,
-    ImageContextChip,
     ContextHeaderWidget,
-    FlowLayout,
     ContextSectionWidget,
+    FlowLayout,
+    IconButton,
+    ImageContextChip,
     LastInteractionChip,
     LastInteractionHeaderWidget,
     LastInteractionSectionWidget,
-    SettingsSelectorChip,
     SettingsHeaderWidget,
     SettingsSectionWidget,
+    SettingsSelectorChip,
+    TextContextChip,
+)
+from modules.gui.shared.dialog_styles import (
+    BUTTON_ROW_SPACING,
+    COLOR_BORDER,
+    COLOR_BUTTON_BG,
+    COLOR_BUTTON_DISABLED_BG,
+    COLOR_BUTTON_DISABLED_TEXT,
+    COLOR_BUTTON_HOVER,
+    COLOR_BUTTON_PRESSED,
+    COLOR_COMBOBOX_ARROW,
+    COLOR_DIALOG_BG,
+    COLOR_SCROLLBAR_HANDLE,
+    COLOR_SCROLLBAR_HANDLE_HOVER,
+    COLOR_SELECTION,
+    COLOR_TEXT,
+    COLOR_TEXT_EDIT_BG,
+    COLOR_TEXT_SECONDARY,
+    COLOR_TOOLTIP_BG,
+    COLOR_TOOLTIP_BORDER,
+    COMBOBOX_STYLE,
+    DEFAULT_DIALOG_SIZE,
+    DEFAULT_WRAPPED_HEIGHT,
+    DIALOG_CONTENT_MARGINS,
+    DIALOG_SHOW_DELAY_MS,
+    DIALOG_STYLESHEET,
+    MIN_DIALOG_SIZE,
+    QWIDGETSIZE_MAX,
+    SCROLL_CONTENT_MARGINS,
+    SCROLL_CONTENT_SPACING,
+    SMALL_DIALOG_SIZE,
+    SMALL_MIN_DIALOG_SIZE,
+    SPINBOX_STYLE,
+    SVG_CHEVRON_DOWN_PATH,
+    SVG_CHEVRON_UP_PATH,
+    TEXT_CHANGE_DEBOUNCE_MS,
+    TOOLTIP_STYLE,
+    apply_section_size_policy,
+    apply_wrap_state,
+    create_singleton_dialog_manager,
+    get_dialog_stylesheet,
+    get_text_edit_content_height,
+)
+
+# Image handler
+from modules.gui.shared.image_handler import SectionImageHandler
+
+# Undo/redo utilities
+from modules.gui.shared.undo_redo import (
+    TextEditUndoHelper,
+    perform_redo,
+    perform_undo,
+    save_state_if_changed,
+    set_text_with_signal_block,
 )
 
 # Shared widgets
@@ -72,24 +83,12 @@ from modules.gui.shared.widgets import (
     ICON_BTN_STYLE,
     TEXT_EDIT_MIN_HEIGHT,
     CollapsibleSectionHeader,
-    ImageChipWidget,
-    create_text_edit,
     ExpandableTextSection,
-    UndoRedoManager,
     ImageChipContainer,
+    ImageChipWidget,
+    UndoRedoManager,
+    create_text_edit,
 )
-
-# Undo/redo utilities
-from modules.gui.shared.undo_redo import (
-    perform_undo,
-    perform_redo,
-    save_state_if_changed,
-    set_text_with_signal_block,
-    TextEditUndoHelper,
-)
-
-# Image handler
-from modules.gui.shared.image_handler import SectionImageHandler
 
 __all__ = [
     # Dialog styles

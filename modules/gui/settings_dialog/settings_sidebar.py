@@ -1,17 +1,15 @@
 """Settings sidebar with category navigation."""
 
-from typing import List, Optional, Tuple
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QListWidget, QListWidgetItem
+from PySide6.QtWidgets import QListWidget, QListWidgetItem, QVBoxLayout, QWidget
 
 from modules.gui.shared.dialog_styles import (
-    COLOR_DIALOG_BG,
-    COLOR_TEXT,
-    COLOR_SELECTION,
     COLOR_BORDER,
+    COLOR_DIALOG_BG,
+    COLOR_SELECTION,
+    COLOR_TEXT,
 )
-
 
 SIDEBAR_WIDTH = 180
 
@@ -23,8 +21,8 @@ class SettingsSidebar(QWidget):
 
     def __init__(
         self,
-        categories: List[Tuple[str, str]],
-        parent: Optional[QWidget] = None,
+        categories: list[tuple[str, str]],
+        parent: QWidget | None = None,
     ):
         """Initialize the sidebar.
 
@@ -96,7 +94,7 @@ class SettingsSidebar(QWidget):
         if 0 <= index < self._list_widget.count():
             self._list_widget.setCurrentRow(index)
 
-    def current_category_id(self) -> Optional[str]:
+    def current_category_id(self) -> str | None:
         """Get the currently selected category ID."""
         current_item = self._list_widget.currentItem()
         if current_item:

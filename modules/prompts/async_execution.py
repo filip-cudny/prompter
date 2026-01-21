@@ -2,17 +2,17 @@
 Asynchronous prompt execution using QThread to prevent UI blocking.
 """
 
+import logging
 import time
 import uuid
-import logging
 from dataclasses import dataclass
-from typing import Optional, List, Dict, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from modules.prompts.async_execution import PromptExecutionWorker
 
 try:
-    from PySide6.QtCore import QThread, Signal, Qt, QTimer
+    from PySide6.QtCore import Qt, QThread, QTimer, Signal
 except ImportError:
     # Fallback for environments where PySide6 is not available
     class QThread:
@@ -54,14 +54,14 @@ except ImportError:
     # Fallback type hint
     ChatCompletionMessageParam = dict
 
-from core.models import ExecutionResult, MenuItem, ErrorCode
-from core.openai_service import OpenAiService
-from core.interfaces import ClipboardManager
-from core.placeholder_service import PlaceholderService
 from core.context_manager import ContextManager
 from core.exceptions import ClipboardUnavailableError
-from modules.utils.notifications import PyQtNotificationManager, format_execution_time
+from core.interfaces import ClipboardManager
+from core.models import ErrorCode, ExecutionResult, MenuItem
+from core.openai_service import OpenAiService
+from core.placeholder_service import PlaceholderService
 from modules.utils.notification_config import is_notification_enabled
+from modules.utils.notifications import PyQtNotificationManager, format_execution_time
 
 logger = logging.getLogger(__name__)
 
@@ -73,10 +73,10 @@ class ExecutionContext:
     execution_id: str
     worker: "PromptExecutionWorker"
     item: MenuItem
-    context: Optional[str]
+    context: str | None
     start_time: float
     is_alternative: bool
-    original_input: Optional[str]
+    original_input: str | None
 
 
 class PromptExecutionWorker(QThread):
@@ -122,11 +122,11 @@ class PromptExecutionWorker(QThread):
         self.error_callback = None
 
         # Execution parameters (set before starting thread)
-        self.item: Optional[MenuItem] = None
-        self.context: Optional[str] = None
+        self.item: MenuItem | None = None
+        self.context: str | None = None
         self.start_time: float = 0
 
-    def set_execution_params(self, item: MenuItem, context: Optional[str] = None):
+    def set_execution_params(self, item: MenuItem, context: str | None = None):
         """Set the parameters for the next execution."""
         self.item = item
         self.context = context
@@ -261,7 +261,7 @@ class PromptExecutionWorker(QThread):
                     )
                 else:
                     # Single-turn mode (original logic)
-                    processed_messages: List[ChatCompletionMessageParam] = []
+                    processed_messages: list[ChatCompletionMessageParam] = []
                     processed_messages = self.placeholder_service.process_messages(
                         messages, self.context
                     )
@@ -346,7 +346,7 @@ class PromptExecutionWorker(QThread):
 
     def _build_conversation_messages(
         self, prompt_id: str, base_messages: list, conversation_data: dict
-    ) -> List[ChatCompletionMessageParam]:
+    ) -> list[ChatCompletionMessageParam]:
         """Build messages from multi-turn conversation history."""
         processed = []
 
@@ -482,7 +482,7 @@ class PromptExecutionWorker(QThread):
                         prompt_id, messages, conversation_data
                     )
                 else:
-                    processed_messages: List[ChatCompletionMessageParam] = []
+                    processed_messages: list[ChatCompletionMessageParam] = []
                     processed_messages = self.placeholder_service.process_messages(
                         messages, self.context
                     )
@@ -543,7 +543,7 @@ class AsyncPromptExecutionManager:
         self,
         settings_prompt_provider,
         clipboard_manager: ClipboardManager,
-        notification_manager: Optional[PyQtNotificationManager],
+        notification_manager: PyQtNotificationManager | None,
         openai_service: OpenAiService,
         config,
         context_manager: ContextManager,
@@ -561,15 +561,15 @@ class AsyncPromptExecutionManager:
         )
 
         # Multi-execution tracking
-        self._active_executions: Dict[str, ExecutionContext] = {}
+        self._active_executions: dict[str, ExecutionContext] = {}
 
         # Legacy single-execution tracking (for backwards compatibility)
-        self.worker: Optional[PromptExecutionWorker] = None
+        self.worker: PromptExecutionWorker | None = None
         self.is_executing = False
-        self.current_item: Optional[MenuItem] = None
-        self.current_context: Optional[str] = None
+        self.current_item: MenuItem | None = None
+        self.current_context: str | None = None
         self.is_alternative_execution: bool = False
-        self.original_input_content: Optional[str] = None
+        self.original_input_content: str | None = None
         logger.info(
             "AsyncPromptExecutionManager initialized - is_executing=False, worker=None"
         )
@@ -591,8 +591,8 @@ class AsyncPromptExecutionManager:
         return execution_id in self._active_executions
 
     def execute_prompt_async(
-        self, item: MenuItem, context: Optional[str] = None
-    ) -> Optional[str]:
+        self, item: MenuItem, context: str | None = None
+    ) -> str | None:
         """
         Execute a prompt asynchronously.
 
@@ -842,7 +842,7 @@ class AsyncPromptExecutionManager:
             worker.deleteLater()
 
     def stop_execution(
-        self, execution_id: Optional[str] = None, silent: bool = False
+        self, execution_id: str | None = None, silent: bool = False
     ) -> bool:
         """Stop specific execution by ID, or all if None.
 

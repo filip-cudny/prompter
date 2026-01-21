@@ -1,9 +1,12 @@
 """OpenAI service for managing multiple OpenAI client instances."""
 
 import os
-from typing import Dict, Optional, List, BinaryIO, Any, Generator, Tuple, Union
+from collections.abc import Generator
+from typing import Any, BinaryIO
+
 from openai import OpenAI
 from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
+
 from core.exceptions import ConfigurationError
 
 
@@ -12,8 +15,8 @@ class OpenAiService:
 
     def __init__(
         self,
-        models_config: List[Dict[str, Any]],
-        speech_to_text_config: Optional[Dict[str, Any]] = None,
+        models_config: list[dict[str, Any]],
+        speech_to_text_config: dict[str, Any] | None = None,
     ):
         """
         Initialize OpenAI service with model configurations.
@@ -22,8 +25,8 @@ class OpenAiService:
             models_config: List of model configurations from settings (array with 'id' field)
             speech_to_text_config: Optional speech-to-text model configuration
         """
-        self._clients: Dict[str, OpenAI] = {}
-        self._models_by_id: Dict[str, Dict[str, Any]] = {}
+        self._clients: dict[str, OpenAI] = {}
+        self._models_by_id: dict[str, dict[str, Any]] = {}
         self._speech_to_text_config = speech_to_text_config
 
         for model in models_config:
@@ -74,7 +77,7 @@ class OpenAiService:
     def complete(
         self,
         model_key: str,
-        messages: List[ChatCompletionMessageParam],
+        messages: list[ChatCompletionMessageParam],
         **kwargs: Any,
     ) -> str:
         """
@@ -121,9 +124,9 @@ class OpenAiService:
     def complete_stream(
         self,
         model_key: str,
-        messages: List[ChatCompletionMessageParam],
+        messages: list[ChatCompletionMessageParam],
         **kwargs: Any,
-    ) -> Generator[Tuple[str, str], None, None]:
+    ) -> Generator[tuple[str, str], None, None]:
         """
         Generate streaming text completion using specified model.
 
@@ -240,10 +243,10 @@ class OpenAiService:
         try:
             with open(file_path, "rb") as audio_file:
                 return self.transcribe_audio(audio_file, model_key)
-        except IOError as e:
+        except OSError as e:
             raise Exception(f"Failed to read audio file: {e}") from e
 
-    def get_model_config(self, model_key: str) -> Dict[str, Any]:
+    def get_model_config(self, model_key: str) -> dict[str, Any]:
         """
         Get model configuration for specified key.
 
@@ -263,7 +266,7 @@ class OpenAiService:
         else:
             raise ConfigurationError(f"Model configuration for '{model_key}' not found")
 
-    def get_available_models(self) -> List[str]:
+    def get_available_models(self) -> list[str]:
         """
         Get list of available model keys.
 

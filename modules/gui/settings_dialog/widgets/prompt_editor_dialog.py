@@ -1,9 +1,9 @@
 """Dialog for editing a single prompt."""
 
 import logging
-import uuid
 import re
-from typing import Any, Dict, List, Optional
+import uuid
+from typing import Any
 
 from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtWidgets import (
@@ -51,8 +51,8 @@ class DescriptionGeneratorWorker(QThread):
         name: str,
         system_content: str,
         user_content: str,
-        placeholder_info: Dict[str, str],
-        parent: Optional[QThread] = None,
+        placeholder_info: dict[str, str],
+        parent: QThread | None = None,
     ):
         super().__init__(parent)
         self._name = name
@@ -136,14 +136,14 @@ class PromptEditorDialog(QDialog):
 
     def __init__(
         self,
-        prompt_data: Optional[Dict[str, Any]] = None,
-        parent: Optional[QWidget] = None,
+        prompt_data: dict[str, Any] | None = None,
+        parent: QWidget | None = None,
     ):
         super().__init__(parent)
         self._prompt_data = prompt_data or {}
         self._is_new = prompt_data is None
-        self._result_data: Optional[Dict[str, Any]] = None
-        self._generator_worker: Optional[DescriptionGeneratorWorker] = None
+        self._result_data: dict[str, Any] | None = None
+        self._generator_worker: DescriptionGeneratorWorker | None = None
 
         self.setWindowTitle("New Prompt" if self._is_new else "Edit Prompt")
         self.setMinimumSize(600, 500)
@@ -219,12 +219,12 @@ class PromptEditorDialog(QDialog):
         form_layout.addLayout(model_row)
 
         placeholder_info_label = QLabel(self._build_placeholder_info_text())
-        placeholder_info_label.setStyleSheet(f"""
-            QLabel {{
+        placeholder_info_label.setStyleSheet("""
+            QLabel {
                 color: #888888;
                 font-size: 11px;
                 padding: 4px 0;
-            }}
+            }
         """)
         placeholder_info_label.setWordWrap(True)
         form_layout.addWidget(placeholder_info_label)
@@ -432,7 +432,7 @@ class PromptEditorDialog(QDialog):
 
         self.accept()
 
-    def get_result(self) -> Optional[Dict[str, Any]]:
+    def get_result(self) -> dict[str, Any] | None:
         """Get the edited prompt data.
 
         Returns:
@@ -506,7 +506,7 @@ class PromptEditorDialog(QDialog):
         logger.warning(f"Description generation failed: {error_msg}")
         self._update_generate_button_state()
 
-    def _get_placeholder_info(self) -> Dict[str, str]:
+    def _get_placeholder_info(self) -> dict[str, str]:
         """Get placeholder info from the placeholder registry."""
         return {
             "clipboard": "The current clipboard text content",
@@ -521,14 +521,14 @@ class PromptEditorDialog(QDialog):
             lines.append(f"  {{{{{name}}}}} - {description}")
         return "\n".join(lines)
 
-    def _find_invalid_placeholders(self, content: str) -> List[str]:
+    def _find_invalid_placeholders(self, content: str) -> list[str]:
         """Find invalid placeholders in content."""
         pattern = r"\{\{(\w+)\}\}"
         found = re.findall(pattern, content)
         valid_names = set(self._get_placeholder_info().keys())
         return [name for name in found if name not in valid_names]
 
-    def _validate_placeholders(self) -> List[str]:
+    def _validate_placeholders(self) -> list[str]:
         """Validate placeholders in both system and user messages.
 
         Returns:

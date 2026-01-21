@@ -15,10 +15,11 @@ Context items are stored in insertion order, which is preserved when injected in
 """
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional, Callable, List, Dict, Any
 from threading import Lock
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -35,18 +36,18 @@ class ContextItem:
     """Represents a single context item (text or image)."""
 
     item_type: ContextItemType
-    content: Optional[str] = None  # For text items
-    data: Optional[str] = None  # For image items (base64)
-    media_type: Optional[str] = None  # For image items (e.g., "image/png")
+    content: str | None = None  # For text items
+    data: str | None = None  # For image items (base64)
+    media_type: str | None = None  # For image items (e.g., "image/png")
 
 
 class ContextManager:
     """Service for managing context values used in placeholders."""
 
     def __init__(self):
-        self._items: List[ContextItem] = []
+        self._items: list[ContextItem] = []
         self._lock = Lock()
-        self._change_callbacks: List[Callable[[], None]] = []
+        self._change_callbacks: list[Callable[[], None]] = []
 
     def set_context(self, value: str) -> None:
         """Set the context value, clearing all existing items."""
@@ -64,7 +65,7 @@ class ContextManager:
             logger.debug("Context text item appended")
         self._notify_change()
 
-    def get_context(self) -> Optional[str]:
+    def get_context(self) -> str | None:
         """Get concatenated text from all text items."""
         with self._lock:
             text_items = [
@@ -133,7 +134,7 @@ class ContextManager:
             except Exception as e:
                 logger.error(f"Error in context change callback: {e}")
 
-    def set_context_images(self, images: List[Dict[str, Any]]) -> None:
+    def set_context_images(self, images: list[dict[str, Any]]) -> None:
         """Set context images, clearing all existing items."""
         with self._lock:
             self._items = [
@@ -175,7 +176,7 @@ class ContextManager:
             logger.debug("Context image item appended")
         self._notify_change()
 
-    def get_context_images(self) -> List[Dict[str, Any]]:
+    def get_context_images(self) -> list[dict[str, Any]]:
         """Get all image items in legacy format for backward compatibility."""
         with self._lock:
             return [
@@ -189,7 +190,7 @@ class ContextManager:
         with self._lock:
             return any(item.item_type == ContextItemType.IMAGE for item in self._items)
 
-    def get_full_context(self) -> Dict[str, Any]:
+    def get_full_context(self) -> dict[str, Any]:
         """Get complete context including text and images (legacy format)."""
         with self._lock:
             text_items = [
@@ -212,7 +213,7 @@ class ContextManager:
 
     # New item-oriented methods
 
-    def get_items(self) -> List[ContextItem]:
+    def get_items(self) -> list[ContextItem]:
         """Get all context items in order."""
         with self._lock:
             return self._items.copy()
@@ -234,14 +235,14 @@ class ContextManager:
         with self._lock:
             return len(self._items)
 
-    def get_text_items(self) -> List[ContextItem]:
+    def get_text_items(self) -> list[ContextItem]:
         """Get only text items in order."""
         with self._lock:
             return [
                 item for item in self._items if item.item_type == ContextItemType.TEXT
             ]
 
-    def get_image_items(self) -> List[ContextItem]:
+    def get_image_items(self) -> list[ContextItem]:
         """Get only image items in order."""
         with self._lock:
             return [

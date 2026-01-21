@@ -1,6 +1,5 @@
 """Speech settings panel."""
 
-from typing import Optional
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -17,8 +16,8 @@ from modules.gui.shared.dialog_styles import (
     COLOR_TEXT_EDIT_BG,
 )
 from modules.utils.config import ConfigService
-from ..settings_panel_base import SettingsPanelBase
 
+from ..settings_panel_base import SettingsPanelBase
 
 FORM_STYLE = f"""
     QLineEdit {{
@@ -49,7 +48,7 @@ class SpeechPanel(SettingsPanelBase):
             "Configure the speech-to-text model used for voice input.\n"
             "This model is used for transcribing audio recordings."
         )
-        description.setStyleSheet(f"color: #888888; margin-bottom: 16px;")
+        description.setStyleSheet("color: #888888; margin-bottom: 16px;")
         description.setWordWrap(True)
         layout.addWidget(description)
 

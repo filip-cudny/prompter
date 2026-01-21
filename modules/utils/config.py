@@ -1,21 +1,23 @@
 """Configuration management utilities."""
 
-import os
 import json
-import json5
-from typing import Any, Dict, List, Optional
-from dataclasses import dataclass, asdict
+import os
+from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import Any, Optional
+
+import json5
 from dotenv import load_dotenv
-from .keymap import KeymapManager
 
 from core.exceptions import ConfigurationError
 
+from .keymap import KeymapManager
 
-def safe_load_json(file_path: Path) -> Dict[str, Any]:
+
+def safe_load_json(file_path: Path) -> dict[str, Any]:
     """Load JSON file with optional comment support."""
     try:
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             content = f.read()
 
         return json5.loads(content)
@@ -35,18 +37,18 @@ class AppConfig:
     menu_position_offset: tuple = (0, 0)
     number_input_debounce_ms: int = 200
     keymap_manager: Optional["KeymapManager"] = None
-    models: Optional[List[Dict[str, Any]]] = None
-    speech_to_text_model: Optional[Dict[str, Any]] = None
-    default_model: Optional[str] = None
+    models: list[dict[str, Any]] | None = None
+    speech_to_text_model: dict[str, Any] | None = None
+    default_model: str | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert config to dictionary."""
         config_dict = asdict(self)
         config_dict.pop("keymap_manager", None)
         return config_dict
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "AppConfig":
+    def from_dict(cls, data: dict[str, Any]) -> "AppConfig":
         """Create config from dictionary."""
         data_copy = data.copy()
         data_copy.pop("keymap_manager", None)
@@ -72,7 +74,7 @@ class ConfigService:
             self._initialized = True
 
     def initialize(
-        self, env_file: Optional[str] = None, settings_file: Optional[str] = None
+        self, env_file: str | None = None, settings_file: str | None = None
     ):
         """Initialize the configuration service."""
         self._config = self._load_config(env_file, settings_file)
@@ -90,7 +92,7 @@ class ConfigService:
             )
         return self._config
 
-    def get_settings_data(self) -> Dict[str, Any]:
+    def get_settings_data(self) -> dict[str, Any]:
         """Get the raw settings data."""
         if self._settings_data is None:
             raise ConfigurationError(
@@ -132,7 +134,7 @@ class ConfigService:
 
         self._config.default_model = model_id
 
-    def get_model_by_id(self, model_id: str) -> Optional[Dict[str, Any]]:
+    def get_model_by_id(self, model_id: str) -> dict[str, Any] | None:
         """Get a model configuration by its ID."""
         if self._config is None or not self._config.models:
             return None
@@ -141,7 +143,7 @@ class ConfigService:
                 return model
         return None
 
-    def get_models_list(self) -> List[Dict[str, Any]]:
+    def get_models_list(self) -> list[dict[str, Any]]:
         """Get list of all model configurations."""
         if self._config is None or not self._config.models:
             return []
@@ -162,7 +164,7 @@ class ConfigService:
         for callback in self._on_save_callbacks:
             callback()
 
-    def _sanitize_settings_for_save(self, settings: Dict[str, Any]) -> Dict[str, Any]:
+    def _sanitize_settings_for_save(self, settings: dict[str, Any]) -> dict[str, Any]:
         """Remove sensitive data (api_key) before saving to disk, except for direct API keys."""
         import copy
 
@@ -178,7 +180,7 @@ class ConfigService:
 
         return sanitized
 
-    def update_prompts_order(self, prompt_ids: List[str], persist: bool = True) -> None:
+    def update_prompts_order(self, prompt_ids: list[str], persist: bool = True) -> None:
         """Reorder prompts by ID list.
 
         Args:
@@ -218,7 +220,7 @@ class ConfigService:
         if self._config and hasattr(self._config, key):
             setattr(self._config, key, value)
 
-    def add_prompt(self, prompt_data: Dict[str, Any], persist: bool = True) -> None:
+    def add_prompt(self, prompt_data: dict[str, Any], persist: bool = True) -> None:
         """Add a new prompt to settings.
 
         Args:
@@ -238,7 +240,7 @@ class ConfigService:
             self.save_settings()
 
     def update_prompt(
-        self, prompt_id: str, prompt_data: Dict[str, Any], persist: bool = True
+        self, prompt_id: str, prompt_data: dict[str, Any], persist: bool = True
     ) -> None:
         """Update an existing prompt.
 
@@ -280,7 +282,7 @@ class ConfigService:
             self.save_settings()
 
     def add_model(
-        self, model_id: str, model_config: Dict[str, Any], persist: bool = True
+        self, model_id: str, model_config: dict[str, Any], persist: bool = True
     ) -> None:
         """Add a new model to settings.
 
@@ -307,7 +309,7 @@ class ConfigService:
             self.save_settings()
 
     def update_model(
-        self, model_id: str, model_config: Dict[str, Any], persist: bool = True
+        self, model_id: str, model_config: dict[str, Any], persist: bool = True
     ) -> None:
         """Update an existing model configuration or add if not found.
 
@@ -373,7 +375,7 @@ class ConfigService:
             self.save_settings()
 
     def update_notifications(
-        self, notifications_config: Dict[str, Any], persist: bool = True
+        self, notifications_config: dict[str, Any], persist: bool = True
     ) -> None:
         """Update notifications configuration.
 
@@ -391,7 +393,7 @@ class ConfigService:
             self.save_settings()
 
     def update_speech_model(
-        self, speech_config: Dict[str, Any], persist: bool = True
+        self, speech_config: dict[str, Any], persist: bool = True
     ) -> None:
         """Update speech-to-text model configuration.
 
@@ -411,7 +413,7 @@ class ConfigService:
             self.save_settings()
 
     def update_keymaps(
-        self, keymaps: List[Dict[str, Any]], persist: bool = True
+        self, keymaps: list[dict[str, Any]], persist: bool = True
     ) -> None:
         """Update keymaps configuration.
 
@@ -428,7 +430,7 @@ class ConfigService:
         if persist:
             self.save_settings()
 
-    def get_description_generator_config(self) -> Dict[str, Any]:
+    def get_description_generator_config(self) -> dict[str, Any]:
         """Get the description generator configuration.
 
         Returns:
@@ -482,7 +484,7 @@ class ConfigService:
         return result
 
     def update_description_generator_config(
-        self, config: Dict[str, Any], persist: bool = True
+        self, config: dict[str, Any], persist: bool = True
     ) -> None:
         """Update description generator configuration.
 
@@ -503,7 +505,7 @@ class ConfigService:
             self.save_settings()
 
     def _load_config(
-        self, env_file: Optional[str] = None, settings_file: Optional[str] = None
+        self, env_file: str | None = None, settings_file: str | None = None
     ) -> AppConfig:
         """Load configuration from environment variables and settings file."""
         if env_file:
@@ -581,7 +583,7 @@ class ConfigService:
 
 
 def get_config_service(
-    env_file: Optional[str] = None, settings_file: Optional[str] = None
+    env_file: str | None = None, settings_file: str | None = None
 ) -> ConfigService:
     """Get initialized ConfigService singleton."""
     config_service = ConfigService()
@@ -591,7 +593,7 @@ def get_config_service(
 
 
 def initialize_config(
-    env_file: Optional[str] = None, settings_file: Optional[str] = None
+    env_file: str | None = None, settings_file: str | None = None
 ) -> AppConfig:
     """Initialize configuration for the application.
 
@@ -611,7 +613,7 @@ def initialize_config(
 
 
 def load_config(
-    env_file: Optional[str] = None, settings_file: Optional[str] = None
+    env_file: str | None = None, settings_file: str | None = None
 ) -> AppConfig:
     """Load configuration from environment variables and .env file."""
     config_service = get_config_service(env_file, settings_file)
@@ -729,14 +731,14 @@ def validate_config(config: AppConfig) -> None:
                 )
 
 
-def _load_api_keys(models: List[Dict[str, Any]]) -> None:
+def _load_api_keys(models: list[dict[str, Any]]) -> None:
     """Load API keys from environment variables for all models."""
     for model_config in models:
         model_name = model_config.get("display_name", model_config.get("id", "unknown"))
         _load_api_key_for_model(model_config, model_name)
 
 
-def _load_api_key_for_model(model_config: Dict[str, Any], model_name: str) -> None:
+def _load_api_key_for_model(model_config: dict[str, Any], model_name: str) -> None:
     """Load API key based on api_key_source setting."""
     source = model_config.get("api_key_source", "env")
     if source == "env":
@@ -745,7 +747,7 @@ def _load_api_key_for_model(model_config: Dict[str, Any], model_name: str) -> No
             model_config["api_key"] = os.getenv(api_key_env)
 
 
-def _migrate_model_params(models: List[Dict[str, Any]]) -> None:
+def _migrate_model_params(models: list[dict[str, Any]]) -> None:
     """Migrate top-level model params to nested 'parameters' dict."""
     KNOWN_PARAMS = {
         "temperature", "max_tokens", "top_p", "frequency_penalty",
@@ -761,6 +763,6 @@ def _migrate_model_params(models: List[Dict[str, Any]]) -> None:
                 model["parameters"][param] = model.pop(param)
 
 
-def load_settings_file(settings_path: Path) -> Dict[str, Any]:
+def load_settings_file(settings_path: Path) -> dict[str, Any]:
     """Load settings from JSON file with optional comment support."""
     return safe_load_json(settings_path)

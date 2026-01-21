@@ -2,22 +2,23 @@
 
 import base64
 import logging
-from typing import Callable, Generic, List, Optional, TypeVar
+from collections.abc import Callable
+from typing import Generic, TypeVar
 
-from PySide6.QtWidgets import (
-    QWidget,
-    QHBoxLayout,
-    QVBoxLayout,
-    QLabel,
-    QApplication,
-    QTextEdit,
-)
-from PySide6.QtCore import Qt, Signal, QByteArray, QBuffer, QTimer
+from PySide6.QtCore import QBuffer, QByteArray, Qt, QTimer, Signal
 from PySide6.QtGui import QFont, QImage
+from PySide6.QtWidgets import (
+    QApplication,
+    QHBoxLayout,
+    QLabel,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
 
+from modules.gui.icons import ICON_COLOR_NORMAL
 from modules.gui.shared.context_widgets import IconButton
 from modules.gui.shared.dialog_styles import TOOLTIP_STYLE
-from modules.gui.icons import ICON_COLOR_NORMAL
 from modules.gui.shared.undo_redo import TextEditUndoHelper
 from modules.utils.notification_config import is_notification_enabled
 
@@ -62,7 +63,7 @@ class CollapsibleSectionHeader(QWidget):
         show_wrap_button: bool = False,
         show_version_nav: bool = False,
         hint_text: str = "",
-        parent: Optional[QWidget] = None,
+        parent: QWidget | None = None,
     ):
         super().__init__(parent)
         self._collapsed = False
@@ -324,7 +325,7 @@ class ImageChipWidget(QWidget):
         image_number: int,
         image_data: str,
         media_type: str,
-        parent: Optional[QWidget] = None,
+        parent: QWidget | None = None,
     ):
         super().__init__(parent)
         self.index = index
@@ -491,7 +492,7 @@ class ExpandableTextSection(QWidget):
         show_wrap_button: bool = True,
         placeholder: str = "",
         hint_text: str = "",
-        parent: Optional[QWidget] = None,
+        parent: QWidget | None = None,
     ):
         """Create an expandable text section.
 
@@ -508,7 +509,7 @@ class ExpandableTextSection(QWidget):
         self._collapsed = False
         self._wrapped = True  # Default: wrapped (height limited)
         self._title = title
-        self._undo_helper: Optional[TextEditUndoHelper] = None
+        self._undo_helper: TextEditUndoHelper | None = None
 
         self._setup_ui(
             title,
@@ -697,9 +698,9 @@ class UndoRedoManager(Generic[T]):
         self._restore_state = restore_state
         self._on_stack_changed = on_stack_changed
 
-        self._undo_stack: List[T] = []
-        self._redo_stack: List[T] = []
-        self._last_state: Optional[T] = None
+        self._undo_stack: list[T] = []
+        self._redo_stack: list[T] = []
+        self._last_state: T | None = None
 
         self._timer = QTimer()
         self._timer.setSingleShot(True)
@@ -814,7 +815,7 @@ class ImageChipContainer(QWidget):
         self,
         clipboard_manager=None,
         notification_manager=None,
-        parent: Optional[QWidget] = None,
+        parent: QWidget | None = None,
     ):
         """Create an image chip container.
 
@@ -826,8 +827,8 @@ class ImageChipContainer(QWidget):
         super().__init__(parent)
         self._clipboard_manager = clipboard_manager
         self._notification_manager = notification_manager
-        self._images: List["ContextItem"] = []
-        self._chips: List[ImageChipWidget] = []
+        self._images: list[ContextItem] = []
+        self._chips: list[ImageChipWidget] = []
 
         self.setStyleSheet("background: transparent;")
         self._layout = QHBoxLayout(self)
@@ -837,11 +838,11 @@ class ImageChipContainer(QWidget):
         self.hide()
 
     @property
-    def images(self) -> List["ContextItem"]:
+    def images(self) -> list["ContextItem"]:
         """Get a copy of the current images list."""
         return list(self._images)
 
-    def set_images(self, images: List["ContextItem"]):
+    def set_images(self, images: list["ContextItem"]):
         """Set images and rebuild chips.
 
         Args:

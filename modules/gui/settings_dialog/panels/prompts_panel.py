@@ -14,16 +14,17 @@ from modules.gui.shared.dialog_styles import (
     COLOR_BORDER,
     COLOR_BUTTON_BG,
     COLOR_BUTTON_HOVER,
+    COLOR_DIALOG_BG,
     COLOR_TEXT,
     COLOR_TEXT_EDIT_BG,
-    COLOR_DIALOG_BG,
     SVG_CHEVRON_DOWN_PATH,
     TOOLTIP_STYLE,
 )
 from modules.utils.config import ConfigService
+
 from ..settings_panel_base import SettingsPanelBase
-from ..widgets.prompt_list_widget import PromptListWidget
 from ..widgets.prompt_editor_dialog import PromptEditorDialog
+from ..widgets.prompt_list_widget import PromptListWidget
 from ..widgets.prompt_template_dialog import PromptTemplateDialog
 
 

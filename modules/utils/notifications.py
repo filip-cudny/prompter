@@ -3,26 +3,26 @@
 import os
 import platform
 import threading
-from typing import Union, Optional
-from PySide6.QtWidgets import (
-    QApplication,
-    QWidget,
-    QLabel,
-    QHBoxLayout,
-    QVBoxLayout,
-    QGraphicsOpacityEffect,
-)
+
 from PySide6.QtCore import (
-    QTimer,
-    QPropertyAnimation,
     QEasingCurve,
-    Qt,
-    QRectF,
     QObject,
+    QPropertyAnimation,
     QRect,
+    QRectF,
+    Qt,
+    QTimer,
     Signal,
 )
-from PySide6.QtGui import QPainter, QPen, QColor, QPainterPath, QCursor, QGuiApplication
+from PySide6.QtGui import QColor, QCursor, QGuiApplication, QPainter, QPainterPath, QPen
+from PySide6.QtWidgets import (
+    QApplication,
+    QGraphicsOpacityEffect,
+    QHBoxLayout,
+    QLabel,
+    QVBoxLayout,
+    QWidget,
+)
 
 from modules.gui.icons import create_icon_pixmap
 from modules.utils.notification_config import (
@@ -58,7 +58,7 @@ class EnhancedNotificationWidget(QWidget):
         message: str | None = None,
         icon_name: str = "",
         icon_color: str = "",
-        bg_color: Union[str, QColor] = "#323232",
+        bg_color: str | QColor = "#323232",
         parent=None,
     ):
         if threading.current_thread() != threading.main_thread():
@@ -67,7 +67,7 @@ class EnhancedNotificationWidget(QWidget):
         super().__init__(parent)
 
         self.bg_color = bg_color
-        self.hide_timer: Optional[QTimer] = None
+        self.hide_timer: QTimer | None = None
         self._is_visible = False
 
         self._setup_non_activating_window()
@@ -537,7 +537,7 @@ class NotificationWidget(EnhancedNotificationWidget):
         message: str | None = None,
         icon_name: str = "",
         icon_color: str = "",
-        bg_color: Union[str, QColor] = "#323232",
+        bg_color: str | QColor = "#323232",
         parent=None,
     ):
         super().__init__(title, message, icon_name, icon_color, bg_color, parent)

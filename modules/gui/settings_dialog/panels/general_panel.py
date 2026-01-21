@@ -1,6 +1,5 @@
 """General settings panel."""
 
-from typing import Optional
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -22,6 +21,7 @@ from modules.gui.shared.dialog_styles import (
     SVG_CHEVRON_UP_PATH,
 )
 from modules.utils.config import ConfigService
+
 from ..settings_panel_base import SettingsPanelBase
 
 FORM_STYLE = f"""

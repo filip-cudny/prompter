@@ -2,12 +2,12 @@
 
 import logging
 import re
-from typing import Dict, List, Optional, Any
 from abc import ABC, abstractmethod
+from typing import Any
 
-from core.interfaces import ClipboardManager
 from core.context_manager import ContextManager
 from core.exceptions import ClipboardUnavailableError
+from core.interfaces import ClipboardManager
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ class PlaceholderProcessor(ABC):
         """Return a description of what this placeholder provides."""
 
     @abstractmethod
-    def process(self, context: Optional[str] = None) -> str:
+    def process(self, context: str | None = None) -> str:
         """Process and return the replacement value."""
 
 
@@ -40,7 +40,7 @@ class ClipboardPlaceholderProcessor(PlaceholderProcessor):
     def get_description(self) -> str:
         return "The current clipboard text content"
 
-    def process(self, context: Optional[str] = None) -> str:
+    def process(self, context: str | None = None) -> str:
         """Get clipboard content or use provided context."""
         if context is not None:
             return context
@@ -68,7 +68,7 @@ class ContextPlaceholderProcessor(PlaceholderProcessor):
     def get_description(self) -> str:
         return "Persistent context data set across prompt executions"
 
-    def process(self, context: Optional[str] = None) -> str:
+    def process(self, context: str | None = None) -> str:
         """Return stored context value or empty string."""
         return self.context_manager.get_context_or_default("")
 
@@ -81,7 +81,7 @@ class PlaceholderService:
     def __init__(
         self, clipboard_manager: ClipboardManager, context_manager: ContextManager
     ):
-        self.processors: Dict[str, PlaceholderProcessor] = {}
+        self.processors: dict[str, PlaceholderProcessor] = {}
         self.context_manager = context_manager
         self._register_default_processors(clipboard_manager, context_manager)
 
@@ -105,8 +105,8 @@ class PlaceholderService:
             logger.debug("Unregistered placeholder processor: %s", placeholder_name)
 
     def process_messages(
-        self, messages: List[Dict[str, Any]], context: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+        self, messages: list[dict[str, Any]], context: str | None = None
+    ) -> list[dict[str, Any]]:
         """Process placeholders in messages."""
         processed_messages = []
 
@@ -123,10 +123,10 @@ class PlaceholderService:
 
     def _process_message_with_context(
         self,
-        message: Dict[str, Any],
-        context: Optional[str] = None,
+        message: dict[str, Any],
+        context: str | None = None,
         is_last_message: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Process message with context, handling both text and images."""
         content = message.get("content", "")
         role = message.get("role", "user")
@@ -139,7 +139,7 @@ class PlaceholderService:
             context_images = self.context_manager.get_context_images()
 
             # Create message with content array for images
-            message_content: List[Dict[str, Any]] = []
+            message_content: list[dict[str, Any]] = []
 
             # Add text content first if not empty
             if processed_content.strip():
@@ -161,7 +161,7 @@ class PlaceholderService:
         # Standard text-only message
         return {"role": role, "content": processed_content}
 
-    def _process_content(self, content: str, context: Optional[str] = None) -> str:
+    def _process_content(self, content: str, context: str | None = None) -> str:
         """Process placeholders in content string."""
         processed_content = content
 
@@ -186,7 +186,7 @@ class PlaceholderService:
 
         return processed_content
 
-    def get_available_placeholders(self) -> List[str]:
+    def get_available_placeholders(self) -> list[str]:
         """Get list of available placeholder names."""
         return list(self.processors.keys())
 
@@ -198,14 +198,14 @@ class PlaceholderService:
                 return True
         return False
 
-    def get_placeholder_info(self) -> Dict[str, str]:
+    def get_placeholder_info(self) -> dict[str, str]:
         """Get dictionary mapping placeholder names to their descriptions."""
         return {
             name: processor.get_description()
             for name, processor in self.processors.items()
         }
 
-    def find_invalid_placeholders(self, content: str) -> List[str]:
+    def find_invalid_placeholders(self, content: str) -> list[str]:
         """Find all invalid placeholders in content.
 
         Returns:
