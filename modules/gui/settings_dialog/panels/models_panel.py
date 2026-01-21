@@ -1,6 +1,5 @@
 """Models settings panel."""
 
-from typing import Optional
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -24,9 +23,9 @@ from modules.gui.shared.dialog_styles import (
     TOOLTIP_STYLE,
 )
 from modules.utils.config import ConfigService
+
 from ..settings_panel_base import SettingsPanelBase
 from ..widgets.model_editor_widget import ModelEditorWidget
-
 
 TOOLBAR_BTN_STYLE = f"""
     QPushButton {{

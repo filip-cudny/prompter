@@ -5,8 +5,8 @@ multi-turn conversation support, streaming responses, and context management.
 """
 
 from modules.gui.prompt_execute_dialog.dialog import (
-    show_prompt_execute_dialog,
     PromptExecuteDialog,
+    show_prompt_execute_dialog,
 )
 
 __all__ = [

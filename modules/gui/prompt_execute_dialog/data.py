@@ -1,7 +1,6 @@
 """Data classes for PromptExecuteDialog state management."""
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict
 
 from core.context_manager import ContextItem
 
@@ -10,8 +9,8 @@ from core.context_manager import ContextItem
 class OutputVersionState:
     """Undo/redo state for a single output version."""
 
-    undo_stack: List[str] = field(default_factory=list)
-    redo_stack: List[str] = field(default_factory=list)
+    undo_stack: list[str] = field(default_factory=list)
+    redo_stack: list[str] = field(default_factory=list)
     last_text: str = ""
 
 
@@ -19,7 +18,7 @@ class OutputVersionState:
 class ContextSectionState:
     """Snapshot of context section state for undo/redo."""
 
-    images: List[ContextItem]
+    images: list[ContextItem]
     text: str
 
 
@@ -43,12 +42,12 @@ class ConversationTurn:
 
     turn_number: int
     message_text: str
-    message_images: List[ContextItem]
-    output_text: Optional[str] = None
+    message_images: list[ContextItem]
+    output_text: str | None = None
     is_complete: bool = False
-    output_versions: List[str] = field(default_factory=list)
+    output_versions: list[str] = field(default_factory=list)
     current_version_index: int = 0
-    version_undo_states: List[OutputVersionState] = field(default_factory=list)
+    version_undo_states: list[OutputVersionState] = field(default_factory=list)
 
 
 @dataclass
@@ -59,31 +58,31 @@ class TabState:
     tab_name: str
 
     # Context section
-    context_images: List[ContextItem]
+    context_images: list[ContextItem]
     context_text: str
-    context_undo_stack: List[ContextSectionState]
-    context_redo_stack: List[ContextSectionState]
+    context_undo_stack: list[ContextSectionState]
+    context_redo_stack: list[ContextSectionState]
     last_context_text: str
 
     # Message/Input section
-    message_images: List[ContextItem]
+    message_images: list[ContextItem]
     message_text: str
-    input_undo_stack: List[PromptInputState]
-    input_redo_stack: List[PromptInputState]
+    input_undo_stack: list[PromptInputState]
+    input_redo_stack: list[PromptInputState]
     last_input_text: str
 
     # Output section
     output_text: str
     output_section_shown: bool
-    output_undo_stack: List[OutputState]
-    output_redo_stack: List[OutputState]
+    output_undo_stack: list[OutputState]
+    output_redo_stack: list[OutputState]
     last_output_text: str
 
     # Multi-turn conversation
-    conversation_turns: List[ConversationTurn]
+    conversation_turns: list[ConversationTurn]
     current_turn_number: int
-    dynamic_sections_data: List[Dict]  # Serialized reply sections
-    output_sections_data: List[Dict]  # Serialized output sections
+    dynamic_sections_data: list[dict]  # Serialized reply sections
+    output_sections_data: list[dict]  # Serialized output sections
 
     # Execution state
     waiting_for_result: bool

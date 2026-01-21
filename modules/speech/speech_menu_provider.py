@@ -1,6 +1,7 @@
 """Menu item provider for speech functionality."""
 
-from typing import List, Callable, Optional
+from collections.abc import Callable
+
 from core.models import MenuItem, MenuItemType
 
 
@@ -9,9 +10,9 @@ class SpeechMenuProvider:
 
     def __init__(
         self,
-        speech_callback: Optional[Callable[[], None]] = None,
+        speech_callback: Callable[[], None] | None = None,
         history_service=None,
-        execute_callback: Optional[Callable[[MenuItem], None]] = None,
+        execute_callback: Callable[[MenuItem], None] | None = None,
         prompt_store_service=None,
     ):
         self.speech_callback = speech_callback
@@ -19,7 +20,7 @@ class SpeechMenuProvider:
         self.execute_callback = execute_callback
         self.prompt_store_service = prompt_store_service
 
-    def get_menu_items(self) -> List[MenuItem]:
+    def get_menu_items(self) -> list[MenuItem]:
         """Return speech-related menu items."""
         items = []
 

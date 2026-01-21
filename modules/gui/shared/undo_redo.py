@@ -1,6 +1,7 @@
 """Standalone undo/redo functions for GUI components."""
 
-from typing import TypeVar, List, Callable, Optional
+from collections.abc import Callable
+from typing import TypeVar
 
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QTextEdit
@@ -9,11 +10,11 @@ T = TypeVar("T")
 
 
 def perform_undo(
-    undo_stack: List[T],
-    redo_stack: List[T],
+    undo_stack: list[T],
+    redo_stack: list[T],
     get_current_state: Callable[[], T],
     restore_state: Callable[[T], None],
-) -> Optional[T]:
+) -> T | None:
     """Perform undo operation.
 
     Args:
@@ -34,11 +35,11 @@ def perform_undo(
 
 
 def perform_redo(
-    undo_stack: List[T],
-    redo_stack: List[T],
+    undo_stack: list[T],
+    redo_stack: list[T],
     get_current_state: Callable[[], T],
     restore_state: Callable[[T], None],
-) -> Optional[T]:
+) -> T | None:
     """Perform redo operation.
 
     Args:
@@ -61,8 +62,8 @@ def perform_redo(
 def save_state_if_changed(
     current_value: str,
     last_value: str,
-    undo_stack: List[T],
-    redo_stack: List[T],
+    undo_stack: list[T],
+    redo_stack: list[T],
     create_state: Callable[[str], T],
 ) -> str:
     """Save state if value changed.
@@ -137,8 +138,8 @@ class TextEditUndoHelper:
         """
         self._text_edit = text_edit
         self._on_buttons_changed = on_buttons_changed
-        self._undo_stack: List[str] = []
-        self._redo_stack: List[str] = []
+        self._undo_stack: list[str] = []
+        self._redo_stack: list[str] = []
         self._last_text: str = ""
 
         self._timer = QTimer()
@@ -222,12 +223,12 @@ class TextEditUndoHelper:
         self._last_text = value
 
     @property
-    def undo_stack(self) -> List[str]:
+    def undo_stack(self) -> list[str]:
         """Get the undo stack (for advanced use cases)."""
         return self._undo_stack
 
     @property
-    def redo_stack(self) -> List[str]:
+    def redo_stack(self) -> list[str]:
         """Get the redo stack (for advanced use cases)."""
         return self._redo_stack
 

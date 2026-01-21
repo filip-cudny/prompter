@@ -3,7 +3,7 @@
 This module is separate from notifications.py to avoid circular imports.
 """
 
-from typing import Dict, Any
+from typing import Any
 
 NOTIFICATION_ICON_MONOCHROME_COLOR = "#1a1a1a"
 NOTIFICATION_BG_COLOR = "#FFFFFF"
@@ -27,7 +27,7 @@ NOTIFICATION_TYPES = {
     },
 }
 
-DEFAULT_NOTIFICATION_SETTINGS: Dict[str, Any] = {
+DEFAULT_NOTIFICATION_SETTINGS: dict[str, Any] = {
     "events": {
         "prompt_execution_success": True,
         "prompt_execution_cancel": True,
@@ -59,7 +59,7 @@ DEFAULT_NOTIFICATION_SETTINGS: Dict[str, Any] = {
 }
 
 
-def get_notification_settings() -> Dict[str, Any]:
+def get_notification_settings() -> dict[str, Any]:
     """Get notification settings from config service."""
     try:
         from modules.utils.config import ConfigService

@@ -1,12 +1,12 @@
 """PyQt5-specific execution handlers that accept shared notification manager."""
 
-from typing import Optional
 import logging
-from core.interfaces import ClipboardManager
-from core.models import MenuItem, MenuItemType, ExecutionResult, ErrorCode
-from modules.utils.notifications import PyQtNotificationManager
-from modules.utils.notification_config import is_notification_enabled
 import time
+
+from core.interfaces import ClipboardManager
+from core.models import ErrorCode, ExecutionResult, MenuItem, MenuItemType
+from modules.utils.notification_config import is_notification_enabled
+from modules.utils.notifications import PyQtNotificationManager
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +26,7 @@ class HistoryExecutionHandler:
         """Check if this handler can execute the given menu item."""
         return item.item_type == MenuItemType.HISTORY
 
-    def execute(self, item: MenuItem, context: Optional[str] = None) -> ExecutionResult:
+    def execute(self, item: MenuItem, context: str | None = None) -> ExecutionResult:
         """Execute a history menu item."""
         start_time = time.time()
 

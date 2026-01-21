@@ -1,10 +1,11 @@
 """Keymap configuration management utilities."""
 
 import platform
-from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
+from typing import Any
 
 from core.exceptions import ConfigurationError
+
 from .keymap_actions import get_global_action_registry
 
 
@@ -28,7 +29,7 @@ class KeymapContext:
     """Keymap context with bindings."""
 
     context: str
-    bindings: Dict[str, str]
+    bindings: dict[str, str]
 
     def __post_init__(self):
         """Validate the context after initialization."""
@@ -37,7 +38,7 @@ class KeymapContext:
         if not self.bindings:
             raise ConfigurationError("Bindings cannot be empty")
 
-    def get_bindings(self) -> List[KeymapBinding]:
+    def get_bindings(self) -> list[KeymapBinding]:
         """Get list of KeymapBinding objects."""
         return [
             KeymapBinding(key_combination=key, action=action)
@@ -62,13 +63,13 @@ class KeymapManager:
 
     AVAILABLE_CONTEXTS = {"windows", "linux", "macos"}
 
-    def __init__(self, keymaps: List[Dict[str, Any]]):
+    def __init__(self, keymaps: list[dict[str, Any]]):
         """Initialize keymap manager with keymap data."""
         self.action_registry = get_global_action_registry()
         self._validation_deferred = True
         self.contexts = self._parse_keymaps(keymaps)
 
-    def _parse_keymaps(self, keymaps: List[Dict[str, Any]]) -> List[KeymapContext]:
+    def _parse_keymaps(self, keymaps: list[dict[str, Any]]) -> list[KeymapContext]:
         """Parse keymap data into KeymapContext objects."""
         contexts = []
 
@@ -104,12 +105,12 @@ class KeymapManager:
             self._validate_keymaps()
             self._validation_deferred = False
 
-    def get_active_keymaps(self) -> List[KeymapContext]:
+    def get_active_keymaps(self) -> list[KeymapContext]:
         """Get keymaps that match the current operating system."""
         self._ensure_validation_complete()
         return [context for context in self.contexts if context.matches_current_os()]
 
-    def get_all_bindings(self) -> List[KeymapBinding]:
+    def get_all_bindings(self) -> list[KeymapBinding]:
         """Get all active key bindings for the current OS."""
         self._ensure_validation_complete()
         bindings = []
@@ -117,14 +118,14 @@ class KeymapManager:
             bindings.extend(context.get_bindings())
         return bindings
 
-    def find_action_for_key(self, key_combination: str) -> Optional[str]:
+    def find_action_for_key(self, key_combination: str) -> str | None:
         """Find the action associated with a key combination."""
         for binding in self.get_all_bindings():
             if binding.key_combination == key_combination:
                 return binding.action
         return None
 
-    def get_bindings_for_action(self, action: str) -> List[str]:
+    def get_bindings_for_action(self, action: str) -> list[str]:
         """Get all key combinations bound to a specific action."""
         key_combinations = []
         for binding in self.get_all_bindings():
@@ -147,7 +148,7 @@ def get_current_os() -> str:
         return "linux"
 
 
-def validate_keymap_data(keymaps: List[Dict[str, Any]]) -> None:
+def validate_keymap_data(keymaps: list[dict[str, Any]]) -> None:
     """Validate keymap data structure."""
     if not isinstance(keymaps, list):
         raise ConfigurationError("Keymaps must be a list")

@@ -1,9 +1,11 @@
 """Data models and types for the Promptheus application."""
 
 from __future__ import annotations
+
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Dict, Any, List, Optional, Callable, Protocol
 from enum import Enum
+from typing import Any, Protocol
 
 
 class MenuItemType(Enum):
@@ -46,13 +48,13 @@ class MenuItem:
     label: str
     item_type: MenuItemType
     action: Callable[[], None]
-    data: Optional[Dict[str, Any]] = None
+    data: dict[str, Any] | None = None
     enabled: bool = True
     separator_after: bool = False
-    style: Optional[str] = None
-    tooltip: Optional[str] = None
-    submenu_items: Optional[List[MenuItem]] = None
-    icon: Optional[str] = None  # Icon name from icons.py (e.g., "mic", "copy")
+    style: str | None = None
+    tooltip: str | None = None
+    submenu_items: list[MenuItem] | None = None
+    icon: str | None = None  # Icon name from icons.py (e.g., "mic", "copy")
 
 
 @dataclass
@@ -62,13 +64,13 @@ class PromptData:
     id: str
     name: str
     content: str
-    model: Optional[str] = None
-    description: Optional[str] = None
-    tags: List[str] = field(default_factory=list)
-    created_at: Optional[str] = None
-    updated_at: Optional[str] = None
-    source: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    model: str | None = None
+    description: str | None = None
+    tags: list[str] = field(default_factory=list)
+    created_at: str | None = None
+    updated_at: str | None = None
+    source: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -76,12 +78,12 @@ class ExecutionResult:
     """Result of executing a prompt."""
 
     success: bool
-    content: Optional[str] = None
-    error: Optional[str] = None
-    error_code: Optional[ErrorCode] = None
-    execution_time: Optional[float] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    execution_id: Optional[str] = None
+    content: str | None = None
+    error: str | None = None
+    error_code: ErrorCode | None = None
+    execution_time: float | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+    execution_id: str | None = None
 
 
 @dataclass
@@ -92,12 +94,12 @@ class HistoryEntry:
     timestamp: str
     input_content: str
     entry_type: HistoryEntryType
-    output_content: Optional[str] = None
-    prompt_id: Optional[str] = None
+    output_content: str | None = None
+    prompt_id: str | None = None
     success: bool = True
-    error: Optional[str] = None
+    error: str | None = None
     is_conversation: bool = False
-    prompt_name: Optional[str] = None
+    prompt_name: str | None = None
 
 
 @dataclass
@@ -116,11 +118,11 @@ class ModelConfig:
     """Configuration for a model."""
 
     model: str
-    temperature: Optional[float] = None
-    max_tokens: Optional[int] = None
-    top_p: Optional[float] = None
-    frequency_penalty: Optional[float] = None
-    presence_penalty: Optional[float] = None
+    temperature: float | None = None
+    max_tokens: int | None = None
+    top_p: float | None = None
+    frequency_penalty: float | None = None
+    presence_penalty: float | None = None
 
 
 @dataclass
@@ -128,9 +130,9 @@ class ProviderConfig:
     """Configuration for a model provider."""
 
     name: str
-    models: List[ModelConfig] = field(default_factory=list)
-    api_key: Optional[str] = None
-    base_url: Optional[str] = None
+    models: list[ModelConfig] = field(default_factory=list)
+    api_key: str | None = None
+    base_url: str | None = None
 
 
 @dataclass
@@ -138,8 +140,8 @@ class MessageConfig:
     """Configuration for a message in a prompt."""
 
     role: str
-    content: Optional[str] = None
-    file: Optional[str] = None
+    content: str | None = None
+    file: str | None = None
 
 
 @dataclass
@@ -148,21 +150,21 @@ class PromptConfig:
 
     id: str
     name: str
-    messages: List[MessageConfig] = field(default_factory=list)
-    description: Optional[str] = None
-    tags: List[str] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    model: Optional[str] = None
+    messages: list[MessageConfig] = field(default_factory=list)
+    description: str | None = None
+    tags: list[str] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
+    model: str | None = None
 
 
 @dataclass
 class SettingsConfig:
     """Main settings configuration."""
 
-    models: List[Dict[str, Any]] = field(default_factory=list)
-    prompts: List[PromptConfig] = field(default_factory=list)
-    providers: List[ProviderConfig] = field(default_factory=list)
-    settings_path: Optional[str] = None
+    models: list[dict[str, Any]] = field(default_factory=list)
+    prompts: list[PromptConfig] = field(default_factory=list)
+    providers: list[ProviderConfig] = field(default_factory=list)
+    settings_path: str | None = None
 
 
 class ExecutionHandler(Protocol):
@@ -173,7 +175,7 @@ class ExecutionHandler(Protocol):
         ...
 
     def execute(
-        self, item: MenuItem, input_content: Optional[str] = None
+        self, item: MenuItem, input_content: str | None = None
     ) -> ExecutionResult:
         """Execute the menu item with optional input content."""
         ...

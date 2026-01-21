@@ -1,6 +1,5 @@
 """Menu provider for last interaction section (input/output/transcription)."""
 
-from typing import List
 
 from core.models import MenuItem, MenuItemType
 
@@ -18,7 +17,7 @@ class LastInteractionMenuProvider:
         self.notification_manager = notification_manager
         self.clipboard_manager = clipboard_manager
 
-    def get_menu_items(self) -> List[MenuItem]:
+    def get_menu_items(self) -> list[MenuItem]:
         """Return menu items for the last interaction section."""
         last_interaction_item = MenuItem(
             id="last_interaction_section",

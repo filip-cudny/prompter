@@ -1,7 +1,7 @@
-import time
 import logging
+import time
 from collections import deque
-from typing import Callable, List, Optional
+from collections.abc import Callable
 
 from core.models import (
     HistoryEntry,
@@ -17,18 +17,18 @@ class HistoryService:
     def __init__(self, max_entries: int = 100):
         self.max_entries = max_entries
         self._history: deque = deque(maxlen=max_entries)
-        self._change_callbacks: List[Callable[[], None]] = []
+        self._change_callbacks: list[Callable[[], None]] = []
 
     def add_entry(
         self,
         input_content: str,
         entry_type: HistoryEntryType,
-        output_content: Optional[str] = None,
-        prompt_id: Optional[str] = None,
+        output_content: str | None = None,
+        prompt_id: str | None = None,
         success: bool = True,
-        error: Optional[str] = None,
+        error: str | None = None,
         is_conversation: bool = False,
-        prompt_name: Optional[str] = None,
+        prompt_name: str | None = None,
     ) -> None:
         """Add a new history entry."""
         entry = HistoryEntry(
@@ -64,7 +64,7 @@ class HistoryService:
             except Exception as e:
                 logger.error(f"Error in history change callback: {e}")
 
-    def get_history(self) -> List[HistoryEntry]:
+    def get_history(self) -> list[HistoryEntry]:
         """Get all history entries, most recent first."""
         return list(reversed(self._history))
 
@@ -72,7 +72,7 @@ class HistoryService:
         """Clear all history entries."""
         self._history.clear()
 
-    def get_entry_by_id(self, entry_id: str) -> Optional[HistoryEntry]:
+    def get_entry_by_id(self, entry_id: str) -> HistoryEntry | None:
         """Get a specific history entry by ID."""
         for entry in self._history:
             if entry.id == entry_id:
@@ -81,7 +81,7 @@ class HistoryService:
 
     def get_last_item_by_type(
         self, entry_type: HistoryEntryType
-    ) -> Optional[HistoryEntry]:
+    ) -> HistoryEntry | None:
         """Get the most recent history entry of the specified type."""
         for entry in reversed(self._history):
             if entry.entry_type == entry_type:

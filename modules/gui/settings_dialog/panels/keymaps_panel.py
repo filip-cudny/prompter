@@ -1,18 +1,15 @@
 """Keymaps settings panel."""
 
-from typing import Any, Dict, List, Optional
 
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QComboBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
-    QLineEdit,
     QPushButton,
-    QTabWidget,
     QTableWidget,
     QTableWidgetItem,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -29,8 +26,8 @@ from modules.gui.shared.dialog_styles import (
     TOOLTIP_STYLE,
 )
 from modules.utils.config import ConfigService
-from ..settings_panel_base import SettingsPanelBase
 
+from ..settings_panel_base import SettingsPanelBase
 
 AVAILABLE_ACTIONS = [
     ("open_context_menu", "Open Context Menu"),
@@ -114,7 +111,7 @@ class KeymapsPanel(SettingsPanelBase):
     def _setup_content(self, layout: QVBoxLayout) -> None:
         """Set up the keymaps panel content."""
         self._config_service = ConfigService()
-        self._os_tabs: Dict[str, QTableWidget] = {}
+        self._os_tabs: dict[str, QTableWidget] = {}
 
         description = QLabel(
             "Configure keyboard shortcuts for each operating system.\n"
@@ -184,7 +181,7 @@ class KeymapsPanel(SettingsPanelBase):
             context = keymap.get("context", "")
             bindings = keymap.get("bindings", {})
 
-            for os_name in os_bindings.keys():
+            for os_name in os_bindings:
                 if f"os == {os_name}" in context:
                     os_bindings[os_name] = bindings
                     break

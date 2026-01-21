@@ -1,8 +1,7 @@
 """Base dialog class with common functionality."""
 
-from typing import List, Tuple, Union
 
-from PySide6.QtCore import Qt, QEvent, QTimer
+from PySide6.QtCore import QEvent, Qt, QTimer
 from PySide6.QtWidgets import (
     QDialog,
     QFrame,
@@ -20,8 +19,8 @@ from modules.gui.shared.dialog_styles import (
     SCROLL_CONTENT_SPACING,
     get_dialog_stylesheet,
 )
+from modules.utils.system import on_dialog_close, on_dialog_open
 from modules.utils.ui_state import UIStateManager
-from modules.utils.system import on_dialog_open, on_dialog_close
 
 
 class BaseDialog(QDialog):
@@ -59,7 +58,7 @@ class BaseDialog(QDialog):
         """Apply standard dark theme dialog styles."""
         self.setStyleSheet(get_dialog_stylesheet())
 
-    def create_scroll_area(self) -> Tuple[QScrollArea, QWidget, QVBoxLayout]:
+    def create_scroll_area(self) -> tuple[QScrollArea, QWidget, QVBoxLayout]:
         """Create a standardized scroll area with container.
 
         Returns:
@@ -135,7 +134,7 @@ class BaseDialog(QDialog):
         self,
         section_key: str,
         header,
-        content_widgets: Union[QWidget, List[QWidget]],
+        content_widgets: QWidget | list[QWidget],
         container: QWidget,
         expanding: bool = True,
     ):
@@ -170,7 +169,7 @@ class BaseDialog(QDialog):
         self,
         section_key: str,
         header,
-        content_widgets: Union[QWidget, List[QWidget]],
+        content_widgets: QWidget | list[QWidget],
         container: QWidget,
     ) -> bool:
         """Restore a section's collapsed state from saved state.

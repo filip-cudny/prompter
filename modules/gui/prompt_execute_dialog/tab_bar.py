@@ -1,9 +1,8 @@
 """Conversation tab bar widget for PromptExecuteDialog."""
 
-from typing import Dict, List, Optional
 
-from PySide6.QtWidgets import QWidget, QHBoxLayout, QLabel, QPushButton
-from PySide6.QtCore import Qt, Signal, QSize
+from PySide6.QtCore import QSize, Qt, Signal
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QWidget
 
 from modules.gui.icons import create_icon
 
@@ -16,9 +15,9 @@ class ConversationTabBar(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._tabs: Dict[str, QWidget] = {}  # tab_id -> tab button widget
-        self._tab_order: List[str] = []  # Ordered list of tab IDs
-        self._active_tab_id: Optional[str] = None
+        self._tabs: dict[str, QWidget] = {}  # tab_id -> tab button widget
+        self._tab_order: list[str] = []  # Ordered list of tab IDs
+        self._active_tab_id: str | None = None
 
         self._layout = QHBoxLayout(self)
         self._layout.setContentsMargins(0, 0, 0, 0)
@@ -68,7 +67,7 @@ class ConversationTabBar(QWidget):
         """Get the number of tabs."""
         return len(self._tabs)
 
-    def get_tab_ids(self) -> List[str]:
+    def get_tab_ids(self) -> list[str]:
         """Get ordered list of tab IDs."""
         return list(self._tab_order)
 

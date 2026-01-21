@@ -1,9 +1,8 @@
 """Base class for settings panels."""
 
-from typing import Optional
 
 from PySide6.QtCore import Signal
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QScrollArea, QFrame
+from PySide6.QtWidgets import QFrame, QLabel, QScrollArea, QVBoxLayout, QWidget
 
 from modules.gui.shared.dialog_styles import COLOR_DIALOG_BG, COLOR_TEXT
 
@@ -18,7 +17,7 @@ class SettingsPanelBase(QWidget):
 
     settings_changed = Signal()
 
-    def __init__(self, parent: Optional[QWidget] = None):
+    def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
         self._is_dirty = False
         self._setup_ui()

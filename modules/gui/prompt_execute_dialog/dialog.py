@@ -1,20 +1,32 @@
 """Prompt execute dialog for sending custom messages to prompts."""
 
-from typing import Optional, Callable, List, Dict
+from collections.abc import Callable
 
+from PySide6.QtCore import QEvent, QSize, Qt, QTimer
 from PySide6.QtWidgets import (
-    QVBoxLayout,
+    QFrame,
     QHBoxLayout,
     QPushButton,
-    QWidget,
-    QSizePolicy,
     QScrollArea,
-    QFrame,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
 )
-from PySide6.QtCore import Qt, QTimer, QEvent, QSize
 
+from core.context_manager import ContextItem, ContextItemType, ContextManager
 from core.models import MenuItem
-from core.context_manager import ContextManager, ContextItem, ContextItemType
+from modules.gui.icons import create_composite_icon, create_icon
+from modules.gui.prompt_execute_dialog.conversation_manager import ConversationManager
+from modules.gui.prompt_execute_dialog.data import (
+    ContextSectionState,
+    ConversationTurn,
+    OutputState,
+    OutputVersionState,
+    PromptInputState,
+    TabState,
+)
+from modules.gui.prompt_execute_dialog.execution_handler import ExecutionHandler
+from modules.gui.prompt_execute_dialog.tab_bar import ConversationTabBar
 from modules.gui.shared.base_dialog import BaseDialog
 from modules.gui.shared.dialog_styles import (
     DIALOG_SHOW_DELAY_MS,
@@ -25,36 +37,23 @@ from modules.gui.shared.dialog_styles import (
     apply_section_size_policy,
     get_text_edit_content_height,
 )
-from modules.gui.icons import create_icon, create_composite_icon
-from modules.utils.notification_config import is_notification_enabled
+from modules.gui.shared.undo_redo import perform_redo, perform_undo
 from modules.gui.shared.widgets import (
+    TEXT_EDIT_MIN_HEIGHT,
     CollapsibleSectionHeader,
     ImageChipWidget,
     create_text_edit,
-    TEXT_EDIT_MIN_HEIGHT,
 )
-from modules.gui.shared.undo_redo import perform_undo, perform_redo
+from modules.utils.notification_config import is_notification_enabled
 
-from modules.gui.prompt_execute_dialog.data import (
-    ContextSectionState,
-    PromptInputState,
-    OutputState,
-    OutputVersionState,
-    ConversationTurn,
-    TabState,
-)
-from modules.gui.prompt_execute_dialog.tab_bar import ConversationTabBar
-from modules.gui.prompt_execute_dialog.execution_handler import ExecutionHandler
-from modules.gui.prompt_execute_dialog.conversation_manager import ConversationManager
-
-_open_dialogs: Dict[str, "PromptExecuteDialog"] = {}
+_open_dialogs: dict[str, "PromptExecuteDialog"] = {}
 
 
 def show_prompt_execute_dialog(
     menu_item: MenuItem,
     execution_callback: Callable[[MenuItem, bool], None],
     prompt_store_service=None,
-    context_manager: Optional[ContextManager] = None,
+    context_manager: ContextManager | None = None,
     clipboard_manager=None,
     notification_manager=None,
 ):
@@ -112,7 +111,7 @@ class PromptExecuteDialog(BaseDialog):
         menu_item: MenuItem,
         execution_callback: Callable[[MenuItem, bool], None],
         prompt_store_service=None,
-        context_manager: Optional[ContextManager] = None,
+        context_manager: ContextManager | None = None,
         clipboard_manager=None,
         notification_manager=None,
         parent=None,
@@ -126,29 +125,29 @@ class PromptExecuteDialog(BaseDialog):
         self.notification_manager = notification_manager
 
         # Working state for context section
-        self._current_images: List[ContextItem] = []
-        self._image_chips: List[ImageChipWidget] = []
+        self._current_images: list[ContextItem] = []
+        self._image_chips: list[ImageChipWidget] = []
 
         # Working state for message section images
-        self._message_images: List[ContextItem] = []
-        self._message_image_chips: List[ImageChipWidget] = []
+        self._message_images: list[ContextItem] = []
+        self._message_image_chips: list[ImageChipWidget] = []
 
         # Track if output section has been shown
         self._output_section_shown = False
 
         # Multi-turn conversation state
-        self._conversation_turns: List[ConversationTurn] = []
+        self._conversation_turns: list[ConversationTurn] = []
         self._current_turn_number: int = 0
-        self._dynamic_sections: List[QWidget] = []  # Reply input sections
-        self._output_sections: List[QWidget] = []  # Output sections for each turn
+        self._dynamic_sections: list[QWidget] = []  # Reply input sections
+        self._output_sections: list[QWidget] = []  # Output sections for each turn
 
         # Separate undo/redo stacks for each section
-        self._context_undo_stack: List[ContextSectionState] = []
-        self._context_redo_stack: List[ContextSectionState] = []
-        self._input_undo_stack: List[PromptInputState] = []
-        self._input_redo_stack: List[PromptInputState] = []
-        self._output_undo_stack: List[OutputState] = []
-        self._output_redo_stack: List[OutputState] = []
+        self._context_undo_stack: list[ContextSectionState] = []
+        self._context_redo_stack: list[ContextSectionState] = []
+        self._input_undo_stack: list[PromptInputState] = []
+        self._input_redo_stack: list[PromptInputState] = []
+        self._output_undo_stack: list[OutputState] = []
+        self._output_redo_stack: list[OutputState] = []
 
         # Track last text for debounced state saving
         self._last_context_text = ""
@@ -168,11 +167,11 @@ class PromptExecuteDialog(BaseDialog):
         self._conversation_manager = ConversationManager(self)
 
         # Tab management
-        self._tabs: Dict[str, TabState] = {}
-        self._active_tab_id: Optional[str] = None
+        self._tabs: dict[str, TabState] = {}
+        self._active_tab_id: str | None = None
         self._tab_counter: int = 0
-        self._tab_bar: Optional[ConversationTabBar] = None
-        self._tab_scroll: Optional[QScrollArea] = None
+        self._tab_bar: ConversationTabBar | None = None
+        self._tab_scroll: QScrollArea | None = None
         self._max_tabs: int = 10
 
         # Extract prompt name for title
@@ -203,7 +202,7 @@ class PromptExecuteDialog(BaseDialog):
         return self._execution_handler.is_streaming
 
     @property
-    def _current_execution_id(self) -> Optional[str]:
+    def _current_execution_id(self) -> str | None:
         return self._execution_handler.current_execution_id
 
     @property

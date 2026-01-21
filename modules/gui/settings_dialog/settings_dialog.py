@@ -1,6 +1,5 @@
 """Main Settings dialog with VSCode-style sidebar navigation."""
 
-from typing import Optional
 
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -22,16 +21,16 @@ from modules.gui.shared.dialog_styles import (
     create_singleton_dialog_manager,
 )
 from modules.utils.config import ConfigService
-from .settings_sidebar import SettingsSidebar
+
 from .panels import (
     GeneralPanel,
-    PromptsPanel,
+    KeymapsPanel,
     ModelsPanel,
     NotificationsPanel,
+    PromptsPanel,
     SpeechPanel,
-    KeymapsPanel,
 )
-
+from .settings_sidebar import SettingsSidebar
 
 SETTINGS_DIALOG_SIZE = (800, 600)
 SETTINGS_MIN_SIZE = (700, 500)
@@ -75,7 +74,7 @@ class SettingsDialog(BaseDialog):
     DEFAULT_SIZE = SETTINGS_DIALOG_SIZE
     MIN_SIZE = SETTINGS_MIN_SIZE
 
-    def __init__(self, parent: Optional[QWidget] = None):
+    def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
         self._config_service = ConfigService()
         self.setWindowTitle("Settings")

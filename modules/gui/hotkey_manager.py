@@ -1,14 +1,16 @@
 """PySide6-based hotkey manager for global hotkey detection."""
 
 import threading
-from typing import Set, Optional, Callable, Dict, List
+from collections.abc import Callable
 from pathlib import Path
-from PySide6.QtCore import QObject, Signal
+
 from pynput import keyboard
 from pynput.keyboard import Key
+from PySide6.QtCore import QObject, Signal
+
 from core.exceptions import HotkeyError
-from modules.utils.keymap import KeymapManager
 from modules.utils.config import ConfigService
+from modules.utils.keymap import KeymapManager
 
 
 class HotkeySignals(QObject):
@@ -25,7 +27,7 @@ class HotkeySignals(QObject):
 class HotkeyConfig:
     """Configuration for platform-specific hotkeys from keymap system."""
 
-    def __init__(self, keymap_manager: Optional[KeymapManager] = None):
+    def __init__(self, keymap_manager: KeymapManager | None = None):
         self.keymap_manager = keymap_manager or KeymapManager([])
 
         # Get hotkeys from keymap manager for current OS
@@ -58,14 +60,14 @@ class HotkeyConfig:
         self.re_execute_hotkey = self.re_execute_hotkeys[0]
         self.speech_toggle_hotkey = self.speech_toggle_hotkeys[0]
 
-    def _find_hotkey_for_action(self, bindings, action_name: str) -> Optional[str]:
+    def _find_hotkey_for_action(self, bindings, action_name: str) -> str | None:
         """Find hotkey combination for a specific action."""
         for binding in bindings:
             if binding.action == action_name:
                 return binding.key_combination
         return None
 
-    def _find_hotkeys_for_action(self, bindings, action_name: str) -> List[str]:
+    def _find_hotkeys_for_action(self, bindings, action_name: str) -> list[str]:
         """Find all hotkey combinations for a specific action."""
         hotkeys = []
         for binding in bindings:
@@ -156,12 +158,12 @@ HOTKEY_CONFIG = None
 class PyQtHotkeyListener:
     """Handles global hotkey detection using pynput with Qt signals."""
 
-    def __init__(self, keymap_manager: Optional[KeymapManager] = None):
+    def __init__(self, keymap_manager: KeymapManager | None = None):
         self.keymap_manager = keymap_manager or KeymapManager([])
-        self.listener: Optional[keyboard.Listener] = None
-        self.pressed_keys: Set[Key] = set()
-        self.action_states: Dict[str, bool] = {}
-        self.action_timers: Dict[str, Optional[threading.Timer]] = {}
+        self.listener: keyboard.Listener | None = None
+        self.pressed_keys: set[Key] = set()
+        self.action_states: dict[str, bool] = {}
+        self.action_timers: dict[str, threading.Timer | None] = {}
         self.signals = HotkeySignals()
         self.running = False
 
@@ -182,9 +184,9 @@ class PyQtHotkeyListener:
         self.re_execute_hotkey_pressed = False
         self.context_menu_hotkey_pressed = False
         self.speech_toggle_hotkey_pressed = False
-        self.re_execute_reset_timer: Optional[threading.Timer] = None
-        self.context_menu_reset_timer: Optional[threading.Timer] = None
-        self.speech_toggle_reset_timer: Optional[threading.Timer] = None
+        self.re_execute_reset_timer: threading.Timer | None = None
+        self.context_menu_reset_timer: threading.Timer | None = None
+        self.speech_toggle_reset_timer: threading.Timer | None = None
 
     def connect_action_callback(self, callback: Callable[[str], None]) -> None:
         """Connect callback for any action trigger."""
@@ -409,8 +411,8 @@ class PyQtHotkeyManager:
 
     def __init__(
         self,
-        settings_path: Optional[Path] = None,
-        keymap_manager: Optional[KeymapManager] = None,
+        settings_path: Path | None = None,
+        keymap_manager: KeymapManager | None = None,
     ):
         if keymap_manager:
             self.keymap_manager = keymap_manager
@@ -578,14 +580,14 @@ class PyQtHotkeyManager:
         """Get the keymap manager."""
         return self.keymap_manager
 
-    def get_hotkey_for_action(self, action_name: str) -> Optional[str]:
+    def get_hotkey_for_action(self, action_name: str) -> str | None:
         """Get hotkey combination for a specific action."""
         for binding in self.keymap_manager.get_all_bindings():
             if binding.action == action_name:
                 return binding.key_combination
         return None
 
-    def get_all_hotkeys(self) -> Dict[str, List[str]]:
+    def get_all_hotkeys(self) -> dict[str, list[str]]:
         """Get all configured hotkeys."""
         result = {}
         for binding in self.keymap_manager.get_all_bindings():
@@ -594,7 +596,7 @@ class PyQtHotkeyManager:
             result[binding.action].append(binding.key_combination)
         return result
 
-    def reload_config(self, settings_path: Optional[Path] = None) -> None:
+    def reload_config(self, settings_path: Path | None = None) -> None:
         """Reload keymap configuration from settings."""
         was_running = self.running
         if was_running:

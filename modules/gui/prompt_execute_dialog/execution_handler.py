@@ -1,15 +1,15 @@
 """Execution handler for PromptExecuteDialog."""
 
 import time
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QTextCursor
 
-from core.models import MenuItem, ExecutionResult
+from core.models import ExecutionResult, MenuItem
 from modules.gui.icons import create_icon
-from modules.gui.shared.dialog_styles import get_text_edit_content_height
 from modules.gui.prompt_execute_dialog.data import OutputVersionState
+from modules.gui.shared.dialog_styles import get_text_edit_content_height
 
 if TYPE_CHECKING:
     from modules.gui.prompt_execute_dialog.dialog import PromptExecuteDialog
@@ -30,9 +30,9 @@ class ExecutionHandler:
         self.dialog = dialog
 
         # Execution state
-        self._current_execution_id: Optional[str] = None
+        self._current_execution_id: str | None = None
         self._waiting_for_result = False
-        self._stop_button_active: Optional[str] = None  # "alt" or "ctrl"
+        self._stop_button_active: str | None = None  # "alt" or "ctrl"
 
         # Streaming state
         self._is_streaming = False
@@ -64,7 +64,7 @@ class ExecutionHandler:
         return self._is_streaming
 
     @property
-    def current_execution_id(self) -> Optional[str]:
+    def current_execution_id(self) -> str | None:
         """Get current execution ID."""
         return self._current_execution_id
 

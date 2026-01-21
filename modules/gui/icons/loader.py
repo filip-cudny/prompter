@@ -2,12 +2,11 @@
 
 import base64
 import os
-from typing import Dict, List
 
 _SVG_DIR = os.path.join(os.path.dirname(__file__), "svg")
 
-_svg_content_cache: Dict[str, str] = {}
-_svg_data_url_cache: Dict[str, str] = {}
+_svg_content_cache: dict[str, str] = {}
+_svg_data_url_cache: dict[str, str] = {}
 
 
 def get_svg_path(name: str) -> str:
@@ -41,14 +40,14 @@ def get_svg_content(name: str) -> str:
     if not os.path.exists(path):
         raise ValueError(f"Unknown icon: {name}")
 
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         content = f.read()
 
     _svg_content_cache[name] = content
     return content
 
 
-def get_available_icons() -> List[str]:
+def get_available_icons() -> list[str]:
     """List all available icon names.
 
     Returns:

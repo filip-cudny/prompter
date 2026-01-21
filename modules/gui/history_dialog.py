@@ -1,22 +1,22 @@
 """History dialog for displaying execution history."""
 
-from typing import Optional
 
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
-    QWidget,
+    QComboBox,
+    QFrame,
     QHBoxLayout,
-    QVBoxLayout,
     QLabel,
     QPushButton,
     QScrollArea,
-    QFrame,
-    QComboBox,
     QSizePolicy,
+    QVBoxLayout,
+    QWidget,
 )
-from PySide6.QtCore import Qt, Signal
 
 from core.interfaces import ClipboardManager
 from core.models import HistoryEntry, HistoryEntryType
+from modules.gui.icons import ICON_COLOR_NORMAL, create_icon_pixmap
 from modules.gui.shared.base_dialog import BaseDialog
 from modules.gui.shared.context_widgets import IconButton
 from modules.gui.shared.dialog_styles import (
@@ -28,7 +28,6 @@ from modules.gui.shared.dialog_styles import (
     TOOLTIP_STYLE,
     create_singleton_dialog_manager,
 )
-from modules.gui.icons import create_icon_pixmap, ICON_COLOR_NORMAL
 
 _show_dialog = create_singleton_dialog_manager()
 
@@ -36,7 +35,7 @@ _show_dialog = create_singleton_dialog_manager()
 class ClickableLabel(QLabel):
     clicked = Signal()
 
-    def __init__(self, text: str = "", parent: Optional[QWidget] = None):
+    def __init__(self, text: str = "", parent: QWidget | None = None):
         super().__init__(text, parent)
         self.setCursor(Qt.PointingHandCursor)
         self._hover = False
@@ -67,7 +66,7 @@ class ClickableLabel(QLabel):
 
 def show_history_dialog(
     history_service,
-    clipboard_manager: Optional[ClipboardManager] = None,
+    clipboard_manager: ClipboardManager | None = None,
 ):
     _show_dialog(
         "history_dialog",
@@ -183,16 +182,16 @@ class HistoryEntryWidget(QWidget):
     def __init__(
         self,
         entry: HistoryEntry,
-        clipboard_manager: Optional[ClipboardManager] = None,
-        parent: Optional[QWidget] = None,
+        clipboard_manager: ClipboardManager | None = None,
+        parent: QWidget | None = None,
     ):
         super().__init__(parent)
         self.entry = entry
         self.clipboard_manager = clipboard_manager
         self._is_error = not entry.success
 
-        self._input_text_label: Optional[ClickableLabel] = None
-        self._output_text_label: Optional[ClickableLabel] = None
+        self._input_text_label: ClickableLabel | None = None
+        self._output_text_label: ClickableLabel | None = None
 
         self.setObjectName("historyEntry")
         self.setAttribute(Qt.WA_StyledBackground, True)
@@ -206,7 +205,7 @@ class HistoryEntryWidget(QWidget):
         else:
             self.setStyleSheet(self._entry_style)
 
-    def _truncate_text(self, text: Optional[str], max_chars: int = 100) -> tuple[str, bool]:
+    def _truncate_text(self, text: str | None, max_chars: int = 100) -> tuple[str, bool]:
         if not text:
             return "(empty)", False
         clean = text.replace("\n", " ").strip()
@@ -395,7 +394,7 @@ class HistoryDialog(BaseDialog):
         self,
         history_service,
         parent=None,
-        clipboard_manager: Optional[ClipboardManager] = None,
+        clipboard_manager: ClipboardManager | None = None,
     ):
         super().__init__(parent)
         self.setWindowTitle("Execution History")

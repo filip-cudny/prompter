@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from core.interfaces import PromptStoreServiceProtocol
 from modules.utils.config import ConfigService
@@ -25,10 +25,10 @@ class ExecutionService:
     """Service for executing menu items with different handlers."""
 
     def __init__(self, prompt_store_service: PromptStoreServiceProtocol):
-        self.handlers: List[ExecutionHandler] = []
+        self.handlers: list[ExecutionHandler] = []
         self.speech_service = None
-        self.recording_action_id: Optional[str] = None
-        self.pending_execution_item: Optional[MenuItem] = None
+        self.recording_action_id: str | None = None
+        self.pending_execution_item: MenuItem | None = None
         self.prompt_store_service = prompt_store_service
 
     def register_handler(self, handler: ExecutionHandler) -> None:
@@ -47,7 +47,7 @@ class ExecutionService:
         """Check if currently recording."""
         return bool(self.speech_service and self.speech_service.is_recording())
 
-    def get_recording_action_id(self) -> Optional[str]:
+    def get_recording_action_id(self) -> str | None:
         """Get the ID of the action that started recording."""
         return self.recording_action_id
 
@@ -58,7 +58,7 @@ class ExecutionService:
                 return True
         return False
 
-    def get_executing_action_id(self) -> Optional[str]:
+    def get_executing_action_id(self) -> str | None:
         """Get the ID of the action that is currently executing."""
         for handler in self.handlers:
             if hasattr(handler, 'async_manager') and handler.async_manager.is_busy():
@@ -101,7 +101,7 @@ class ExecutionService:
             return True
         return False
 
-    def get_disable_reason(self, action_id: str) -> Optional[str]:
+    def get_disable_reason(self, action_id: str) -> str | None:
         """Returns 'recording', 'executing', or None."""
         if self.is_recording() and self.recording_action_id != action_id:
             return 'recording'
@@ -115,7 +115,7 @@ class ExecutionService:
     def execute_item(
         self,
         item: MenuItem,
-        input_content: Optional[str] = None,
+        input_content: str | None = None,
         use_speech: bool = False,
     ) -> ExecutionResult:
         """Execute a menu item using the appropriate handler."""
@@ -200,11 +200,7 @@ class ExecutionService:
 
                             # Always emit signal for failed executions so user gets feedback
                             # For successful alternative execution, async manager will handle it
-                            if not result.success:
-                                self.prompt_store_service.emit_execution_completed(
-                                    result
-                                )
-                            elif not is_alternative:
+                            if not result.success or not is_alternative:
                                 self.prompt_store_service.emit_execution_completed(
                                     result
                                 )
@@ -228,10 +224,10 @@ class ExecutionService:
 class SettingsService:
     """Service for loading and managing application settings."""
 
-    def __init__(self, settings_path: Optional[str] = None):
+    def __init__(self, settings_path: str | None = None):
         self.settings_path = settings_path or "settings/settings.json"
-        self._settings: Optional[SettingsConfig] = None
-        self._base_path: Optional[Path] = None
+        self._settings: SettingsConfig | None = None
+        self._base_path: Path | None = None
         self._config_service = ConfigService()
 
     def load_settings(self) -> SettingsConfig:
@@ -249,12 +245,12 @@ class SettingsService:
         self._settings = None
         return self.load_settings()
 
-    def get_prompt_configs(self) -> List[PromptConfig]:
+    def get_prompt_configs(self) -> list[PromptConfig]:
         """Get all prompt configurations."""
         settings = self.get_settings()
         return settings.prompts
 
-    def get_model_configs(self) -> Dict[str, List[Dict[str, Any]]]:
+    def get_model_configs(self) -> dict[str, list[dict[str, Any]]]:
         """Get model configurations."""
         settings = self.get_settings()
         return settings.models
@@ -291,7 +287,7 @@ class SettingsService:
         except Exception as e:
             raise DataError(f"Failed to load settings: {str(e)}") from e
 
-    def _parse_settings_data(self, data: Dict[str, Any]) -> SettingsConfig:
+    def _parse_settings_data(self, data: dict[str, Any]) -> SettingsConfig:
         """Parse raw settings data into SettingsConfig."""
         try:
             # Parse prompts
@@ -340,7 +336,7 @@ class SettingsService:
             if not full_path.exists():
                 raise DataError(f"Referenced file not found: {file_path}")
 
-            with open(full_path, "r", encoding="utf-8") as f:
+            with open(full_path, encoding="utf-8") as f:
                 return f.read()
 
         except Exception as e:
@@ -370,7 +366,7 @@ class SettingsService:
         )
         return prompt_data
 
-    def get_prompt_by_id(self, prompt_id: str) -> Optional[PromptConfig]:
+    def get_prompt_by_id(self, prompt_id: str) -> PromptConfig | None:
         """Get a specific prompt configuration by ID."""
         settings = self.get_settings()
         for prompt in settings.prompts:
@@ -380,7 +376,7 @@ class SettingsService:
 
     def get_resolved_prompt_messages(
         self, prompt_id: str
-    ) -> Optional[List[Dict[str, str]]]:
+    ) -> list[dict[str, str]] | None:
         """Get resolved messages for a prompt (with file contents loaded)."""
         prompt_config = self.get_prompt_by_id(prompt_id)
         if not prompt_config:
@@ -393,7 +389,7 @@ class SettingsService:
 
         return messages
 
-    def get_available_models(self) -> List[str]:
+    def get_available_models(self) -> list[str]:
         """Get list of available model IDs."""
         settings = self.get_settings()
         models = []
@@ -405,7 +401,7 @@ class SettingsService:
 
         return models
 
-    def get_model_config(self, model_id: str) -> Optional[Dict[str, Any]]:
+    def get_model_config(self, model_id: str) -> dict[str, Any] | None:
         """Get configuration for a specific model by ID."""
         settings = self.get_settings()
 

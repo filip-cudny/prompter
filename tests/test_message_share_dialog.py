@@ -1,15 +1,13 @@
-import pytest
 from unittest.mock import Mock
+
 from tests.conftest import (
-    ConversationTurn,
-    ConversationTurnWithVersions,
     ContextItem,
-    ContextSectionState,
-    PromptInputState,
+    ConversationTurn,
     OutputState,
     OutputVersionState,
-    make_section,
+    PromptInputState,
     make_output_section,
+    make_section,
     make_turn_with_versions,
 )
 

@@ -2,21 +2,19 @@
 
 import logging
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
 
+from PySide6.QtCore import QEvent, Qt, QTimer, Signal
 from PySide6.QtWidgets import (
-    QVBoxLayout,
+    QFrame,
     QHBoxLayout,
-    QWidget,
     QPushButton,
     QScrollArea,
-    QFrame,
     QSizePolicy,
+    QVBoxLayout,
+    QWidget,
 )
-from PySide6.QtCore import Qt, QTimer, QEvent, Signal
 
-from core.context_manager import ContextManager, ContextItem, ContextItemType
-from modules.utils.notification_config import is_notification_enabled
+from core.context_manager import ContextItem, ContextItemType, ContextManager
 from modules.gui.shared.base_dialog import BaseDialog
 from modules.gui.shared.dialog_styles import (
     DEFAULT_WRAPPED_HEIGHT,
@@ -27,12 +25,13 @@ from modules.gui.shared.dialog_styles import (
     apply_wrap_state,
     create_singleton_dialog_manager,
 )
+from modules.gui.shared.undo_redo import perform_redo, perform_undo
 from modules.gui.shared.widgets import (
     CollapsibleSectionHeader,
     ImageChipWidget,
     create_text_edit,
 )
-from modules.gui.shared.undo_redo import perform_undo, perform_redo
+from modules.utils.notification_config import is_notification_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +43,7 @@ _show_dialog = create_singleton_dialog_manager()
 class ContextState:
     """Snapshot of context editor state for undo/redo."""
 
-    images: List[ContextItem]
+    images: list[ContextItem]
     text: str
 
 
@@ -53,7 +52,7 @@ class ClipboardState:
     """Snapshot of clipboard editor state for undo/redo."""
 
     text: str
-    image: Optional[Tuple[str, str]]  # (base64, media_type)
+    image: tuple[str, str] | None  # (base64, media_type)
 
 
 def show_context_editor(
@@ -91,16 +90,16 @@ class ContextEditorDialog(BaseDialog):
         self.notification_manager = notification_manager
 
         # Working state
-        self._current_images: List[ContextItem] = []
-        self._image_chips: List[ImageChipWidget] = []
-        self._clipboard_image: Optional[Tuple[str, str]] = None  # (base64, media_type)
-        self._clipboard_image_chip: Optional[ImageChipWidget] = None
+        self._current_images: list[ContextItem] = []
+        self._image_chips: list[ImageChipWidget] = []
+        self._clipboard_image: tuple[str, str] | None = None  # (base64, media_type)
+        self._clipboard_image_chip: ImageChipWidget | None = None
 
         # Separate undo/redo stacks for context and clipboard
-        self._context_undo_stack: List[ContextState] = []
-        self._context_redo_stack: List[ContextState] = []
-        self._clipboard_undo_stack: List[ClipboardState] = []
-        self._clipboard_redo_stack: List[ClipboardState] = []
+        self._context_undo_stack: list[ContextState] = []
+        self._context_redo_stack: list[ContextState] = []
+        self._clipboard_undo_stack: list[ClipboardState] = []
+        self._clipboard_redo_stack: list[ClipboardState] = []
 
         self.setWindowTitle("Context Editor")
 

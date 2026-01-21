@@ -1,10 +1,11 @@
 """Widget for editing model configuration."""
 
 import uuid
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from PySide6.QtCore import QLocale, Qt, Signal
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDialog,
     QDoubleSpinBox,
@@ -18,9 +19,9 @@ from PySide6.QtWidgets import (
     QStackedWidget,
     QVBoxLayout,
     QWidget,
-    QCheckBox,
 )
 
+from modules.gui.icons import create_icon
 from modules.gui.shared.dialog_styles import (
     COLOR_BORDER,
     COLOR_BUTTON_BG,
@@ -32,8 +33,6 @@ from modules.gui.shared.dialog_styles import (
     SVG_CHEVRON_DOWN_PATH,
     SVG_CHEVRON_UP_PATH,
 )
-from modules.gui.icons import create_icon
-
 
 PARAMETER_PRESETS = [
     ("temperature", "number"),
@@ -150,7 +149,7 @@ class PasswordLineEdit(QWidget):
 
     textChanged = Signal(str)
 
-    def __init__(self, parent: Optional[QWidget] = None):
+    def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
         self._visible = False
         self._setup_ui()
@@ -208,7 +207,7 @@ class ParameterRowWidget(QWidget):
         name: str,
         value: Any,
         param_type: str,
-        parent: Optional[QWidget] = None,
+        parent: QWidget | None = None,
     ):
         super().__init__(parent)
         self._name = name
@@ -278,7 +277,7 @@ class ParameterRowWidget(QWidget):
 class AddParameterDialog(QDialog):
     """Dialog for adding a new parameter."""
 
-    def __init__(self, existing_params: List[str], parent: Optional[QWidget] = None):
+    def __init__(self, existing_params: list[str], parent: QWidget | None = None):
         super().__init__(parent)
         self._existing_params = existing_params
         self._setup_ui()
@@ -401,7 +400,7 @@ class AddParameterDialog(QDialog):
         index = {"number": 0, "string": 1, "boolean": 2}.get(type_lower, 0)
         self._value_stack.setCurrentIndex(index)
 
-    def get_parameter(self) -> Optional[Tuple[str, Any, str]]:
+    def get_parameter(self) -> tuple[str, Any, str] | None:
         name = self._name_combo.currentText().strip()
         if not name:
             return None
@@ -422,11 +421,11 @@ class ModelEditorWidget(QWidget):
 
     model_changed = Signal(str, dict)
 
-    def __init__(self, parent: Optional[QWidget] = None):
+    def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
-        self._model_id: Optional[str] = None
+        self._model_id: str | None = None
         self._is_new: bool = False
-        self._parameter_rows: List[ParameterRowWidget] = []
+        self._parameter_rows: list[ParameterRowWidget] = []
         self._setup_ui()
 
     def _setup_ui(self):
@@ -586,7 +585,7 @@ class ModelEditorWidget(QWidget):
         self._parameter_rows.clear()
         self._no_params_label.show()
 
-    def load_model(self, model_id: str, config: Dict[str, Any]):
+    def load_model(self, model_id: str, config: dict[str, Any]):
         """Load a model configuration into the editor."""
         self._model_id = model_id
         self._is_new = False
@@ -635,7 +634,7 @@ class ModelEditorWidget(QWidget):
         self._base_url_edit.clear()
         self._clear_parameters()
 
-    def get_model_data(self) -> Optional[Tuple[str, Dict[str, Any]]]:
+    def get_model_data(self) -> tuple[str, dict[str, Any]] | None:
         """Get the current model data from the editor."""
         display_name = self._display_name_edit.text().strip()
         model = self._model_edit.text().strip()
@@ -680,7 +679,7 @@ class ModelEditorWidget(QWidget):
         """Check if this is editing a new model."""
         return self._is_new
 
-    def get_model_id(self) -> Optional[str]:
+    def get_model_id(self) -> str | None:
         """Get the current model ID."""
         return self._model_id
 

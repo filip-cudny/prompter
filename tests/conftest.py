@@ -1,15 +1,15 @@
-import pytest
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Any
 from unittest.mock import Mock
+
+import pytest
 
 
 @dataclass
 class ConversationTurn:
     turn_number: int
     message_text: str
-    message_images: List = field(default_factory=list)
-    output_text: Optional[str] = None
+    message_images: list = field(default_factory=list)
+    output_text: str | None = None
     is_complete: bool = False
 
 
@@ -17,12 +17,12 @@ class ConversationTurn:
 class ContextItem:
     item_type: str
     data: str
-    media_type: Optional[str] = None
+    media_type: str | None = None
 
 
 @dataclass
 class ContextSectionState:
-    images: List[ContextItem]
+    images: list[ContextItem]
     text: str
 
 
@@ -40,25 +40,25 @@ class OutputState:
 class TabState:
     tab_id: str
     tab_name: str
-    context_images: List[ContextItem]
+    context_images: list[ContextItem]
     context_text: str
-    context_undo_stack: List[ContextSectionState]
-    context_redo_stack: List[ContextSectionState]
+    context_undo_stack: list[ContextSectionState]
+    context_redo_stack: list[ContextSectionState]
     last_context_text: str
-    message_images: List[ContextItem]
+    message_images: list[ContextItem]
     message_text: str
-    input_undo_stack: List[PromptInputState]
-    input_redo_stack: List[PromptInputState]
+    input_undo_stack: list[PromptInputState]
+    input_redo_stack: list[PromptInputState]
     last_input_text: str
     output_text: str
     output_section_shown: bool
-    output_undo_stack: List[OutputState]
-    output_redo_stack: List[OutputState]
+    output_undo_stack: list[OutputState]
+    output_redo_stack: list[OutputState]
     last_output_text: str
-    conversation_turns: List[ConversationTurn]
+    conversation_turns: list[ConversationTurn]
     current_turn_number: int
-    dynamic_sections_data: List[Dict]
-    output_sections_data: List[Dict]
+    dynamic_sections_data: list[dict]
+    output_sections_data: list[dict]
     waiting_for_result: bool
     is_streaming: bool
     streaming_accumulated: str
@@ -148,17 +148,17 @@ def mock_output_section():
 
 @dataclass
 class OutputVersionState:
-    undo_stack: List[str] = field(default_factory=list)
-    redo_stack: List[str] = field(default_factory=list)
+    undo_stack: list[str] = field(default_factory=list)
+    redo_stack: list[str] = field(default_factory=list)
     last_text: str = ""
 
 
 def make_turn_with_versions(
     turn_number: int = 1,
     message_text: str = "test message",
-    output_versions: List[str] = None,
+    output_versions: list[str] = None,
     current_version_index: int = 0,
-    version_undo_states: List[OutputVersionState] = None,
+    version_undo_states: list[OutputVersionState] = None,
     is_complete: bool = True,
 ) -> "ConversationTurnWithVersions":
     return ConversationTurnWithVersions(
@@ -175,9 +175,9 @@ def make_turn_with_versions(
 class ConversationTurnWithVersions:
     turn_number: int
     message_text: str
-    message_images: List = field(default_factory=list)
-    output_text: Optional[str] = None
+    message_images: list = field(default_factory=list)
+    output_text: str | None = None
     is_complete: bool = False
-    output_versions: List[str] = field(default_factory=list)
+    output_versions: list[str] = field(default_factory=list)
     current_version_index: int = 0
-    version_undo_states: List[OutputVersionState] = field(default_factory=list)
+    version_undo_states: list[OutputVersionState] = field(default_factory=list)

@@ -1,7 +1,7 @@
 """GUI module for Promptheus application."""
 
 from .context_menu import PyQtContextMenu
-from .hotkey_manager import PyQtHotkeyManager, PyQtHotkeyListener
+from .hotkey_manager import PyQtHotkeyListener, PyQtHotkeyManager
 from .menu_coordinator import PyQtMenuCoordinator
 
 __all__ = [

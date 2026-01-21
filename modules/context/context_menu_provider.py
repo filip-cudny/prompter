@@ -1,9 +1,9 @@
 """Context menu provider for displaying and managing context items."""
 
-from typing import List, Callable
+from collections.abc import Callable
 
-from core.models import MenuItem, MenuItemType
 from core.context_manager import ContextManager
+from core.models import MenuItem, MenuItemType
 
 
 class ContextMenuProvider:
@@ -23,7 +23,7 @@ class ContextMenuProvider:
         self.notification_manager = notification_manager
         self.clipboard_manager = clipboard_manager
 
-    def get_menu_items(self) -> List[MenuItem]:
+    def get_menu_items(self) -> list[MenuItem]:
         """Return menu items for the context section."""
         items = []
 

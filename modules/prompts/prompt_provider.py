@@ -1,19 +1,20 @@
 """Settings-based prompt provider that reads from configuration files."""
 
-from typing import List, Dict, Any, Optional
-from core.models import PromptData
+from typing import Any
+
 from core.exceptions import ProviderError
+from core.models import PromptData
 from core.services import SettingsService
 
 
 class PromptProvider:
     """Prompt provider that reads from settings configuration files."""
 
-    def __init__(self, settings_path: Optional[str] = None):
+    def __init__(self, settings_path: str | None = None):
         self.settings_service = SettingsService(settings_path)
-        self._prompts_cache: Optional[List[PromptData]] = None
+        self._prompts_cache: list[PromptData] | None = None
 
-    def get_prompts(self) -> List[PromptData]:
+    def get_prompts(self) -> list[PromptData]:
         """Get prompts from settings configuration."""
         try:
             if self._prompts_cache is None:
@@ -22,7 +23,7 @@ class PromptProvider:
         except Exception as e:
             raise ProviderError(f"Failed to get prompts from settings: {str(e)}") from e
 
-    def get_prompt_details(self, prompt_id: str) -> Optional[PromptData]:
+    def get_prompt_details(self, prompt_id: str) -> PromptData | None:
         """Get detailed information about a specific prompt."""
         try:
             prompts = self.get_prompts()
@@ -55,14 +56,14 @@ class PromptProvider:
                 f"Failed to load prompts from settings: {str(e)}"
             ) from e
 
-    def get_model_configs(self) -> Dict[str, List[Dict[str, Any]]]:
+    def get_model_configs(self) -> dict[str, list[dict[str, Any]]]:
         """Get model configurations from settings."""
         try:
             return self.settings_service.get_model_configs()
         except Exception as e:
             raise ProviderError(f"Failed to get model configs: {str(e)}") from e
 
-    def get_prompt_messages(self, prompt_id: str) -> Optional[List[Dict[str, str]]]:
+    def get_prompt_messages(self, prompt_id: str) -> list[dict[str, str]] | None:
         """Get the raw message structure for a prompt."""
         try:
             settings = self.settings_service.get_settings()

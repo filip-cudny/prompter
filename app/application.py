@@ -1,40 +1,37 @@
 """Main PySide6 application class for the Promptheus application."""
 
-import sys
 import signal
-from typing import Optional, List
+import sys
+
+from PySide6.QtCore import QObject, QTimer, Signal
+from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QApplication, QToolTip
-from PySide6.QtCore import Qt, QTimer, Signal, QObject
-from PySide6.QtGui import QPalette, QColor
 
-
-from modules.prompts.prompt_service import PromptStoreService
+from core.context_manager import ContextManager
 from core.exceptions import ConfigurationError
-
-from modules.speech.speech_menu_provider import (
-    SpeechMenuProvider,
-)
+from core.openai_service import OpenAiService
+from modules.context.context_menu_provider import ContextMenuProvider
+from modules.gui.hotkey_manager import PyQtHotkeyManager
+from modules.gui.menu_coordinator import PyQtMenuCoordinator, PyQtMenuEventHandler
+from modules.gui.shared import TOOLTIP_STYLE
+from modules.history.history_execution_handler import HistoryExecutionHandler
+from modules.history.last_interaction_menu_provider import LastInteractionMenuProvider
+from modules.prompts.prompt_execution_handler import PromptExecutionHandler
 from modules.prompts.prompt_menu_provider import PromptMenuProvider
 from modules.prompts.prompt_provider import PromptProvider
+from modules.prompts.prompt_service import PromptStoreService
 from modules.speech.speech_execution_handler import (
     PyQtSpeechExecutionHandler,
 )
-
-from modules.history.last_interaction_menu_provider import LastInteractionMenuProvider
-from modules.context.context_menu_provider import ContextMenuProvider
-from modules.prompts.prompt_execution_handler import PromptExecutionHandler
-from modules.history.history_execution_handler import HistoryExecutionHandler
-from modules.gui.menu_coordinator import PyQtMenuCoordinator, PyQtMenuEventHandler
-from modules.gui.hotkey_manager import PyQtHotkeyManager
+from modules.speech.speech_menu_provider import (
+    SpeechMenuProvider,
+)
 from modules.utils.clipboard import SystemClipboardManager
-from modules.utils.config import load_config, validate_config, ConfigService
-from modules.utils.system import check_macos_permissions, show_macos_permissions_help
-from modules.utils.notifications import PyQtNotificationManager
-from modules.utils.notification_config import is_notification_enabled
-from core.openai_service import OpenAiService
-from core.context_manager import ContextManager
-from modules.gui.shared import TOOLTIP_STYLE
+from modules.utils.config import ConfigService, load_config, validate_config
 from modules.utils.keymap_actions import initialize_global_action_registry
+from modules.utils.notification_config import is_notification_enabled
+from modules.utils.notifications import PyQtNotificationManager
+from modules.utils.system import check_macos_permissions, show_macos_permissions_help
 
 
 class PromtheusApp(QObject):
@@ -43,7 +40,7 @@ class PromtheusApp(QObject):
     # Qt signals
     shutdown_requested = Signal()
 
-    def __init__(self, config_file: Optional[str] = None):
+    def __init__(self, config_file: str | None = None):
         super().__init__()
 
         # Create QApplication (Qt6 handles HiDPI automatically)
@@ -64,20 +61,20 @@ class PromtheusApp(QObject):
         self.running = False
 
         # Core services
-        self.clipboard_manager: Optional[SystemClipboardManager] = None
-        self.context_manager: Optional[ContextManager] = None
-        self.openai_service: Optional[OpenAiService] = None
-        self.prompt_store_service: Optional[PromptStoreService] = None
+        self.clipboard_manager: SystemClipboardManager | None = None
+        self.context_manager: ContextManager | None = None
+        self.openai_service: OpenAiService | None = None
+        self.prompt_store_service: PromptStoreService | None = None
 
         # Providers
-        self.prompt_providers: List = []
-        self.menu_providers: List = []
+        self.prompt_providers: list = []
+        self.menu_providers: list = []
 
         # GUI components
-        self.hotkey_manager: Optional[PyQtHotkeyManager] = None
-        self.menu_coordinator: Optional[PyQtMenuCoordinator] = None
-        self.event_handler: Optional[PyQtMenuEventHandler] = None
-        self.notification_manager: Optional[PyQtNotificationManager] = None
+        self.hotkey_manager: PyQtHotkeyManager | None = None
+        self.menu_coordinator: PyQtMenuCoordinator | None = None
+        self.event_handler: PyQtMenuEventHandler | None = None
+        self.notification_manager: PyQtNotificationManager | None = None
 
         # Speech service
         self.speech_service = None
@@ -93,7 +90,7 @@ class PromtheusApp(QObject):
         self._initialize_components()
         self._setup_signal_handlers()
 
-    def _load_config(self, config_file: Optional[str] = None) -> None:
+    def _load_config(self, config_file: str | None = None) -> None:
         """Load and validate configuration."""
         try:
             config = load_config(config_file)
@@ -192,7 +189,7 @@ class PromtheusApp(QObject):
                 self._setup_common_speech_notifications()
             else:
                 self.speech_service = None
-        except Exception as e:
+        except Exception:
             self.speech_service = None
 
     def _initialize_history_service(self) -> None:
@@ -201,7 +198,7 @@ class PromtheusApp(QObject):
             from modules.history.history_service import HistoryService
 
             self.history_service = HistoryService()
-        except Exception as e:
+        except Exception:
             self.history_service = None
 
     def _setup_common_speech_notifications(self) -> None:
@@ -381,7 +378,7 @@ class PromtheusApp(QObject):
         for provider in self.menu_providers:
             self.menu_coordinator.add_provider(provider)
 
-    def _get_settings_prompt_provider(self) -> Optional[PromptProvider]:
+    def _get_settings_prompt_provider(self) -> PromptProvider | None:
         """Get the SettingsPromptProvider from the initialized providers."""
         for provider in self.prompt_providers:
             if isinstance(provider, PromptProvider):
@@ -575,7 +572,7 @@ class PromtheusApp(QObject):
             ),
         }
 
-    def get_prompt_providers_info(self) -> List[dict]:
+    def get_prompt_providers_info(self) -> list[dict]:
         """Get information about available prompt providers."""
         providers_info = []
         for i, provider in enumerate(self.prompt_providers):
@@ -656,7 +653,7 @@ class PromtheusApp(QObject):
             print(f"Failed to set primary prompt provider: {e}")
             return False
 
-    def reload_config(self, config_file: Optional[str] = None) -> None:
+    def reload_config(self, config_file: str | None = None) -> None:
         """Reload configuration and reinitialize components."""
         print("Reloading configuration...")
 
