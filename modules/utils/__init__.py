@@ -9,6 +9,8 @@ from .system import (
     is_macos,
     is_linux,
     is_windows,
+    on_dialog_open,
+    on_dialog_close,
 )
 from .config import AppConfig, load_config
 from .ui_state import UIStateManager
@@ -23,6 +25,8 @@ __all__ = [
     "is_macos",
     "is_linux",
     "is_windows",
+    "on_dialog_open",
+    "on_dialog_close",
     "AppConfig",
     "load_config",
     "SpeechToTextService",

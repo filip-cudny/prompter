@@ -21,6 +21,7 @@ from modules.gui.shared.dialog_styles import (
     get_dialog_stylesheet,
 )
 from modules.utils.ui_state import UIStateManager
+from modules.utils.system import on_dialog_open, on_dialog_close
 
 
 class BaseDialog(QDialog):
@@ -196,9 +197,15 @@ class BaseDialog(QDialog):
             container.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         return collapsed
 
+    def showEvent(self, event):
+        """Handle show event - activates dock icon on macOS."""
+        on_dialog_open()
+        super().showEvent(event)
+
     def closeEvent(self, event):
-        """Save geometry on close."""
+        """Save geometry on close and hide dock icon if last dialog."""
         self.save_geometry_to_state()
+        on_dialog_close()
         super().closeEvent(event)
 
     def event(self, event):

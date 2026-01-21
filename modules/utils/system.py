@@ -5,6 +5,8 @@ import subprocess
 import sys
 from typing import Tuple
 
+_open_dialog_count = 0
+
 
 def get_platform() -> str:
     """Get the current platform name."""
@@ -101,3 +103,42 @@ def get_process_info() -> dict:
             "cwd": os.getcwd(),
             "username": "unknown",
         }
+
+
+def on_dialog_open():
+    """Call when a dialog opens. Shows dock icon on macOS if this is the first dialog."""
+    global _open_dialog_count
+    _open_dialog_count += 1
+    if _open_dialog_count == 1 and is_macos():
+        _set_macos_activation_policy_regular()
+
+
+def on_dialog_close():
+    """Call when a dialog closes. Hides dock icon on macOS if this was the last dialog."""
+    global _open_dialog_count
+    _open_dialog_count = max(0, _open_dialog_count - 1)
+    if _open_dialog_count == 0 and is_macos():
+        _set_macos_activation_policy_accessory()
+
+
+def _set_macos_activation_policy_regular():
+    """Set macOS activation policy to Regular (shows in dock, normal window behavior)."""
+    try:
+        from AppKit import NSApp, NSApplicationActivationPolicyRegular
+        NSApp.setActivationPolicy_(NSApplicationActivationPolicyRegular)
+        NSApp.activateIgnoringOtherApps_(True)
+    except ImportError:
+        pass
+    except Exception as e:
+        print(f"Warning: Could not set activation policy to regular: {e}")
+
+
+def _set_macos_activation_policy_accessory():
+    """Set macOS activation policy to Accessory (hidden from dock)."""
+    try:
+        from AppKit import NSApp, NSApplicationActivationPolicyAccessory
+        NSApp.setActivationPolicy_(NSApplicationActivationPolicyAccessory)
+    except ImportError:
+        pass
+    except Exception as e:
+        print(f"Warning: Could not set activation policy to accessory: {e}")

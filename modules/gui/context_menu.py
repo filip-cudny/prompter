@@ -364,6 +364,9 @@ class PyQtContextMenu(QObject):
             # Use invisible focus window for robust keyboard navigation
             self.focus_window.grab_focus_and_show_menu(self.menu, adjusted_pos)
 
+            # Install global event filter to detect clicks outside menu
+            QApplication.instance().installEventFilter(self)
+
         except Exception as e:
             print(f"Menu show error: {e}")
 
@@ -1232,6 +1235,15 @@ class PyQtContextMenu(QObject):
         if not self.event_filter_installed:
             return False
 
+        # Handle app-level mouse clicks for click-outside detection
+        if event.type() == QEvent.MouseButtonPress and self.menu and self.menu.isVisible():
+            if not isinstance(obj, QMenu):
+                click_pos = event.globalPosition().toPoint()
+                menu_rect = self.menu.geometry()
+                if not menu_rect.contains(click_pos):
+                    self.menu.hide()
+                    return False
+
         if isinstance(obj, QMenu):
             if event.type() == QEvent.KeyPress:
                 if event.key() == Qt.Key_Shift:
@@ -1358,6 +1370,9 @@ class PyQtContextMenu(QObject):
 
     def _on_menu_about_to_hide(self):
         """Handle menu about to hide - cleanup number timer and restore focus."""
+        # Remove global event filter
+        QApplication.instance().removeEventFilter(self)
+
         # Disconnect from execution signal
         self._disconnect_execution_signal()
         self._last_menu_position = None
