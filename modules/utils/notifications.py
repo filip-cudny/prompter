@@ -100,8 +100,10 @@ class EnhancedNotificationWidget(QWidget):
 
         # macOS-specific attributes
         if MACOS_PLATFORM:
-            self.setAttribute(Qt.WA_MacNoClickThrough, True)
-            self.setAttribute(Qt.WA_MacAlwaysShowToolWindow, True)
+            if hasattr(Qt, "WA_MacNoClickThrough"):
+                self.setAttribute(Qt.WA_MacNoClickThrough, True)
+            if hasattr(Qt, "WA_MacAlwaysShowToolWindow"):
+                self.setAttribute(Qt.WA_MacAlwaysShowToolWindow, True)
             if hasattr(Qt, "WA_MacNonActivatingToolWindow"):
                 self.setAttribute(Qt.WA_MacNonActivatingToolWindow, True)
 
@@ -225,13 +227,8 @@ class EnhancedNotificationWidget(QWidget):
 
     def _configure_macos_window_level(self):
         """Configure macOS window level for proper overlay behavior."""
-        try:
-            # Ensure proper window level without external dependencies
-            if hasattr(self, "winId"):
-                # Keep current Qt-based approach for stability
-                pass
-        except Exception as e:
-            print(f"Warning: Could not configure macOS window level: {e}")
+        from modules.gui.context_menu import _set_macos_window_move_to_active_space
+        _set_macos_window_move_to_active_space(self)
 
     def fade_in(self):
         self.fade_animation.setDuration(300)
