@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Entry point for the Prompter application."""
+"""Entry point for the Promptheus application."""
 
 import sys
 import logging
-from app.application import PrompterApp
+from app.application import PromtheusApp
 from modules.utils.system import is_macos
 
 
@@ -16,7 +16,7 @@ def setup_logging(debug: bool = False) -> None:
 
     if debug:
         # Add file handler in debug mode
-        file_handler = logging.FileHandler("prompter-debug.log")
+        file_handler = logging.FileHandler("promptheus-debug.log")
         file_handler.setFormatter(logging.Formatter(log_format))
         handlers.append(file_handler)
 
@@ -37,7 +37,7 @@ def main():
         info = NSBundle.mainBundle().infoDictionary()
         info["LSUIElement"] = "1"
 
-    parser = argparse.ArgumentParser(description="Prompter PyQt5 Application")
+    parser = argparse.ArgumentParser(description="Promptheus Application")
     parser.add_argument("--config", "-c", help="Configuration file path")
     parser.add_argument(
         "--debug", "-d", action="store_true", help="Enable debug mode with detailed logging"
@@ -47,10 +47,10 @@ def main():
     setup_logging(debug=args.debug)
 
     if args.debug:
-        logging.info("Debug mode enabled - logging to prompter-debug.log")
+        logging.info("Debug mode enabled - logging to promptheus-debug.log")
 
     try:
-        app = PrompterApp(args.config)
+        app = PromtheusApp(args.config)
         return app.run()
     except KeyboardInterrupt:
         print("\nService stopped by user")

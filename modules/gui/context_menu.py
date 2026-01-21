@@ -1,13 +1,13 @@
-"""PyQt5-based context menu system for the Prompter application."""
+"""PySide6-based context menu system for the Promptheus application."""
 
 from typing import List, Optional, Tuple, Callable
-from PyQt5.QtWidgets import QMenu, QAction, QApplication, QWidgetAction, QLabel, QWidget
-from PyQt5.QtCore import Qt, QPoint, QTimer, QObject, QEvent
-from PyQt5.QtGui import QCursor
+from PySide6.QtWidgets import QMenu, QApplication, QWidgetAction, QLabel, QWidget
+from PySide6.QtCore import Qt, QPoint, QTimer, QObject, QEvent
+from PySide6.QtGui import QCursor, QAction
+from shiboken6 import isValid
 from core.models import MenuItem, MenuItemType
 from modules.gui.shared import TOOLTIP_STYLE
 from modules.gui.icons import DISABLED_OPACITY
-import sip
 import platform
 import subprocess
 import os
@@ -15,7 +15,7 @@ import os
 
 def _set_macos_window_move_to_active_space(widget):
     """
-    Set NSWindowCollectionBehaviorMoveToActiveSpace on a PyQt5 widget's native window.
+    Set NSWindowCollectionBehaviorMoveToActiveSpace on a PySide6 widget's native window.
     This ensures the window appears on the current Space instead of causing a Space switch.
 
     Must be called AFTER the widget has been shown (winId is only valid then).
@@ -263,7 +263,7 @@ class PyQtContextMenu(QObject):
         for widget in self._cleanable_widgets:
             try:
                 if hasattr(widget, 'cleanup') and callable(widget.cleanup):
-                    if not sip.isdeleted(widget):
+                    if isValid(widget):
                         widget.cleanup()
             except Exception:
                 pass
@@ -558,7 +558,7 @@ class PyQtContextMenu(QObject):
         # Disconnect signals first to prevent cleanup from affecting new menu
         if old_menu:
             try:
-                if not sip.isdeleted(old_menu):
+                if isValid(old_menu):
                     old_menu.aboutToHide.disconnect()
                     old_menu.hide()
                     QTimer.singleShot(50, lambda: self._cleanup_old_menu(old_menu))
@@ -568,7 +568,7 @@ class PyQtContextMenu(QObject):
     def _cleanup_old_menu(self, menu):
         """Clean up old menu after transition."""
         try:
-            if menu and not sip.isdeleted(menu):
+            if menu and isValid(menu):
                 menu.close()
                 menu.deleteLater()
         except Exception:
@@ -584,7 +584,7 @@ class PyQtContextMenu(QObject):
         for widget in self._cleanable_widgets:
             try:
                 if hasattr(widget, 'cleanup') and callable(widget.cleanup):
-                    if not sip.isdeleted(widget):
+                    if isValid(widget):
                         widget.cleanup()
             except Exception:
                 pass
@@ -597,7 +597,7 @@ class PyQtContextMenu(QObject):
 
         if self.menu:
             try:
-                if not sip.isdeleted(self.menu):
+                if isValid(self.menu):
                     self.menu.close()
                     self.menu.deleteLater()
             except Exception:
@@ -728,7 +728,7 @@ class PyQtContextMenu(QObject):
         self, menu: QMenu, item: MenuItem
     ) -> Optional[QAction]:
         """Create a custom menu item with hover effects."""
-        from PyQt5.QtWidgets import QHBoxLayout, QGraphicsOpacityEffect
+        from PySide6.QtWidgets import QHBoxLayout, QGraphicsOpacityEffect
         from modules.gui.icons import create_icon_pixmap, ICON_COLOR_NORMAL, ICON_COLOR_DISABLED
         from modules.gui.shared.context_widgets import IconButton
 
@@ -1435,7 +1435,7 @@ class PyQtContextMenu(QObject):
         widgets_to_clear = list(self.hovered_widgets)
         for widget in widgets_to_clear:
             try:
-                if not sip.isdeleted(widget) and hasattr(widget, "_normal_style"):
+                if isValid(widget) and hasattr(widget, "_normal_style"):
                     widget.setStyleSheet(widget._normal_style)
                 if widget in self.hovered_widgets:
                     self.hovered_widgets.remove(widget)
@@ -1448,7 +1448,7 @@ class PyQtContextMenu(QObject):
         widgets_to_remove = []
         for widget in self.hovered_widgets:
             try:
-                if sip.isdeleted(widget):
+                if not isValid(widget):
                     widgets_to_remove.append(widget)
             except RuntimeError:
                 widgets_to_remove.append(widget)
@@ -1555,7 +1555,7 @@ class PyQtContextMenu(QObject):
         """Restore focus to the original application that was active before menu was shown."""
         try:
             # First try Qt-native focus restoration (fast)
-            if self.qt_active_window and not sip.isdeleted(self.qt_active_window):
+            if self.qt_active_window and isValid(self.qt_active_window):
                 self.qt_active_window.activateWindow()
                 self.qt_active_window.raise_()
                 return
@@ -1568,7 +1568,7 @@ class PyQtContextMenu(QObject):
                 app_name = self.original_active_window.get("name")
                 if app_name and app_name not in (
                     "Python",
-                    "Prompter",
+                    "Promptheus",
                 ):  # Don't try to activate our own app
                     try:
                         # First try by application name

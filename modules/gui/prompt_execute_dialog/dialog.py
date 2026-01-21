@@ -2,7 +2,7 @@
 
 from typing import Optional, Callable, List, Dict
 
-from PyQt5.QtWidgets import (
+from PySide6.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
     QPushButton,
@@ -11,7 +11,7 @@ from PyQt5.QtWidgets import (
     QScrollArea,
     QFrame,
 )
-from PyQt5.QtCore import Qt, QTimer, QEvent, QSize
+from PySide6.QtCore import Qt, QTimer, QEvent, QSize
 
 from core.models import MenuItem
 from core.context_manager import ContextManager, ContextItem, ContextItemType

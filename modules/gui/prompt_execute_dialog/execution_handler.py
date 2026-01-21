@@ -3,7 +3,8 @@
 import time
 from typing import Optional, TYPE_CHECKING
 
-from PyQt5.QtCore import QTimer
+from PySide6.QtCore import QTimer
+from PySide6.QtGui import QTextCursor
 
 from core.models import MenuItem, ExecutionResult
 from modules.gui.icons import create_icon
@@ -252,7 +253,7 @@ class ExecutionHandler:
         output_edit.blockSignals(True)
         output_edit.setPlainText(self._streaming_accumulated)
         cursor = output_edit.textCursor()
-        cursor.movePosition(cursor.End)
+        cursor.movePosition(QTextCursor.MoveOperation.End)
         output_edit.setTextCursor(cursor)
         output_edit.blockSignals(False)
 

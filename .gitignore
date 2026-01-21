@@ -1,10 +1,11 @@
 .venv
 .env
 __pycache__/
+*.egg-info/
 
-prompter.log
-prompter-error.log
-prompter-debug.log
+promptheus.log
+promptheus-error.log
+promptheus-debug.log
 
 settings/
-.prompter.pid
+.promptheus.pid

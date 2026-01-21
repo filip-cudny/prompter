@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 class PromptStoreService(PromptStoreServiceProtocol):
-    """Main business logic coordinator for the Prompter."""
+    """Main business logic coordinator for Promptheus."""
 
     def __init__(
         self,

@@ -2,8 +2,8 @@
 
 from typing import Dict, List, Optional
 
-from PyQt5.QtWidgets import QWidget, QHBoxLayout, QLabel, QPushButton
-from PyQt5.QtCore import Qt, pyqtSignal, QSize
+from PySide6.QtWidgets import QWidget, QHBoxLayout, QLabel, QPushButton
+from PySide6.QtCore import Qt, Signal, QSize
 
 from modules.gui.icons import create_icon
 
@@ -11,8 +11,8 @@ from modules.gui.icons import create_icon
 class ConversationTabBar(QWidget):
     """Custom tab bar for conversation tabs."""
 
-    tab_selected = pyqtSignal(str)  # Emits tab_id
-    tab_close_requested = pyqtSignal(str)  # Emits tab_id
+    tab_selected = Signal(str)  # Emits tab_id
+    tab_close_requested = Signal(str)  # Emits tab_id
 
     def __init__(self, parent=None):
         super().__init__(parent)

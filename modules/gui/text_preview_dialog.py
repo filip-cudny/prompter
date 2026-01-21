@@ -2,8 +2,8 @@
 
 from typing import Optional
 
-from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QApplication, QScrollArea, QFrame, QWidget
-from PyQt5.QtCore import Qt
+from PySide6.QtWidgets import QVBoxLayout, QHBoxLayout, QApplication, QScrollArea, QFrame, QWidget
+from PySide6.QtCore import Qt
 
 from modules.gui.shared.base_dialog import BaseDialog
 from modules.gui.shared.context_widgets import IconButton

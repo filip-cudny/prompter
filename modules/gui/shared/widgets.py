@@ -4,7 +4,7 @@ import base64
 import logging
 from typing import Callable, Generic, List, Optional, TypeVar
 
-from PyQt5.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget,
     QHBoxLayout,
     QVBoxLayout,
@@ -12,8 +12,8 @@ from PyQt5.QtWidgets import (
     QApplication,
     QTextEdit,
 )
-from PyQt5.QtCore import Qt, pyqtSignal, QByteArray, QBuffer, QTimer
-from PyQt5.QtGui import QFont, QImage
+from PySide6.QtCore import Qt, Signal, QByteArray, QBuffer, QTimer
+from PySide6.QtGui import QFont, QImage
 
 from modules.gui.shared.context_widgets import IconButton
 from modules.gui.shared.dialog_styles import TOOLTIP_STYLE
@@ -44,14 +44,14 @@ TEXT_EDIT_MIN_HEIGHT = 300
 class CollapsibleSectionHeader(QWidget):
     """Header widget for collapsible sections with title, collapse toggle, and optional buttons."""
 
-    toggle_requested = pyqtSignal()
-    save_requested = pyqtSignal()
-    undo_requested = pyqtSignal()
-    redo_requested = pyqtSignal()
-    delete_requested = pyqtSignal()
-    wrap_requested = pyqtSignal()
-    version_prev_requested = pyqtSignal()
-    version_next_requested = pyqtSignal()
+    toggle_requested = Signal()
+    save_requested = Signal()
+    undo_requested = Signal()
+    redo_requested = Signal()
+    delete_requested = Signal()
+    wrap_requested = Signal()
+    version_prev_requested = Signal()
+    version_next_requested = Signal()
 
     def __init__(
         self,
@@ -266,8 +266,8 @@ class CollapsibleSectionHeader(QWidget):
 class ImageChipWidget(QWidget):
     """Chip widget for displaying an image in the editor."""
 
-    delete_requested = pyqtSignal(int)
-    copy_requested = pyqtSignal(int)
+    delete_requested = Signal(int)
+    copy_requested = Signal(int)
 
     # Styles matching ContextChipBase in context_widgets.py
     _chip_style = """
@@ -475,10 +475,10 @@ class ExpandableTextSection(QWidget):
         save_requested(): Emitted when save button is clicked
     """
 
-    collapsed_changed = pyqtSignal(bool)
-    wrapped_changed = pyqtSignal(bool)
-    text_changed = pyqtSignal()
-    save_requested = pyqtSignal()
+    collapsed_changed = Signal(bool)
+    wrapped_changed = Signal(bool)
+    text_changed = Signal()
+    save_requested = Signal()
 
     # Default height when wrapped
     DEFAULT_WRAPPED_HEIGHT = 300
@@ -808,7 +808,7 @@ class ImageChipContainer(QWidget):
             return  # Image was pasted
     """
 
-    images_changed = pyqtSignal()
+    images_changed = Signal()
 
     def __init__(
         self,

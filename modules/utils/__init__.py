@@ -1,4 +1,4 @@
-"""Utilities module for Prompter application."""
+"""Utilities module for Promptheus application."""
 
 from .clipboard import ClipboardManager, SystemClipboardManager
 from .speech_to_text import SpeechToTextService, AudioRecorder

@@ -1,9 +1,9 @@
-"""PyQt5-based hotkey manager for global hotkey detection."""
+"""PySide6-based hotkey manager for global hotkey detection."""
 
 import threading
 from typing import Set, Optional, Callable, Dict, List
 from pathlib import Path
-from PyQt5.QtCore import QObject, pyqtSignal
+from PySide6.QtCore import QObject, Signal
 from pynput import keyboard
 from pynput.keyboard import Key
 from core.exceptions import HotkeyError
@@ -14,12 +14,12 @@ from modules.utils.config import ConfigService
 class HotkeySignals(QObject):
     """Qt signals for thread-safe communication between pynput and Qt."""
 
-    action_triggered = pyqtSignal(str)  # Generic signal that emits action name
+    action_triggered = Signal(str)  # Generic signal that emits action name
 
     # Legacy signals for backwards compatibility
-    re_execute_hotkey_pressed = pyqtSignal()
-    context_menu_hotkey_pressed = pyqtSignal()
-    speech_toggle_hotkey_pressed = pyqtSignal()
+    re_execute_hotkey_pressed = Signal()
+    context_menu_hotkey_pressed = Signal()
+    speech_toggle_hotkey_pressed = Signal()
 
 
 class HotkeyConfig:

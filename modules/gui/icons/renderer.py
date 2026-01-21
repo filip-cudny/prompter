@@ -2,10 +2,10 @@
 
 from functools import lru_cache
 
-from PyQt5.QtCore import QByteArray, QRect, QSize, Qt
-from PyQt5.QtGui import QColor, QFont, QFontMetrics, QIcon, QPainter, QPixmap
-from PyQt5.QtSvg import QSvgRenderer
-from PyQt5.QtWidgets import QApplication
+from PySide6.QtCore import QByteArray, QRect, QSize, Qt
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QIcon, QPainter, QPixmap
+from PySide6.QtSvg import QSvgRenderer
+from PySide6.QtWidgets import QApplication
 
 from .constants import ICON_COLOR_NORMAL
 from .loader import get_svg_content

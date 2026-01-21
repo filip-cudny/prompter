@@ -12,9 +12,9 @@ if TYPE_CHECKING:
     from modules.prompts.async_execution import PromptExecutionWorker
 
 try:
-    from PyQt5.QtCore import QThread, pyqtSignal, Qt, QTimer
+    from PySide6.QtCore import QThread, Signal, Qt, QTimer
 except ImportError:
-    # Fallback for environments where PyQt5 is not available
+    # Fallback for environments where PySide6 is not available
     class QThread:
         def __init__(self, parent=None):
             pass
@@ -39,7 +39,7 @@ except ImportError:
         def singleShot(interval, callback):
             pass
 
-    def pyqtSignal(*args):
+    def Signal(*args):
         return None
 
     class Qt:
@@ -85,7 +85,7 @@ class PromptExecutionWorker(QThread):
     """
 
     # Signal for streaming chunks: (chunk, accumulated, is_final, execution_id)
-    chunk_received = pyqtSignal(str, str, bool, str)
+    chunk_received = Signal(str, str, bool, str)
 
     # Callbacks for cross-thread communication
     def set_callbacks(self, started_callback, finished_callback, error_callback):

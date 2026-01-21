@@ -2,8 +2,8 @@
 
 from typing import List, Optional, Tuple
 
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QListWidget, QListWidgetItem
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QListWidget, QListWidgetItem
 
 from modules.gui.shared.dialog_styles import (
     COLOR_DIALOG_BG,
@@ -19,7 +19,7 @@ SIDEBAR_WIDTH = 180
 class SettingsSidebar(QWidget):
     """Sidebar widget for settings category navigation."""
 
-    category_selected = pyqtSignal(int)
+    category_selected = Signal(int)
 
     def __init__(
         self,

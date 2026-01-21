@@ -1,1 +1,1 @@
-"""Core module for Prompter application."""
+"""Core module for Promptheus application."""

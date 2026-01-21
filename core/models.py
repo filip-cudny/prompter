@@ -1,4 +1,4 @@
-"""Data models and types for the Prompter application."""
+"""Data models and types for the Promptheus application."""
 
 from __future__ import annotations
 from dataclasses import dataclass, field

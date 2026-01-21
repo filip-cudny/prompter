@@ -1,4 +1,4 @@
-"""Menu item providers for the Prompter application."""
+"""Menu item providers for the Promptheus application."""
 
 from typing import List, Callable
 from core.models import MenuItem, MenuItemType

@@ -2,7 +2,7 @@
 
 from typing import List, Optional, Callable
 
-from PyQt5.QtWidgets import QWidget, QHBoxLayout
+from PySide6.QtWidgets import QWidget, QHBoxLayout
 
 from core.context_manager import ContextItem, ContextItemType
 from modules.gui.shared.widgets import ImageChipWidget

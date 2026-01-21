@@ -4,7 +4,7 @@ import base64
 import logging
 from typing import Optional, Callable
 
-from PyQt5.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget,
     QHBoxLayout,
     QVBoxLayout,
@@ -15,8 +15,8 @@ from PyQt5.QtWidgets import (
     QGraphicsOpacityEffect,
     QScrollArea,
 )
-from PyQt5.QtCore import Qt, pyqtSignal, QByteArray, QBuffer, QSize, QPoint
-from PyQt5.QtGui import QImage
+from PySide6.QtCore import Qt, Signal, QByteArray, QBuffer, QSize, QPoint
+from PySide6.QtGui import QImage
 
 from core.context_manager import ContextManager, ContextItemType
 from modules.gui.shared.dialog_styles import TOOLTIP_STYLE
@@ -89,8 +89,8 @@ logger = logging.getLogger(__name__)
 class ContextChipBase(QWidget):
     """Base class for context chips with copy and delete buttons."""
 
-    delete_requested = pyqtSignal(int)  # Emits item index
-    copy_requested = pyqtSignal(int)  # Emits item index
+    delete_requested = Signal(int)  # Emits item index
+    copy_requested = Signal(int)  # Emits item index
 
     _chip_style = """
         QWidget#chip {
@@ -320,11 +320,11 @@ class ImageContextChip(ContextChipBase):
 class ContextHeaderWidget(QWidget):
     """Header widget with 'Context' label, edit, copy and clear buttons."""
 
-    clear_requested = pyqtSignal()
-    copy_requested = pyqtSignal()
-    edit_requested = pyqtSignal()
-    set_context_requested = pyqtSignal()
-    append_context_requested = pyqtSignal()
+    clear_requested = Signal()
+    copy_requested = Signal()
+    edit_requested = Signal()
+    set_context_requested = Signal()
+    append_context_requested = Signal()
 
     _header_style = """
         QWidget {
@@ -505,7 +505,7 @@ class FlowLayout(QVBoxLayout):
 class ContextSectionWidget(QWidget):
     """Container widget for the context section in the menu."""
 
-    context_changed = pyqtSignal()
+    context_changed = Signal()
 
     _container_style = """
         QWidget#contextSection {
@@ -760,7 +760,7 @@ class ContextSectionWidget(QWidget):
         subprocess calls (xclip/xsel) are made while Qt owns the clipboard.
         """
         try:
-            from PyQt5.QtWidgets import QApplication
+            from PySide6.QtWidgets import QApplication
 
             clipboard = QApplication.clipboard()
             mime_data = clipboard.mimeData()
@@ -808,8 +808,8 @@ class ContextSectionWidget(QWidget):
 class LastInteractionChip(QWidget):
     """Chip widget for last interaction items (input/output/transcription)."""
 
-    copy_requested = pyqtSignal()
-    details_requested = pyqtSignal()
+    copy_requested = Signal()
+    details_requested = Signal()
 
     _chip_style = """
         QWidget#lastInteractionChip {
@@ -990,7 +990,7 @@ class LastInteractionChip(QWidget):
 class LastInteractionHeaderWidget(QWidget):
     """Header widget with 'Last interaction' label and history button."""
 
-    history_requested = pyqtSignal()
+    history_requested = Signal()
 
     _header_style = """
         QWidget {
@@ -1052,7 +1052,7 @@ class LastInteractionSectionWidget(QWidget):
     """Container widget for the last interaction section in the menu."""
 
     # Signal for thread-safe history change notifications
-    history_changed = pyqtSignal()
+    history_changed = Signal()
 
     _container_style = """
         QWidget#lastInteractionSection {
@@ -1232,8 +1232,8 @@ class LastInteractionSectionWidget(QWidget):
 class SettingsSelectorChip(QWidget):
     """Chip widget for selecting model or prompt with dropdown menu."""
 
-    selection_changed = pyqtSignal(str)  # Emits selected item key
-    clear_requested = pyqtSignal()  # Emits when clear button clicked
+    selection_changed = Signal(str)  # Emits selected item key
+    clear_requested = Signal()  # Emits when clear button clicked
 
     _chip_style = """
         QWidget#settingsChip {
@@ -1373,7 +1373,7 @@ class SettingsSelectorChip(QWidget):
 
     def _show_menu(self):
         """Show dropdown menu with options."""
-        from PyQt5.QtWidgets import QMenu
+        from PySide6.QtWidgets import QMenu
 
         menu = QMenu(self)
         menu.setStyleSheet("""
@@ -1452,8 +1452,8 @@ class SettingsSelectorChip(QWidget):
 class SettingsHeaderWidget(QWidget):
     """Header widget with 'Settings' label and settings/close buttons."""
 
-    settings_requested = pyqtSignal()
-    close_app_requested = pyqtSignal()
+    settings_requested = Signal()
+    close_app_requested = Signal()
 
     _header_style = """
         QWidget {
@@ -1523,9 +1523,9 @@ class SettingsHeaderWidget(QWidget):
 class SettingsSectionWidget(QWidget):
     """Section widget containing settings chips for model and prompt selection."""
 
-    model_changed = pyqtSignal(str)  # Emits new model key
-    prompt_changed = pyqtSignal(str)  # Emits new prompt id
-    prompt_cleared = pyqtSignal()  # Emits when prompt is cleared
+    model_changed = Signal(str)  # Emits new model key
+    prompt_changed = Signal(str)  # Emits new prompt id
+    prompt_cleared = Signal()  # Emits when prompt is cleared
 
     _section_style = """
         QWidget {
