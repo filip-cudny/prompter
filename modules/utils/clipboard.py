@@ -256,7 +256,7 @@ class SystemClipboardManager(ClipboardManager):
         ]
 
         # Try xclip as fallback
-        for mime_type, ext in image_formats:
+        for mime_type, _ext in image_formats:
             logger.debug(f"Trying to get image data for MIME type: {mime_type}")
             try:
                 result = subprocess.run(
@@ -279,7 +279,7 @@ class SystemClipboardManager(ClipboardManager):
                 break  # Try xsel for all formats if xclip not found
 
         # Fallback to xsel if xclip is not available
-        for mime_type, ext in image_formats:
+        for mime_type, _ext in image_formats:
             logger.debug(f"Trying to get image data for MIME type: {mime_type} using xsel")
             try:
                 result = subprocess.run(

@@ -1,5 +1,6 @@
 """PySide6-based context menu system for the Promptheus application."""
 
+import contextlib
 import os
 import platform
 import subprocess
@@ -150,15 +151,13 @@ class InvisibleFocusWindow(QWidget):
 
     def _activate_linux(self):
         """Activate application on Linux."""
-        try:
+        with contextlib.suppress(Exception):
             subprocess.run(
                 ["wmctrl", "-a", str(os.getpid())],
                 capture_output=True,
                 timeout=1,
                 check=False,
             )
-        except Exception:
-            pass
 
     def _show_menu_at_position(self, position: QPoint):
         """Show the menu at the specified position."""
@@ -264,9 +263,8 @@ class PyQtContextMenu(QObject):
         # Clean up any existing tracked widgets before creating new menu
         for widget in self._cleanable_widgets:
             try:
-                if hasattr(widget, "cleanup") and callable(widget.cleanup):
-                    if isValid(widget):
-                        widget.cleanup()
+                if hasattr(widget, "cleanup") and callable(widget.cleanup) and isValid(widget):
+                    widget.cleanup()
             except Exception:
                 pass
         self._cleanable_widgets.clear()
@@ -504,10 +502,8 @@ class PyQtContextMenu(QObject):
         if not self._execution_signal_connected:
             return
         if hasattr(self, "menu_coordinator") and self.menu_coordinator:
-            try:
+            with contextlib.suppress(Exception):
                 self.menu_coordinator.execution_completed.disconnect(self._on_execution_completed_while_open)
-            except Exception:
-                pass
         self._execution_signal_connected = False
 
     def _on_execution_completed_while_open(self, result):
@@ -566,9 +562,8 @@ class PyQtContextMenu(QObject):
         # Clean up tracked widgets FIRST
         for widget in self._cleanable_widgets:
             try:
-                if hasattr(widget, "cleanup") and callable(widget.cleanup):
-                    if isValid(widget):
-                        widget.cleanup()
+                if hasattr(widget, "cleanup") and callable(widget.cleanup) and isValid(widget):
+                    widget.cleanup()
             except Exception:
                 pass
         self._cleanable_widgets.clear()
@@ -895,14 +890,13 @@ class PyQtContextMenu(QObject):
                     self._text_label.setStyleSheet(self._label_disabled_style)
 
                     # Update mic button state based on reason - disabled with opacity
-                    if self._mic_btn:
-                        if disable_reason in ("recording", "executing"):
-                            self._mic_btn.setEnabled(False)
-                            self._mic_btn.setCursor(Qt.ArrowCursor)
-                            # Apply opacity to disabled mic button
-                            mic_effect = QGraphicsOpacityEffect(self._mic_btn)
-                            mic_effect.setOpacity(DISABLED_OPACITY)
-                            self._mic_btn.setGraphicsEffect(mic_effect)
+                    if self._mic_btn and disable_reason in ("recording", "executing"):
+                        self._mic_btn.setEnabled(False)
+                        self._mic_btn.setCursor(Qt.ArrowCursor)
+                        # Apply opacity to disabled mic button
+                        mic_effect = QGraphicsOpacityEffect(self._mic_btn)
+                        mic_effect.setOpacity(DISABLED_OPACITY)
+                        self._mic_btn.setGraphicsEffect(mic_effect)
 
                     # Message buttons stay enabled - no opacity effect (same as normal state)
                     if self._message_btn:
@@ -1253,9 +1247,8 @@ class PyQtContextMenu(QObject):
                             ")": "0",
                         }
                         digit = shift_char_to_number.get(text)
-                        if digit:
-                            if self._handle_number_input(obj, digit, True):
-                                return True
+                        if digit and self._handle_number_input(obj, digit, True):
+                            return True
             elif event.type() == QEvent.KeyRelease:
                 if event.key() == Qt.Key_Shift:
                     self.shift_pressed = False

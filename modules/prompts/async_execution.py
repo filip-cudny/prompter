@@ -54,6 +54,8 @@ except ImportError:
     # Fallback type hint
     ChatCompletionMessageParam = dict
 
+import contextlib
+
 from core.context_manager import ContextManager
 from core.exceptions import ClipboardUnavailableError
 from core.interfaces import ClipboardManager
@@ -155,10 +157,7 @@ class PromptExecutionWorker(QThread):
                 use_streaming = conv_data.get("use_streaming", False)
 
             # Execute the prompt (streaming or sync)
-            if use_streaming:
-                result = self._execute_prompt_streaming()
-            else:
-                result = self._execute_prompt_sync()
+            result = self._execute_prompt_streaming() if use_streaming else self._execute_prompt_sync()
 
             # Attach execution_id to result
             result.execution_id = self.execution_id
@@ -674,10 +673,8 @@ class AsyncPromptExecutionManager:
             if worker and hasattr(worker, "item") and worker.item and worker.item.data:
                 model_name = worker.item.data.get("model") or self.config.default_model
                 if model_name:
-                    try:
+                    with contextlib.suppress(Exception):
                         model_config = self.openai_service.get_model_config(model_name)
-                    except Exception:
-                        pass
 
             # Show success notification
             if is_notification_enabled("prompt_execution_success"):
@@ -744,10 +741,8 @@ class AsyncPromptExecutionManager:
             self.worker = None
 
         if worker:
-            try:
+            with contextlib.suppress(Exception):
                 worker.set_callbacks(None, None, None)
-            except Exception:
-                pass
 
             if worker.isRunning():
                 worker.quit()
@@ -839,10 +834,8 @@ class AsyncPromptExecutionManager:
         """Clean up worker thread resources (non-blocking)."""
         if not worker:
             return
-        try:
+        with contextlib.suppress(Exception):
             worker.set_callbacks(None, None, None)
-        except Exception:
-            pass
         if worker.isRunning():
             worker.quit()
             QTimer.singleShot(500, lambda w=worker: self._force_terminate_worker(w))

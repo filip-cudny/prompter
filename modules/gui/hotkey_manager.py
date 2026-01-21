@@ -543,10 +543,7 @@ class PyQtHotkeyManager:
                 return False
 
         key = parts[-1]
-        if key not in valid_keys:
-            return False
-
-        return True
+        return key in valid_keys
 
     def get_keymap_manager(self) -> KeymapManager:
         """Get the keymap manager."""

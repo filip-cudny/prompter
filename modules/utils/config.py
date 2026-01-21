@@ -1,5 +1,6 @@
 """Configuration management utilities."""
 
+import contextlib
 import json
 import os
 from dataclasses import asdict, dataclass
@@ -495,10 +496,8 @@ class ConfigService:
 
                 # Load number input debounce delay from settings if available
                 if "number_input_debounce_ms" in self._settings_data:
-                    try:
+                    with contextlib.suppress(ValueError, TypeError):
                         config.number_input_debounce_ms = int(self._settings_data["number_input_debounce_ms"])
-                    except (ValueError, TypeError):
-                        pass
 
                 # Load API keys from environment variables
                 _load_api_keys(config.models)
@@ -585,9 +584,8 @@ def validate_config(config: AppConfig) -> None:
         if api_key_source == "env":
             if "api_key_env" not in model_config or not model_config["api_key_env"]:
                 raise ConfigurationError(f"Model '{model_display}' requires 'api_key_env' when api_key_source is 'env'")
-        elif api_key_source == "direct":
-            if "api_key" not in model_config or not model_config["api_key"]:
-                raise ConfigurationError(f"Model '{model_display}' requires 'api_key' when api_key_source is 'direct'")
+        elif api_key_source == "direct" and ("api_key" not in model_config or not model_config["api_key"]):
+            raise ConfigurationError(f"Model '{model_display}' requires 'api_key' when api_key_source is 'direct'")
 
         if "parameters" in model_config:
             params = model_config["parameters"]

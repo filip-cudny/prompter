@@ -346,10 +346,7 @@ class PyQtMenuCoordinator(QObject):
             active_name = self.prompt_store_service.active_prompt_service.get_active_prompt_display_name()
             if active_name:
                 # Truncate long names
-                if len(active_name) > 30:
-                    active_prompt_display_name = active_name[:27] + "..."
-                else:
-                    active_prompt_display_name = active_name
+                active_prompt_display_name = active_name[:27] + "..." if len(active_name) > 30 else active_name
 
         # Add separator before settings section if there are other items
         if all_items:

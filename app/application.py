@@ -1,5 +1,6 @@
 """Main PySide6 application class for the Promptheus application."""
 
+import contextlib
 import signal
 import sys
 
@@ -658,10 +659,8 @@ class PromtheusApp(QObject):
             print(f"Failed to reload configuration: {e}")
             # Try to restore previous state
             if was_running and self.hotkey_manager:
-                try:
+                with contextlib.suppress(Exception):
                     self.hotkey_manager.start()
-                except Exception:
-                    pass
 
 
 def main():
