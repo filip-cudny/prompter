@@ -4,7 +4,13 @@ import os
 from collections.abc import Generator
 from typing import Any, BinaryIO
 
-from openai import OpenAI
+from openai import (
+    APIConnectionError,
+    APIStatusError,
+    AuthenticationError,
+    OpenAI,
+    RateLimitError,
+)
 from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
 
 from core.exceptions import ConfigurationError
@@ -110,6 +116,14 @@ class OpenAiService:
 
             response = client.chat.completions.create(**completion_params)
             return response.choices[0].message.content.strip()
+        except AuthenticationError as e:
+            raise Exception("API key is invalid or expired. Please check your API key configuration.") from e
+        except APIConnectionError as e:
+            raise Exception("Connection failed. Please check your internet connection and try again.") from e
+        except RateLimitError as e:
+            raise Exception("Rate limit exceeded. Please wait a moment and try again.") from e
+        except APIStatusError as e:
+            raise Exception(f"API error (status {e.status_code}): {e.message}") from e
         except Exception as e:
             raise Exception(f"Failed to generate completion: {e}") from e
 
@@ -164,6 +178,14 @@ class OpenAiService:
                     accumulated += chunk_text
                     yield (chunk_text, accumulated)
 
+        except AuthenticationError as e:
+            raise Exception("API key is invalid or expired. Please check your API key configuration.") from e
+        except APIConnectionError as e:
+            raise Exception("Connection failed. Please check your internet connection and try again.") from e
+        except RateLimitError as e:
+            raise Exception("Rate limit exceeded. Please wait a moment and try again.") from e
+        except APIStatusError as e:
+            raise Exception(f"API error (status {e.status_code}): {e.message}") from e
         except Exception as e:
             raise Exception(f"Failed to generate streaming completion: {e}") from e
 
@@ -204,6 +226,14 @@ class OpenAiService:
                 file=audio_file,
             )
             return transcription.text.strip()
+        except AuthenticationError as e:
+            raise Exception("API key is invalid or expired. Please check your API key configuration.") from e
+        except APIConnectionError as e:
+            raise Exception("Connection failed. Please check your internet connection and try again.") from e
+        except RateLimitError as e:
+            raise Exception("Rate limit exceeded. Please wait a moment and try again.") from e
+        except APIStatusError as e:
+            raise Exception(f"API error (status {e.status_code}): {e.message}") from e
         except Exception as e:
             raise Exception(f"Failed to transcribe audio: {e}") from e
 

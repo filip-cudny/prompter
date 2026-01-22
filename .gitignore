@@ -9,3 +9,9 @@ promptheus-debug.log
 
 settings/
 .promptheus.pid
+
+dist/
+build/
+
+.DS_Store
+.vscode/

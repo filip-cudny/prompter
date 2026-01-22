@@ -6,6 +6,7 @@ from typing import Any
 
 from core.interfaces import PromptStoreServiceProtocol
 from modules.utils.config import ConfigService
+from modules.utils.paths import get_settings_file
 
 from .exceptions import ConfigurationError, DataError
 from .models import (
@@ -211,7 +212,7 @@ class SettingsService:
     """Service for loading and managing application settings."""
 
     def __init__(self, settings_path: str | None = None):
-        self.settings_path = settings_path or "settings/settings.json"
+        self.settings_path = settings_path or str(get_settings_file())
         self._settings: SettingsConfig | None = None
         self._base_path: Path | None = None
         self._config_service = ConfigService()

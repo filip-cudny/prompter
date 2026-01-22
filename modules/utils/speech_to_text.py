@@ -1,6 +1,5 @@
 """Minimal speech-to-text service without numpy/scipy dependencies."""
 
-import array
 import os
 import tempfile
 import threading
@@ -63,7 +62,7 @@ class AudioRecorder:
             self.recording = True
             self.frames = []
 
-            self.stream = sd.InputStream(
+            self.stream = sd.RawInputStream(
                 device=self.input_device_index,
                 channels=self.channels,
                 samplerate=self.rate,
@@ -107,13 +106,8 @@ class AudioRecorder:
                 wf.setframerate(self.rate)
 
                 if self.frames:
-                    audio_data = array.array("h")
-                    for frame in self.frames:
-                        if hasattr(frame, "flatten"):
-                            audio_data.extend(frame.flatten())
-                        else:
-                            audio_data.extend(frame)
-                    wf.writeframes(audio_data.tobytes())
+                    audio_data = b"".join(self.frames)
+                    wf.writeframes(audio_data)
 
             self._cleanup()
             return temp_path
@@ -132,7 +126,7 @@ class AudioRecorder:
             print(f"Audio input status: {status}")
 
         if self.recording:
-            self.frames.append(indata.copy())
+            self.frames.append(bytes(indata))
 
     def _cleanup(self) -> None:
         """Clean up audio resources."""

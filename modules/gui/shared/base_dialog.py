@@ -220,9 +220,6 @@ class BaseDialog(QDialog):
     def _clear_focus_guard(self):
         """Clear the focus guard after focus operations complete."""
         BaseDialog._focus_in_progress = False
-        if self.isVisible():
-            self.raise_()
-            self.activateWindow()
 
     def handle_escape_key(self, event) -> bool:
         """Handle Escape key to close dialog.

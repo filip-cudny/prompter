@@ -1,9 +1,11 @@
 """SVG loading with caching."""
 
 import base64
-import os
+from pathlib import Path
 
-_SVG_DIR = os.path.join(os.path.dirname(__file__), "svg")
+from modules.utils.paths import get_svg_icons_dir
+
+_SVG_DIR = get_svg_icons_dir()
 
 _svg_content_cache: dict[str, str] = {}
 _svg_data_url_cache: dict[str, str] = {}
@@ -18,7 +20,7 @@ def get_svg_path(name: str) -> str:
     Returns:
         Absolute path to the SVG file
     """
-    return os.path.join(_SVG_DIR, f"{name}.svg")
+    return str(_SVG_DIR / f"{name}.svg")
 
 
 def get_svg_content(name: str) -> str:
@@ -36,13 +38,11 @@ def get_svg_content(name: str) -> str:
     if name in _svg_content_cache:
         return _svg_content_cache[name]
 
-    path = get_svg_path(name)
-    if not os.path.exists(path):
+    path = Path(get_svg_path(name))
+    if not path.exists():
         raise ValueError(f"Unknown icon: {name}")
 
-    with open(path, encoding="utf-8") as f:
-        content = f.read()
-
+    content = path.read_text(encoding="utf-8")
     _svg_content_cache[name] = content
     return content
 
@@ -53,10 +53,10 @@ def get_available_icons() -> list[str]:
     Returns:
         List of icon names (without .svg extension)
     """
-    if not os.path.exists(_SVG_DIR):
+    if not _SVG_DIR.exists():
         return []
 
-    return [os.path.splitext(f)[0] for f in os.listdir(_SVG_DIR) if f.endswith(".svg")]
+    return [p.stem for p in _SVG_DIR.iterdir() if p.suffix == ".svg"]
 
 
 def get_svg_data_url(name: str, color: str) -> str:

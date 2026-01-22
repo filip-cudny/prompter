@@ -2,6 +2,7 @@
 """Entry point for the Promptheus application."""
 
 import logging
+import os
 import sys
 
 from app.application import PromtheusApp
@@ -43,9 +44,10 @@ def main():
     parser.add_argument("--debug", "-d", action="store_true", help="Enable debug mode with detailed logging")
     args = parser.parse_args()
 
-    setup_logging(debug=args.debug)
+    debug_enabled = args.debug or os.environ.get("PROMPTHEUS_DEBUG", "").lower() in ("1", "true", "yes")
+    setup_logging(debug=debug_enabled)
 
-    if args.debug:
+    if debug_enabled:
         logging.info("Debug mode enabled - logging to promptheus-debug.log")
 
     try:

@@ -1,12 +1,12 @@
 # Promptheus Makefile
 # Background process management for the Promptheus application
 
-.PHONY: help install setup start stop restart status logs logs-follow logs-debug start-debug debug clean clean-all autostart-macos autostart-linux info test test-cov lint lint-fix
+.PHONY: help install setup start stop restart status logs logs-follow logs-debug start-debug debug clean clean-all autostart-macos autostart-linux info test test-cov lint lint-fix build build-macos build-linux install-build-deps icons-macos clean-build dmg-macos install-linux install-linux-user
 
 PYTHON := python3
 VENV_DIR := .venv
 VENV_PYTHON := $(VENV_DIR)/bin/python
-VENV_PIP := $(VENV_DIR)/bin/pip
+UV := uv
 PID_FILE := .promptheus.pid
 LOG_FILE := promptheus.log
 ERROR_LOG := promptheus-error.log
@@ -37,20 +37,19 @@ setup: ## Setup virtual environment and install dependencies
 	@echo "Setting up dependencies..."
 	@if [ ! -d "$(VENV_DIR)" ]; then \
 		echo "Creating virtual environment..."; \
-		$(PYTHON) -m venv $(VENV_DIR); \
+		$(UV) venv $(VENV_DIR); \
 	fi
 	@echo "Installing dependencies..."
-	@$(VENV_PIP) install --upgrade pip
 	@if [ "$$(uname)" = "Darwin" ]; then \
 		echo "Detected macOS - installing with macOS extras..."; \
-		$(VENV_PIP) install -e ".[macos]"; \
+		$(UV) pip install -e ".[macos]"; \
 	elif [ "$$(uname)" = "Linux" ]; then \
 		echo "Detected Linux - installing with Linux extras..."; \
-		$(VENV_PIP) install -e ".[linux]"; \
+		$(UV) pip install -e ".[linux]"; \
 		which apt > /dev/null 2>&1 && dpkg -l libxcb-cursor0 > /dev/null 2>&1 || echo "⚠️  Ubuntu/Debian: run 'sudo apt install libxcb-cursor0'"; \
 	else \
 		echo "Detected Windows - installing base dependencies..."; \
-		$(VENV_PIP) install -e .; \
+		$(UV) pip install -e .; \
 	fi
 	@if [ ! -f ".env" ]; then \
 		echo "Creating .env file..."; \
@@ -289,6 +288,86 @@ lint-fix: ## Fix code issues with ruff
 	@$(VENV_PYTHON) -m ruff check --fix .
 	@$(VENV_PYTHON) -m ruff format .
 	@echo "✅ Code formatted"
+
+# ==========================================
+# Build Targets
+# ==========================================
+
+PYINSTALLER := $(VENV_DIR)/bin/pyinstaller
+SPEC_DIR := packaging/pyinstaller
+DIST_DIR := dist
+BUILD_DIR := build
+
+install-build-deps: ## Install PyInstaller and build dependencies
+	@echo "📦 Installing build dependencies..."
+	@$(UV) pip install pyinstaller
+	@echo "✅ Build dependencies installed"
+
+build: ## Build for current platform
+	@if [ "$$(uname)" = "Darwin" ]; then \
+		$(MAKE) build-macos; \
+	elif [ "$$(uname)" = "Linux" ]; then \
+		$(MAKE) build-linux; \
+	else \
+		echo "❌ Unsupported platform for build"; \
+		exit 1; \
+	fi
+
+build-macos: install-build-deps ## Build macOS .app bundle
+	@echo "🍎 Building macOS application..."
+	@if [ ! -f "packaging/macos/Promptheus.icns" ]; then \
+		echo "⚠️  Icon file not found. Run 'make icons-macos' first (optional)."; \
+	fi
+	@$(PYINSTALLER) --clean --noconfirm $(SPEC_DIR)/promptheus_macos.spec
+	@echo "✅ Build complete: $(DIST_DIR)/Promptheus.app"
+	@echo ""
+	@echo "To test: open $(DIST_DIR)/Promptheus.app"
+	@echo "To create DMG: make dmg-macos"
+
+build-linux: install-build-deps ## Build Linux executable
+	@echo "🐧 Building Linux application..."
+	@$(PYINSTALLER) --clean --noconfirm $(SPEC_DIR)/promptheus_linux.spec
+	@echo "✅ Build complete: $(DIST_DIR)/promptheus/"
+	@echo ""
+	@echo "To test: $(DIST_DIR)/promptheus/promptheus"
+	@echo "To install: make install-linux-user"
+
+icons-macos: ## Generate macOS .icns icon file
+	@echo "🎨 Generating macOS icon..."
+	@chmod +x packaging/macos/generate_icns.sh
+	@packaging/macos/generate_icns.sh
+	@echo "✅ Icon generated: packaging/macos/Promptheus.icns"
+
+clean-build: ## Clean build artifacts
+	@echo "🧹 Cleaning build artifacts..."
+	@rm -rf $(BUILD_DIR) $(DIST_DIR)
+	@rm -rf *.spec 2>/dev/null || true
+	@echo "✅ Build artifacts cleaned"
+
+dmg-macos: ## Create macOS DMG installer
+	@echo "💿 Creating macOS DMG..."
+	@if [ ! -d "$(DIST_DIR)/Promptheus.app" ]; then \
+		echo "❌ Build not found. Run 'make build-macos' first."; \
+		exit 1; \
+	fi
+	@rm -f $(DIST_DIR)/Promptheus.dmg
+	@hdiutil create -volname "Promptheus" -srcfolder $(DIST_DIR)/Promptheus.app -ov -format UDZO $(DIST_DIR)/Promptheus.dmg
+	@echo "✅ DMG created: $(DIST_DIR)/Promptheus.dmg"
+
+install-linux: ## Install on Linux system-wide (requires sudo)
+	@echo "🐧 Installing system-wide..."
+	@chmod +x packaging/linux/install.sh
+	@packaging/linux/install.sh --system
+
+install-linux-user: ## Install on Linux for current user
+	@echo "🐧 Installing for current user..."
+	@chmod +x packaging/linux/install.sh
+	@packaging/linux/install.sh --user
+
+uninstall-linux: ## Uninstall from Linux
+	@echo "🐧 Uninstalling..."
+	@chmod +x packaging/linux/install.sh
+	@packaging/linux/install.sh --uninstall
 
 # Default target
 all: help
