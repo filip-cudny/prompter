@@ -1,7 +1,7 @@
 # Promptheus Makefile
 # Background process management for the Promptheus application
 
-.PHONY: help install setup start stop restart status logs logs-follow logs-debug start-debug debug clean clean-all autostart-macos autostart-linux info test test-cov lint lint-fix build build-macos build-linux install-build-deps icons-macos clean-build dmg-macos install-linux install-linux-user
+.PHONY: help install setup start stop restart status logs logs-follow logs-debug start-debug debug clean clean-all autostart-macos autostart-linux info test test-cov lint lint-fix build build-macos build-linux install-build-deps icons-macos clean-build dmg-macos install-linux install-linux-user appimage-linux clean-appimage
 
 PYTHON := python3
 VENV_DIR := .venv
@@ -368,6 +368,18 @@ uninstall-linux: ## Uninstall from Linux
 	@echo "🐧 Uninstalling..."
 	@chmod +x packaging/linux/install.sh
 	@packaging/linux/install.sh --uninstall
+
+appimage-linux: build-linux ## Build Linux AppImage
+	@echo "📦 Creating Linux AppImage..."
+	@chmod +x packaging/linux/create_appimage.sh
+	@packaging/linux/create_appimage.sh
+	@echo "✅ AppImage created: $(DIST_DIR)/Promptheus-x86_64.AppImage"
+
+clean-appimage: ## Clean AppImage artifacts
+	@echo "🧹 Cleaning AppImage artifacts..."
+	@rm -rf $(DIST_DIR)/Promptheus.AppDir
+	@rm -f $(DIST_DIR)/Promptheus-x86_64.AppImage
+	@echo "✅ AppImage artifacts cleaned"
 
 # Default target
 all: help

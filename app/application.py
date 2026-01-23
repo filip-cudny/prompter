@@ -1,8 +1,11 @@
 """Main PySide6 application class for the Promptheus application."""
 
 import contextlib
+import os
 import signal
 import sys
+from datetime import datetime
+from pathlib import Path
 
 from PySide6.QtCore import QObject, QTimer, Signal
 from PySide6.QtGui import QColor, QPalette
@@ -35,17 +38,80 @@ from modules.utils.notifications import PyQtNotificationManager
 from modules.utils.system import check_macos_permissions, show_macos_permissions_help
 
 
+def _write_startup_debug_log() -> None:
+    """Write startup debug info to help diagnose config loading issues."""
+    from modules.utils.paths import get_settings_file, get_user_config_dir, is_frozen
+
+    debug_log_path = Path.home() / ".config" / "promptheus" / "debug.log"
+    debug_log_path.parent.mkdir(parents=True, exist_ok=True)
+
+    lines = [
+        f"\n{'=' * 60}",
+        f"Startup Debug Log - {datetime.now().isoformat()}",
+        f"{'=' * 60}",
+        f"is_frozen(): {is_frozen()}",
+        f"sys.frozen attr: {getattr(sys, 'frozen', 'NOT SET')}",
+        f"sys._MEIPASS attr: {getattr(sys, '_MEIPASS', 'NOT SET')}",
+        f"Path.home(): {Path.home()}",
+        f"os.environ.get('HOME'): {os.environ.get('HOME', 'NOT SET')}",
+        f"os.environ.get('XDG_CONFIG_HOME'): {os.environ.get('XDG_CONFIG_HOME', 'NOT SET')}",
+        f"get_user_config_dir(): {get_user_config_dir()}",
+        f"get_settings_file(): {get_settings_file()}",
+        f"Settings file exists: {get_settings_file().exists()}",
+        f"sys.executable: {sys.executable}",
+        f"sys.argv: {sys.argv}",
+        f"os.getcwd(): {os.getcwd()}",
+        "",
+        "--- Display Server Info (for hotkey diagnostics) ---",
+        f"DISPLAY: {os.environ.get('DISPLAY', 'NOT SET')}",
+        f"WAYLAND_DISPLAY: {os.environ.get('WAYLAND_DISPLAY', 'NOT SET')}",
+        f"XDG_SESSION_TYPE: {os.environ.get('XDG_SESSION_TYPE', 'NOT SET')}",
+        f"sys.platform: {sys.platform}",
+    ]
+
+    settings_file = get_settings_file()
+    if settings_file.exists():
+        try:
+            import json
+
+            with open(settings_file) as f:
+                settings = json.load(f)
+            keys = list(settings.keys())[:10]
+            lines.append(f"Settings keys (first 10): {keys}")
+            if "default_model" in settings:
+                lines.append(f"default_model value: {settings['default_model']}")
+        except Exception as e:
+            lines.append(f"Error reading settings: {e}")
+
+    lines.append(f"{'=' * 60}\n")
+
+    with open(debug_log_path, "a") as f:
+        f.write("\n".join(lines))
+
+
 class PromtheusApp(QObject):
     """Main PySide6 application class for Promptheus."""
 
     # Qt signals
     shutdown_requested = Signal()
 
+    def _write_run_debug_log(self, message: str) -> None:
+        """Write debug info during run() to diagnose startup issues."""
+        debug_log_path = Path.home() / ".config" / "promptheus" / "debug.log"
+        timestamp = datetime.now().isoformat()
+        with open(debug_log_path, "a") as f:
+            f.write(f"[{timestamp}] RUN: {message}\n")
+
     def __init__(self, config_file: str | None = None):
         super().__init__()
 
+        # Write debug log at very start of initialization
+        _write_startup_debug_log()
+
+        self._write_run_debug_log("Creating QApplication...")
         # Create QApplication (Qt6 handles HiDPI automatically)
         self.app = QApplication(sys.argv)
+        self._write_run_debug_log("QApplication created")
         self.app.setQuitOnLastWindowClosed(False)
 
         # Apply global tooltip styling (affects all tooltips in the app)
@@ -66,6 +132,7 @@ class PromtheusApp(QObject):
         self.context_manager: ContextManager | None = None
         self.openai_service: OpenAiService | None = None
         self.prompt_store_service: PromptStoreService | None = None
+        self._pending_api_key_warning: str | None = None
 
         # Providers
         self.prompt_providers: list = []
@@ -81,15 +148,21 @@ class PromtheusApp(QObject):
         self.speech_service = None
         self.speech_history_service = None
 
+        self._write_run_debug_log("Initializing basic services...")
         # Initialize basic services needed for config loading
         self._initialize_basic_services()
 
+        self._write_run_debug_log("Loading config...")
         # Load configuration
         self._load_config(config_file)
 
+        self._write_run_debug_log("Initializing components...")
         # Initialize components
         self._initialize_components()
+        self._write_run_debug_log("Setting up signal handlers...")
         self._setup_signal_handlers()
+
+        self._write_run_debug_log("__init__ completed successfully")
 
     def _load_config(self, config_file: str | None = None) -> None:
         """Load and validate configuration."""
@@ -118,21 +191,28 @@ class PromtheusApp(QObject):
             if not self.config:
                 raise RuntimeError("Configuration not loaded")
 
+            self._write_run_debug_log("  - Initializing prompt providers...")
             # Initialize prompt providers
             self._initialize_prompt_providers()
 
+            self._write_run_debug_log("  - Initializing notification manager...")
             # Initialize notification manager
             self.notification_manager = PyQtNotificationManager(self.app)
 
+            self._write_run_debug_log("  - Initializing global action registry...")
             # Re-initialize global action registry with notification manager
             initialize_global_action_registry(self.context_manager, self.clipboard_manager, self.notification_manager)
 
+            self._write_run_debug_log("  - Initializing OpenAI service...")
             # Initialize OpenAI service
             self._initialize_openai_service()
 
+            self._write_run_debug_log("  - Initializing speech service...")
             # Initialize speech service
             self._initialize_speech_service()
+            self._write_run_debug_log("  - Initializing history service...")
             self._initialize_history_service()
+            self._write_run_debug_log("  - Creating PromptStoreService...")
             # Initialize core service
             self.prompt_store_service = PromptStoreService(
                 self.prompt_providers,
@@ -144,35 +224,58 @@ class PromtheusApp(QObject):
                 self.history_service,
             )
 
+            self._write_run_debug_log("  - Registering config callback...")
             # Register callback to invalidate prompt cache when settings are saved
             config_service = ConfigService()
             config_service.register_on_save_callback(self.prompt_store_service.invalidate_cache)
 
+            self._write_run_debug_log("  - Initializing GUI...")
             # Initialize GUI components
             self._initialize_gui()
 
+            self._write_run_debug_log("  - Registering execution handlers...")
             # Register execution handlers
             self._register_execution_handlers()
 
+            self._write_run_debug_log("  - Initializing menu providers...")
             # Initialize menu providers
             self._initialize_menu_providers()
 
+            # Show warning notification if API key is missing (delayed to ensure notification manager is ready)
+            if self._pending_api_key_warning and self.notification_manager:
+                QTimer.singleShot(500, lambda: self._show_api_key_warning())
+
+            self._write_run_debug_log("  - Components initialized successfully")
+
         except Exception as e:
+            self._write_run_debug_log(f"  - FAILED: {type(e).__name__}: {e}")
             print(f"Failed to initialize application: {e}")
             sys.exit(1)
 
     def _initialize_openai_service(self) -> None:
         """Initialize OpenAI service with all model configurations."""
-        try:
-            if not self.config or not self.config.models:
-                raise ConfigurationError("No models configured")
+        if not self.config or not self.config.models:
+            self._pending_api_key_warning = "No AI models configured in settings"
+            return
 
-            self.openai_service = OpenAiService(
-                models_config=self.config.models,
-                speech_to_text_config=self.config.speech_to_text_model,
-            )
-        except Exception as e:
-            raise ConfigurationError(f"Failed to initialize OpenAI service: {e}") from e
+        self.openai_service = OpenAiService(
+            models_config=self.config.models,
+            speech_to_text_config=self.config.speech_to_text_model,
+        )
+
+        default_model = self.config.default_model
+        if default_model and not self.openai_service.has_model(default_model):
+            reason = self.openai_service.get_model_unavailable_reason(default_model)
+            if reason and "Missing API key" in reason:
+                display_name = default_model
+                for model in self.config.models:
+                    if model.get("id") == default_model:
+                        display_name = model.get("display_name", default_model)
+                        break
+                self._pending_api_key_warning = (
+                    f"Default model '{display_name}' unavailable: API key not configured. "
+                    "Set OPENAI_API_KEY in ~/.config/promptheus/.env"
+                )
 
     def _initialize_speech_service(self) -> None:
         """Initialize speech-to-text service as singleton."""
@@ -305,6 +408,7 @@ class PromtheusApp(QObject):
         self.menu_coordinator.set_menu_position_offset(self.config.menu_position_offset)
         self.menu_coordinator.set_number_input_debounce_ms(self.config.number_input_debounce_ms)
         self.menu_coordinator.notification_manager = self.notification_manager
+        self.menu_coordinator.set_shutdown_callback(self.stop)
 
         # Initialize event handler
         self.event_handler = PyQtMenuEventHandler(self.menu_coordinator)
@@ -470,8 +574,18 @@ class PromtheusApp(QObject):
             else:
                 print(f"Failed to execute active prompt: {e}")
 
+    def _show_api_key_warning(self) -> None:
+        """Show warning notification about missing API key."""
+        if self._pending_api_key_warning and self.notification_manager:
+            self.notification_manager.show_warning_notification(
+                "API Key Missing",
+                self._pending_api_key_warning,
+            )
+            self._pending_api_key_warning = None
+
     def run(self) -> int:
         """Run the application."""
+        self._write_run_debug_log("run() called")
         print("Starting app")
         print("Press Ctrl+C to stop\n")
 
@@ -480,11 +594,13 @@ class PromtheusApp(QObject):
             show_macos_permissions_help()
 
         self.running = True
+        self._write_run_debug_log("About to start hotkey manager")
 
         try:
             # Start hotkey manager
             if self.hotkey_manager:
                 self.hotkey_manager.start()
+                self._write_run_debug_log("Hotkey manager started, entering Qt event loop")
 
             # Run the Qt event loop
             return self.app.exec()

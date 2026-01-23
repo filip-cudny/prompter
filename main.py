@@ -57,6 +57,16 @@ def main():
         print("\nService stopped by user")
         return 0
     except Exception as e:
+        # Log exception to debug file since stdout isn't visible from GUI
+        from datetime import datetime
+        from pathlib import Path
+        import traceback
+
+        debug_log = Path.home() / ".config" / "promptheus" / "debug.log"
+        with open(debug_log, "a") as f:
+            f.write(f"\n[{datetime.now().isoformat()}] EXCEPTION in main():\n")
+            f.write(f"  {type(e).__name__}: {e}\n")
+            f.write(f"  Traceback:\n{traceback.format_exc()}\n")
         print(f"Service error: {e}")
         return 1
 

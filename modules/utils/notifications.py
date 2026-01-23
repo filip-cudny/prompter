@@ -1,7 +1,6 @@
 """Enhanced notification system with non-focus-stealing implementation."""
 
 import os
-import platform
 import threading
 
 from PySide6.QtCore import (
@@ -33,13 +32,13 @@ from modules.utils.notification_config import (
     get_notification_opacity,
     is_monochromatic_mode,
 )
+from modules.utils.system import is_linux, is_macos, is_windows
 
 # Platform-specific configuration
 
-PLATFORM = platform.system()
-MACOS_PLATFORM = PLATFORM == "Darwin"
-LINUX_PLATFORM = PLATFORM == "Linux"
-WINDOWS_PLATFORM = PLATFORM == "Windows"
+MACOS_PLATFORM = is_macos()
+LINUX_PLATFORM = is_linux()
+WINDOWS_PLATFORM = is_windows()
 
 
 def is_wayland_session() -> bool:

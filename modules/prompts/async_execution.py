@@ -219,11 +219,30 @@ class PromptExecutionWorker(QThread):
                     metadata={"action": "execute_prompt"},
                 )
 
-            # Validate model exists in openai service
-            if not self.openai_service.has_model(model_name):
+            # Validate openai service is available
+            if not self.openai_service:
                 return ExecutionResult(
                     success=False,
-                    error=f"Model '{model_name}' not found in configuration",
+                    error="AI service not configured. Check API key in ~/.config/promptheus/.env",
+                    execution_time=time.time() - start_time,
+                    metadata={"action": "execute_prompt"},
+                )
+
+            # Validate model exists in openai service
+            if not self.openai_service.has_model(model_name):
+                reason = self.openai_service.get_model_unavailable_reason(model_name)
+                display_name = model_name
+                with contextlib.suppress(Exception):
+                    display_name = self.openai_service.get_model_config(model_name).get(
+                        "display_name", model_name
+                    )
+                if reason and "Missing API key" in reason:
+                    error_msg = f"Model '{display_name}' unavailable: API key not configured"
+                else:
+                    error_msg = f"Model '{display_name}' not found in configuration"
+                return ExecutionResult(
+                    success=False,
+                    error=error_msg,
                     execution_time=time.time() - start_time,
                     metadata={"action": "execute_prompt"},
                 )
@@ -429,10 +448,28 @@ class PromptExecutionWorker(QThread):
                     metadata={"action": "execute_prompt", "streaming": True},
                 )
 
-            if not self.openai_service.has_model(model_name):
+            if not self.openai_service:
                 return ExecutionResult(
                     success=False,
-                    error=f"Model '{model_name}' not found in configuration",
+                    error="AI service not configured. Check API key in ~/.config/promptheus/.env",
+                    execution_time=time.time() - start_time,
+                    metadata={"action": "execute_prompt", "streaming": True},
+                )
+
+            if not self.openai_service.has_model(model_name):
+                reason = self.openai_service.get_model_unavailable_reason(model_name)
+                display_name = model_name
+                with contextlib.suppress(Exception):
+                    display_name = self.openai_service.get_model_config(model_name).get(
+                        "display_name", model_name
+                    )
+                if reason and "Missing API key" in reason:
+                    error_msg = f"Model '{display_name}' unavailable: API key not configured"
+                else:
+                    error_msg = f"Model '{display_name}' not found in configuration"
+                return ExecutionResult(
+                    success=False,
+                    error=error_msg,
                     execution_time=time.time() - start_time,
                     metadata={"action": "execute_prompt", "streaming": True},
                 )

@@ -8,7 +8,7 @@ from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QDialog, QSizePolicy, QWidget
 
 # Timing constants
-DIALOG_SHOW_DELAY_MS = 75
+DIALOG_SHOW_DELAY_MS = 25
 TEXT_CHANGE_DEBOUNCE_MS = 500
 
 # Layout constants

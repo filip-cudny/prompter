@@ -12,6 +12,7 @@ settings/
 
 dist/
 build/
+packaging/linux/appimagetool-*.AppImage
 
 .DS_Store
 .vscode/

@@ -33,6 +33,7 @@ class OpenAiService:
         """
         self._clients: dict[str, OpenAI] = {}
         self._models_by_id: dict[str, dict[str, Any]] = {}
+        self._unavailable_models: dict[str, str] = {}
         self._speech_to_text_config = speech_to_text_config
 
         for model in models_config:
@@ -43,34 +44,47 @@ class OpenAiService:
         self._initialize_clients()
 
     def _initialize_clients(self) -> None:
-        """Initialize OpenAI clients for all configured models."""
-        for model_id, model_config in self._models_by_id.items():
-            try:
-                api_key = model_config.get("api_key")
-                if not api_key:
-                    raise Exception("OpenAI API key not found. Set OPENAI_API_KEY environment variable.")
+        """Initialize OpenAI clients for all configured models.
 
+        Models with missing API keys are tracked in _unavailable_models instead of
+        raising exceptions, allowing the app to start in degraded mode.
+        """
+        for model_id, model_config in self._models_by_id.items():
+            api_key = model_config.get("api_key")
+            if not api_key:
+                self._unavailable_models[model_id] = "Missing API key"
+                continue
+
+            try:
                 client = OpenAI(
                     api_key=api_key,
                     base_url=model_config.get("base_url"),
                 )
                 self._clients[model_id] = client
             except Exception as e:
-                raise ConfigurationError(f"Failed to initialize OpenAI client for model '{model_id}': {e}") from e
+                self._unavailable_models[model_id] = str(e)
 
         if self._speech_to_text_config:
-            try:
-                api_key = self._speech_to_text_config.get("api_key")
-                if not api_key:
-                    raise Exception("OpenAI API key not found. Set OPENAI_API_KEY environment variable.")
+            api_key = self._speech_to_text_config.get("api_key")
+            if not api_key:
+                self._unavailable_models["speech_to_text"] = "Missing API key"
+            else:
+                try:
+                    client = OpenAI(
+                        api_key=api_key,
+                        base_url=self._speech_to_text_config.get("base_url"),
+                    )
+                    self._clients["speech_to_text"] = client
+                except Exception as e:
+                    self._unavailable_models["speech_to_text"] = str(e)
 
-                client = OpenAI(
-                    api_key=api_key,
-                    base_url=self._speech_to_text_config.get("base_url"),
-                )
-                self._clients["speech_to_text"] = client
-            except Exception as e:
-                raise ConfigurationError(f"Failed to initialize OpenAI client for speech-to-text: {e}") from e
+    def get_unavailable_models(self) -> dict[str, str]:
+        """Get dictionary of unavailable models and their reasons.
+
+        Returns:
+            Dictionary mapping model_id to reason string for unavailable models
+        """
+        return self._unavailable_models.copy()
 
     def complete(
         self,
@@ -311,3 +325,15 @@ class OpenAiService:
             True if model is available, False otherwise
         """
         return model_key in self._clients
+
+    def get_model_unavailable_reason(self, model_key: str) -> str | None:
+        """
+        Get reason why a model is unavailable, if any.
+
+        Args:
+            model_key: Key to check
+
+        Returns:
+            Reason string if unavailable, None if available or unknown
+        """
+        return self._unavailable_models.get(model_key)

@@ -1073,7 +1073,7 @@ class PromptExecuteDialog(BaseDialog):
         if not hasattr(section, "_save_timer"):
             section._save_timer = QTimer()
             section._save_timer.setSingleShot(True)
-            section._save_timer.setInterval(500)
+            section._save_timer.setInterval(TEXT_CHANGE_DEBOUNCE_MS)
             section._save_timer.timeout.connect(lambda s=section: self._save_dynamic_state(s))
         section._save_timer.start()
 

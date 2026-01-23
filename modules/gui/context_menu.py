@@ -3,10 +3,11 @@
 import contextlib
 import logging
 import os
-import platform
 import subprocess
-import sys
 from collections.abc import Callable
+
+from modules.utils.paths import should_manipulate_focus
+from modules.utils.system import is_linux, is_macos, is_windows
 
 _debug = logging.getLogger("promptheus.context_menu")
 
@@ -19,6 +20,12 @@ from core.models import MenuItem, MenuItemType
 from modules.gui.icons import DISABLED_OPACITY
 from modules.gui.shared import TOOLTIP_STYLE
 
+# Timer delay constants (in milliseconds)
+_MENU_SHOW_DELAY_MS = 50          # Delay before showing menu after focus grab
+_MENU_REBUILD_DELAY_MS = 10       # Delay before rebuilding menu after execution
+_FOCUS_RESTORE_DELAY_MS = 100     # Delay before restoring focus to previous window
+_MENU_TRANSITION_DELAY_MS = 50    # Delay for old menu cleanup during rebuild
+
 
 def _set_macos_window_move_to_active_space(widget):
     """
@@ -27,7 +34,7 @@ def _set_macos_window_move_to_active_space(widget):
 
     Must be called AFTER the widget has been shown (winId is only valid then).
     """
-    if platform.system() != "Darwin":
+    if not is_macos():
         return
 
     try:
@@ -103,7 +110,7 @@ class InvisibleFocusWindow(QWidget):
         self.setFocusPolicy(Qt.StrongFocus)
 
         # Show menu after a short delay to ensure focus is grabbed
-        QTimer.singleShot(50, lambda: self._show_menu_at_position(position))
+        QTimer.singleShot(_MENU_SHOW_DELAY_MS, lambda: self._show_menu_at_position(position))
 
     def _force_app_activation(self):
         """Force application activation based on platform.
@@ -112,14 +119,14 @@ class InvisibleFocusWindow(QWidget):
         Explicit activation interferes with Qt's popup behavior and causes the
         menu to close immediately. Only activate for non-frozen (development) mode.
         """
-        _debug.debug("_force_app_activation called, frozen=%s", getattr(sys, "frozen", False))
-        if getattr(sys, "frozen", False):
+        _debug.debug("_force_app_activation called, should_manipulate=%s", should_manipulate_focus())
+        if not should_manipulate_focus():
             return
-        if platform.system() == "Darwin":
+        if is_macos():
             self._activate_macos()
-        elif platform.system() == "Windows":
+        elif is_windows():
             self._activate_windows()
-        elif platform.system() == "Linux":
+        elif is_linux():
             self._activate_linux()
 
     def _activate_macos(self):
@@ -170,7 +177,11 @@ class InvisibleFocusWindow(QWidget):
 
     def _show_menu_at_position(self, position: QPoint):
         """Show the menu at the specified position."""
-        _debug.debug("_show_menu_at_position called, menu=%s, visible=%s", self.menu, self.menu.isVisible() if self.menu else None)
+        _debug.debug(
+            "_show_menu_at_position called, menu=%s, visible=%s",
+            self.menu,
+            self.menu.isVisible() if self.menu else None,
+        )
         if self.menu and not self.menu.isVisible():
             self.menu.popup(position)
             _set_macos_window_move_to_active_space(self.menu)
@@ -212,7 +223,8 @@ class PyQtContextMenu(QObject):
         self.qt_active_window = None
         self.focus_window: InvisibleFocusWindow | None = None
         self.number_input_buffer = ""
-        self.number_timer = None
+        self.number_timer = QTimer()
+        self.number_timer.setSingleShot(True)
         self._focus_restore_pending = False
         self._cleanable_widgets = []
         self._execution_signal_connected = False
@@ -278,13 +290,15 @@ class PyQtContextMenu(QObject):
         menu = QMenu(self.parent)
 
         # Configure window flags for better focus behavior when triggered from external apps
-        if platform.system() == "Darwin":
+        if is_macos():
             # macOS needs different flags for external app focus
             menu.setWindowFlags(Qt.Popup | Qt.FramelessWindowHint)
         else:
             menu.setWindowFlags(Qt.Popup | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint)
 
         menu.setAttribute(Qt.WA_TranslucentBackground, True)  # Enable transparency for rounded corners
+        if is_macos():
+            menu.setAttribute(Qt.WA_StyledBackground, True)  # Ensure stylesheet background on macOS
         menu.setAttribute(Qt.WA_ShowWithoutActivating, False)  # Allow activation
         menu.setStyleSheet(self._menu_stylesheet)
 
@@ -308,6 +322,8 @@ class PyQtContextMenu(QObject):
         submenu = QMenu(title, parent_menu)
         submenu.setWindowFlags(Qt.Popup | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint)
         submenu.setAttribute(Qt.WA_TranslucentBackground, True)
+        if is_macos():
+            submenu.setAttribute(Qt.WA_StyledBackground, True)
         submenu.setStyleSheet(self._menu_stylesheet)
         submenu.setFocusPolicy(Qt.StrongFocus)
         submenu.installEventFilter(self)
@@ -405,69 +421,6 @@ class PyQtContextMenu(QObject):
 
         return offset
 
-    def _force_app_activation_macos(self):
-        """Force application activation on macOS when triggered from another app."""
-        try:
-            # Try PyObjC first for more reliable activation
-            try:
-                from Foundation import NSRunningApplication
-
-                app = NSRunningApplication.runningApplicationWithProcessIdentifier_(os.getpid())
-                if app:
-                    app.activateWithOptions_(1)  # NSApplicationActivateIgnoringOtherApps
-                    return
-            except ImportError:
-                pass
-
-            # Fallback to AppleScript
-            script = f"""
-            tell application "System Events"
-                set frontmost of first process whose unix id is {os.getpid()} to true
-            end tell
-            """
-            subprocess.run(["osascript", "-e", script], capture_output=True, timeout=0.3, check=False)
-
-            # Additional activation attempt
-            script2 = f"""
-            tell application id "{os.getpid()}" to activate
-            """
-            subprocess.run(
-                ["osascript", "-e", script2],
-                capture_output=True,
-                timeout=0.3,
-                check=False,
-            )
-
-        except Exception:
-            pass
-
-    def _force_app_activation_windows(self):
-        """Force application activation on Windows when triggered from another app."""
-        try:
-            import ctypes
-
-            # Get current process window
-            hwnd = int(self.menu.winId()) if self.menu else 0
-            if hwnd:
-                # SetForegroundWindow and BringWindowToTop
-                user32 = ctypes.windll.user32
-                user32.SetForegroundWindow(hwnd)
-                user32.BringWindowToTop(hwnd)
-                user32.ShowWindow(hwnd, 9)  # SW_RESTORE
-
-        except Exception:
-            pass
-
-    def _force_app_activation_linux(self):
-        """Force application activation on Linux when triggered from another app."""
-        with contextlib.suppress(Exception):
-            subprocess.run(
-                ["wmctrl", "-a", str(os.getpid())],
-                capture_output=True,
-                timeout=1,
-                check=False,
-            )
-
     def get_cursor_position(self) -> tuple[int, int]:
         """Get current cursor position."""
         cursor_pos = QCursor.pos()
@@ -516,7 +469,7 @@ class PyQtContextMenu(QObject):
                 return
 
         if self.menu and self.menu.isVisible() and self._last_menu_position:
-            QTimer.singleShot(10, self._rebuild_and_show_menu)
+            QTimer.singleShot(_MENU_REBUILD_DELAY_MS, self._rebuild_and_show_menu)
 
     def _rebuild_and_show_menu(self):
         """Rebuild and show the menu at the stored position."""
@@ -548,11 +501,11 @@ class PyQtContextMenu(QObject):
                 if isValid(old_menu):
                     old_menu.aboutToHide.disconnect()
                     old_menu.hide()
-                    QTimer.singleShot(50, lambda: self._cleanup_old_menu(old_menu))
+                    QTimer.singleShot(_MENU_TRANSITION_DELAY_MS, lambda: self._cleanup_old_menu(old_menu))
             except Exception:
                 pass
 
-        QTimer.singleShot(100, lambda: setattr(self, "_is_rebuilding_menu", False))
+        QTimer.singleShot(_FOCUS_RESTORE_DELAY_MS, lambda: setattr(self, "_is_rebuilding_menu", False))
 
     def _cleanup_old_menu(self, menu):
         """Clean up old menu after transition."""
@@ -595,10 +548,7 @@ class PyQtContextMenu(QObject):
         self.shift_pressed = False
 
         # Clean up number input timer
-        if self.number_timer:
-            self.number_timer.stop()
-            self.number_timer.deleteLater()
-            self.number_timer = None
+        self.number_timer.stop()
         self.number_input_buffer = ""
         self.event_filter_installed = False
         self.hovered_widgets.clear()
@@ -1068,14 +1018,7 @@ class PyQtContextMenu(QObject):
                 if self._context_menu.execution_callback and (self._is_recording_action or self._menu_item.enabled):
                     # True = shift_pressed, triggers alternative execution (speech-to-text)
                     self._context_menu.execution_callback(self._menu_item, True)
-                    # Close the menu after execution
-                    if self._context_menu.menu:
-                        self._context_menu.menu.close()
-                    if self._context_menu.focus_window:
-                        self._context_menu.focus_window.hide()
-                    # Restore focus after execution
-                    self._context_menu._focus_restore_pending = True
-                    QTimer.singleShot(100, self._context_menu._restore_focus_with_cleanup)
+                    self._context_menu._close_and_restore_focus()
 
             def mousePressEvent(self, event):
                 # Check if click is on a button - if so, let the button handle it
@@ -1102,14 +1045,7 @@ class PyQtContextMenu(QObject):
                     if (self._menu_item.enabled or self._is_recording_action) and self._context_menu.execution_callback:
                         shift_pressed = bool(QApplication.keyboardModifiers() & Qt.ShiftModifier)
                         self._context_menu.execution_callback(self._menu_item, shift_pressed)
-                        # Close the menu after execution
-                        if self._context_menu.menu:
-                            self._context_menu.menu.close()
-                        if self._context_menu.focus_window:
-                            self._context_menu.focus_window.hide()
-                        # Restore focus after execution
-                        self._context_menu._focus_restore_pending = True
-                        QTimer.singleShot(100, self._context_menu._restore_focus_with_cleanup)
+                        self._context_menu._close_and_restore_focus()
 
             def enterEvent(self, event):
                 if self._menu_item.enabled or self._is_recording_action or self._is_executing_action:
@@ -1152,14 +1088,7 @@ class PyQtContextMenu(QObject):
                     if (self._menu_item.enabled or self._is_recording_action) and self._context_menu.execution_callback:
                         shift_pressed = bool(QApplication.keyboardModifiers() & Qt.ShiftModifier)
                         self._context_menu.execution_callback(self._menu_item, shift_pressed)
-                        # Close the menu after execution
-                        if self._context_menu.menu:
-                            self._context_menu.menu.close()
-                        if self._context_menu.focus_window:
-                            self._context_menu.focus_window.hide()
-                        # Restore focus after execution
-                        self._context_menu._focus_restore_pending = True
-                        QTimer.singleShot(100, self._context_menu._restore_focus_with_cleanup)
+                        self._context_menu._close_and_restore_focus()
                     event.accept()
                 else:
                     super().keyPressEvent(event)
@@ -1285,14 +1214,14 @@ class PyQtContextMenu(QObject):
         # Add digit to buffer
         self.number_input_buffer += digit
 
-        # Cancel previous timer if exists
-        if self.number_timer:
-            self.number_timer.stop()
-            self.number_timer.deleteLater()
+        # Stop and disconnect any pending timer
+        self.number_timer.stop()
+        try:
+            self.number_timer.timeout.disconnect()
+        except RuntimeError:
+            pass
 
-        # Create new timer to execute after 300ms
-        self.number_timer = QTimer()
-        self.number_timer.setSingleShot(True)
+        # Connect and start timer
         self.number_timer.timeout.connect(lambda: self._execute_buffered_number(menu, is_alternative))
         self.number_timer.start(self.number_input_debounce_ms)
 
@@ -1310,23 +1239,22 @@ class PyQtContextMenu(QObject):
         except ValueError:
             pass
         finally:
-            # Clear buffer
+            # Clear buffer and stop timer
             self.number_input_buffer = ""
-            if self.number_timer:
-                self.number_timer.deleteLater()
-                self.number_timer = None
+            self.number_timer.stop()
 
     def _cancel_number_input(self):
         """Cancel pending number input."""
-        if self.number_timer:
-            self.number_timer.stop()
-            self.number_timer.deleteLater()
-            self.number_timer = None
+        self.number_timer.stop()
         self.number_input_buffer = ""
 
     def _on_menu_about_to_hide(self):
         """Handle menu about to hide - cleanup number timer and restore focus."""
-        _debug.debug("_on_menu_about_to_hide called, rebuilding=%s, focus_pending=%s", self._is_rebuilding_menu, hasattr(self, "_focus_restore_pending"))
+        _debug.debug(
+            "_on_menu_about_to_hide called, rebuilding=%s, focus_pending=%s",
+            self._is_rebuilding_menu,
+            hasattr(self, "_focus_restore_pending"),
+        )
         # Remove global event filter
         QApplication.instance().removeEventFilter(self)
 
@@ -1334,17 +1262,14 @@ class PyQtContextMenu(QObject):
         self._disconnect_execution_signal()
         self._last_menu_position = None
 
-        if self.number_timer:
-            self.number_timer.stop()
-            self.number_timer.deleteLater()
-            self.number_timer = None
+        self.number_timer.stop()
         self.number_input_buffer = ""
         self.shift_pressed = False
 
         # Restore focus when menu closes (only if not rebuilding and not already restoring)
         if not self._is_rebuilding_menu and not hasattr(self, "_focus_restore_pending"):
             self._focus_restore_pending = True
-            QTimer.singleShot(50, self._restore_focus_with_cleanup)
+            QTimer.singleShot(_MENU_SHOW_DELAY_MS, self._restore_focus_with_cleanup)
 
     def _handle_number_key_press(self, menu, number, is_alternative):
         """Handle number key press to execute prompts by index."""
@@ -1432,12 +1357,12 @@ class PyQtContextMenu(QObject):
         works correctly and focus restoration isn't needed - the underlying
         application remains accessible after the popup closes.
         """
-        if getattr(sys, "frozen", False):
+        if not should_manipulate_focus():
             self.original_active_window = None
             return
 
         try:
-            if platform.system() == "Darwin":  # macOS
+            if is_macos():
                 # Use AppleScript to get the frontmost application
                 script = """
                 tell application "System Events"
@@ -1458,7 +1383,7 @@ class PyQtContextMenu(QObject):
                         "name": app_info[0],
                         "path": app_info[1] if len(app_info) > 1 else None,
                     }
-            elif platform.system() == "Linux":  # Linux
+            elif is_linux():
                 # Use xdotool to get the active window
                 try:
                     # Get active window ID
@@ -1525,9 +1450,9 @@ class PyQtContextMenu(QObject):
         and the underlying application regains focus automatically without
         explicit restoration which can cause focus fighting.
         """
-        _debug.debug("_restore_focus called, frozen=%s", getattr(sys, "frozen", False))
-        if getattr(sys, "frozen", False):
-            _debug.debug("_restore_focus skipped for frozen app")
+        _debug.debug("_restore_focus called, should_manipulate=%s", should_manipulate_focus())
+        if not should_manipulate_focus():
+            _debug.debug("_restore_focus skipped (no focus manipulation needed)")
             return
         try:
             # First try Qt-native focus restoration (fast)
@@ -1540,7 +1465,7 @@ class PyQtContextMenu(QObject):
             if not self.original_active_window:
                 return
 
-            if platform.system() == "Darwin":  # macOS
+            if is_macos():
                 app_name = self.original_active_window.get("name")
                 if app_name and app_name not in (
                     "Python",
@@ -1575,7 +1500,7 @@ class PyQtContextMenu(QObject):
                             )
                     except Exception as e:
                         print(f"Error restoring macOS focus to {app_name}: {e}")
-            elif platform.system() == "Linux":  # Linux
+            elif is_linux():
                 window_id = self.original_active_window.get("window_id")
                 if window_id:
                     try:
@@ -1624,3 +1549,12 @@ class PyQtContextMenu(QObject):
             # Clear the pending flag
             if hasattr(self, "_focus_restore_pending"):
                 delattr(self, "_focus_restore_pending")
+
+    def _close_and_restore_focus(self):
+        """Close menu and schedule focus restoration."""
+        if self.menu:
+            self.menu.close()
+        if self.focus_window:
+            self.focus_window.hide()
+        self._focus_restore_pending = True
+        QTimer.singleShot(_FOCUS_RESTORE_DELAY_MS, self._restore_focus_with_cleanup)
