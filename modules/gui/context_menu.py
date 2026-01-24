@@ -6,7 +6,6 @@ import os
 import subprocess
 from collections.abc import Callable
 
-from modules.utils.paths import should_manipulate_focus
 from modules.utils.system import is_linux, is_macos, is_windows
 
 _debug = logging.getLogger("promptheus.context_menu")
@@ -93,35 +92,18 @@ class InvisibleFocusWindow(QWidget):
         # Position the invisible window near the menu
         self.move(position.x(), position.y())
 
-        # Force application activation
         self._force_app_activation()
-
-        # Show invisible window and grab focus
         self.show()
-
-        # Set macOS window collection behavior AFTER show() so winId is valid
         _set_macos_window_move_to_active_space(self)
-
         self.raise_()
         self.activateWindow()
         self.setFocus(Qt.OtherFocusReason)
-
-        # Ensure this window can receive keyboard events
         self.setFocusPolicy(Qt.StrongFocus)
-
-        # Show menu after a short delay to ensure focus is grabbed
         QTimer.singleShot(_MENU_SHOW_DELAY_MS, lambda: self._show_menu_at_position(position))
 
     def _force_app_activation(self):
-        """Force application activation based on platform.
-
-        Note: For frozen apps, Qt's popup window flags handle focus correctly.
-        Explicit activation interferes with Qt's popup behavior and causes the
-        menu to close immediately. Only activate for non-frozen (development) mode.
-        """
-        _debug.debug("_force_app_activation called, should_manipulate=%s", should_manipulate_focus())
-        if not should_manipulate_focus():
-            return
+        """Force application activation based on platform."""
+        _debug.debug("_force_app_activation called")
         if is_macos():
             self._activate_macos()
         elif is_windows():
@@ -368,7 +350,7 @@ class PyQtContextMenu(QObject):
             # Connect to execution_completed signal for auto-refresh
             self._connect_execution_signal()
 
-            # Always use focus window - needed for LSUIElement apps
+            # Use focus window for keyboard navigation
             if not self.focus_window:
                 self.focus_window = InvisibleFocusWindow(self)
             self.focus_window.grab_focus_and_show_menu(self.menu, adjusted_pos)
@@ -1351,16 +1333,7 @@ class PyQtContextMenu(QObject):
             self.qt_active_window = None
 
     def _store_active_window(self):
-        """Store information about the currently active external application.
-
-        Note: For frozen apps, skip focus tracking entirely. Qt's popup behavior
-        works correctly and focus restoration isn't needed - the underlying
-        application remains accessible after the popup closes.
-        """
-        if not should_manipulate_focus():
-            self.original_active_window = None
-            return
-
+        """Store information about the currently active external application."""
         try:
             if is_macos():
                 # Use AppleScript to get the frontmost application
@@ -1444,16 +1417,8 @@ class PyQtContextMenu(QObject):
             self.original_active_window = None
 
     def _restore_focus(self):
-        """Restore focus to the original application that was active before menu was shown.
-
-        Note: For frozen apps, skip focus restoration. The popup closes naturally
-        and the underlying application regains focus automatically without
-        explicit restoration which can cause focus fighting.
-        """
-        _debug.debug("_restore_focus called, should_manipulate=%s", should_manipulate_focus())
-        if not should_manipulate_focus():
-            _debug.debug("_restore_focus skipped (no focus manipulation needed)")
-            return
+        """Restore focus to the original application that was active before menu was shown."""
+        _debug.debug("_restore_focus called")
         try:
             # First try Qt-native focus restoration (fast)
             if self.qt_active_window and isValid(self.qt_active_window):

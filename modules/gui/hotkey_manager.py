@@ -446,13 +446,10 @@ class PyQtHotkeyManager:
         if self.running:
             return
 
-        _write_hotkey_debug_log("PyQtHotkeyManager.start() called")
         try:
             self.listener.start()
             self.running = True
-            _write_hotkey_debug_log("PyQtHotkeyManager started successfully")
         except Exception as e:
-            _write_hotkey_debug_log(f"PyQtHotkeyManager FAILED: {type(e).__name__}: {e}")
             raise HotkeyError(f"Failed to start hotkey manager: {e}") from e
 
     def stop(self) -> None:

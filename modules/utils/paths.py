@@ -11,36 +11,6 @@ def is_frozen() -> bool:
     return getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS")
 
 
-def has_controlling_terminal() -> bool:
-    """Check if the process has a controlling terminal (TTY) attached.
-
-    Returns:
-        True if running from a terminal, False if launched from Finder/GUI
-    """
-    try:
-        return os.isatty(sys.stdin.fileno())
-    except (OSError, ValueError):
-        return False
-
-
-def should_manipulate_focus() -> bool:
-    """Determine if focus manipulation is needed.
-
-    Focus manipulation is needed when:
-    - Running as a Python script (not frozen) - Terminal competes for focus
-    - Running as frozen app FROM Terminal - Terminal competes for focus
-
-    Focus manipulation should be skipped when:
-    - Running as frozen app from Finder/GUI - No competition for focus
-
-    Returns:
-        True if focus manipulation should be performed
-    """
-    if not is_frozen():
-        return True
-    return has_controlling_terminal()
-
-
 def get_bundle_dir() -> Path:
     """Get the bundled resources directory.
 

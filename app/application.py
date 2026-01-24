@@ -35,7 +35,6 @@ from modules.utils.config import ConfigService, load_config, validate_config
 from modules.utils.keymap_actions import initialize_global_action_registry
 from modules.utils.notification_config import is_notification_enabled
 from modules.utils.notifications import PyQtNotificationManager
-from modules.utils.system import check_macos_permissions, show_macos_permissions_help
 
 
 def _write_startup_debug_log() -> None:
@@ -95,23 +94,14 @@ class PromtheusApp(QObject):
     # Qt signals
     shutdown_requested = Signal()
 
-    def _write_run_debug_log(self, message: str) -> None:
-        """Write debug info during run() to diagnose startup issues."""
-        debug_log_path = Path.home() / ".config" / "promptheus" / "debug.log"
-        timestamp = datetime.now().isoformat()
-        with open(debug_log_path, "a") as f:
-            f.write(f"[{timestamp}] RUN: {message}\n")
-
     def __init__(self, config_file: str | None = None):
         super().__init__()
 
         # Write debug log at very start of initialization
         _write_startup_debug_log()
 
-        self._write_run_debug_log("Creating QApplication...")
         # Create QApplication (Qt6 handles HiDPI automatically)
         self.app = QApplication(sys.argv)
-        self._write_run_debug_log("QApplication created")
         self.app.setQuitOnLastWindowClosed(False)
 
         # Apply global tooltip styling (affects all tooltips in the app)
@@ -148,21 +138,15 @@ class PromtheusApp(QObject):
         self.speech_service = None
         self.speech_history_service = None
 
-        self._write_run_debug_log("Initializing basic services...")
         # Initialize basic services needed for config loading
         self._initialize_basic_services()
 
-        self._write_run_debug_log("Loading config...")
         # Load configuration
         self._load_config(config_file)
 
-        self._write_run_debug_log("Initializing components...")
         # Initialize components
         self._initialize_components()
-        self._write_run_debug_log("Setting up signal handlers...")
         self._setup_signal_handlers()
-
-        self._write_run_debug_log("__init__ completed successfully")
 
     def _load_config(self, config_file: str | None = None) -> None:
         """Load and validate configuration."""
@@ -191,28 +175,22 @@ class PromtheusApp(QObject):
             if not self.config:
                 raise RuntimeError("Configuration not loaded")
 
-            self._write_run_debug_log("  - Initializing prompt providers...")
             # Initialize prompt providers
             self._initialize_prompt_providers()
 
-            self._write_run_debug_log("  - Initializing notification manager...")
             # Initialize notification manager
             self.notification_manager = PyQtNotificationManager(self.app)
 
-            self._write_run_debug_log("  - Initializing global action registry...")
             # Re-initialize global action registry with notification manager
             initialize_global_action_registry(self.context_manager, self.clipboard_manager, self.notification_manager)
 
-            self._write_run_debug_log("  - Initializing OpenAI service...")
             # Initialize OpenAI service
             self._initialize_openai_service()
 
-            self._write_run_debug_log("  - Initializing speech service...")
             # Initialize speech service
             self._initialize_speech_service()
-            self._write_run_debug_log("  - Initializing history service...")
             self._initialize_history_service()
-            self._write_run_debug_log("  - Creating PromptStoreService...")
+
             # Initialize core service
             self.prompt_store_service = PromptStoreService(
                 self.prompt_providers,
@@ -224,20 +202,16 @@ class PromtheusApp(QObject):
                 self.history_service,
             )
 
-            self._write_run_debug_log("  - Registering config callback...")
             # Register callback to invalidate prompt cache when settings are saved
             config_service = ConfigService()
             config_service.register_on_save_callback(self.prompt_store_service.invalidate_cache)
 
-            self._write_run_debug_log("  - Initializing GUI...")
             # Initialize GUI components
             self._initialize_gui()
 
-            self._write_run_debug_log("  - Registering execution handlers...")
             # Register execution handlers
             self._register_execution_handlers()
 
-            self._write_run_debug_log("  - Initializing menu providers...")
             # Initialize menu providers
             self._initialize_menu_providers()
 
@@ -245,10 +219,7 @@ class PromtheusApp(QObject):
             if self._pending_api_key_warning and self.notification_manager:
                 QTimer.singleShot(500, lambda: self._show_api_key_warning())
 
-            self._write_run_debug_log("  - Components initialized successfully")
-
         except Exception as e:
-            self._write_run_debug_log(f"  - FAILED: {type(e).__name__}: {e}")
             print(f"Failed to initialize application: {e}")
             sys.exit(1)
 
@@ -585,22 +556,18 @@ class PromtheusApp(QObject):
 
     def run(self) -> int:
         """Run the application."""
-        self._write_run_debug_log("run() called")
         print("Starting app")
         print("Press Ctrl+C to stop\n")
 
-        # Check platform-specific permissions
-        if not check_macos_permissions():
-            show_macos_permissions_help()
-
         self.running = True
-        self._write_run_debug_log("About to start hotkey manager")
+
+        # Handle macOS reopen events to prevent multiple launches
+        self._setup_macos_app_delegate()
 
         try:
             # Start hotkey manager
             if self.hotkey_manager:
                 self.hotkey_manager.start()
-                self._write_run_debug_log("Hotkey manager started, entering Qt event loop")
 
             # Run the Qt event loop
             return self.app.exec()
@@ -613,6 +580,35 @@ class PromtheusApp(QObject):
             print(f"Application error: {e}")
             self.stop()
             return 1
+
+    def _setup_macos_app_delegate(self) -> None:
+        """Setup macOS app delegate to handle reopen events properly."""
+        if sys.platform != "darwin":
+            return
+
+        try:
+            from AppKit import NSApplication, NSObject
+
+            class AppDelegate(NSObject):
+                """macOS app delegate to handle application events."""
+
+                def applicationShouldHandleReopen_hasVisibleWindows_(self, app, flag) -> bool:
+                    """Handle reopen events (clicking dock icon, etc).
+
+                    Return False to prevent macOS from trying to reopen/relaunch the app.
+                    """
+                    return False
+
+                def applicationShouldTerminateAfterLastWindowClosed_(self, app) -> bool:
+                    """Prevent app from terminating when last window closes."""
+                    return False
+
+            delegate = AppDelegate.alloc().init()
+            NSApplication.sharedApplication().setDelegate_(delegate)
+            # Keep reference to prevent garbage collection
+            self._macos_app_delegate = delegate
+        except Exception:
+            pass
 
     def stop(self) -> None:
         """Stop the application."""

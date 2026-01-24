@@ -1,7 +1,7 @@
 # Promptheus Makefile
 # Background process management for the Promptheus application
 
-.PHONY: help install setup start stop restart status logs logs-follow logs-debug start-debug debug clean clean-all autostart-linux info test test-cov lint lint-fix build build-linux install-build-deps clean-build install-linux install-linux-user appimage-linux clean-appimage
+.PHONY: help install setup start stop restart status logs logs-follow logs-debug start-debug debug clean clean-all autostart-linux info test test-cov lint lint-fix build build-linux install-build-deps clean-build install-linux install-linux-user appimage-linux clean-appimage generate-icns build-macos dmg-macos sign-macos clean-macos
 
 PYTHON := python3
 VENV_DIR := .venv
@@ -276,6 +276,8 @@ install-build-deps: ## Install PyInstaller and build dependencies
 build: ## Build for current platform
 	@if [ "$$(uname)" = "Linux" ]; then \
 		$(MAKE) build-linux; \
+	elif [ "$$(uname)" = "Darwin" ]; then \
+		$(MAKE) build-macos; \
 	else \
 		echo "❌ Unsupported platform for build"; \
 		exit 1; \
@@ -321,6 +323,60 @@ clean-appimage: ## Clean AppImage artifacts
 	@rm -rf $(DIST_DIR)/Promptheus.AppDir
 	@rm -f $(DIST_DIR)/Promptheus-x86_64.AppImage
 	@echo "✅ AppImage artifacts cleaned"
+
+# ==========================================
+# macOS Build Targets
+# ==========================================
+
+MACOS_DIR := packaging/macos
+MACOS_SPEC := $(SPEC_DIR)/promptheus_macos.spec
+MACOS_ICNS := $(MACOS_DIR)/Promptheus.icns
+MACOS_ENTITLEMENTS := $(MACOS_DIR)/entitlements.plist
+
+generate-icns: ## Generate macOS ICNS icon from SVG
+	@echo "🎨 Generating macOS ICNS icon..."
+	@chmod +x $(MACOS_DIR)/generate_icns.sh
+	@$(MACOS_DIR)/generate_icns.sh
+	@echo "✅ ICNS generated: $(MACOS_ICNS)"
+
+build-macos: install-build-deps generate-icns ## Build macOS .app bundle
+	@echo "🍎 Building macOS application..."
+	@$(PYINSTALLER) --clean --noconfirm $(MACOS_SPEC)
+	@echo "✅ Build complete: $(DIST_DIR)/Promptheus.app"
+	@echo ""
+	@echo "To test: open $(DIST_DIR)/Promptheus.app"
+	@echo "To create DMG: make dmg-macos"
+
+dmg-macos: ## Create macOS DMG installer
+	@echo "📦 Creating macOS DMG installer..."
+	@chmod +x $(MACOS_DIR)/create_dmg.sh
+	@$(MACOS_DIR)/create_dmg.sh
+	@echo "✅ DMG created: $(DIST_DIR)/Promptheus-Installer.dmg"
+
+sign-macos: ## Code sign macOS app (ad-hoc or Developer ID)
+	@echo "🔐 Code signing macOS app..."
+	@if [ -z "$(CODESIGN_IDENTITY)" ]; then \
+		echo "No CODESIGN_IDENTITY set, using ad-hoc signing..."; \
+		codesign --force --deep --sign - \
+			--entitlements $(MACOS_ENTITLEMENTS) \
+			$(DIST_DIR)/Promptheus.app; \
+	else \
+		echo "Signing with identity: $(CODESIGN_IDENTITY)"; \
+		codesign --force --deep --sign "$(CODESIGN_IDENTITY)" \
+			--entitlements $(MACOS_ENTITLEMENTS) \
+			--options runtime \
+			$(DIST_DIR)/Promptheus.app; \
+	fi
+	@echo "✅ Code signing complete"
+	@codesign -vvv --deep --strict $(DIST_DIR)/Promptheus.app || echo "⚠️  Verification warnings (expected for ad-hoc signing)"
+
+clean-macos: ## Clean macOS build artifacts
+	@echo "🧹 Cleaning macOS build artifacts..."
+	@rm -rf $(DIST_DIR)/Promptheus.app
+	@rm -f $(DIST_DIR)/Promptheus-Installer.dmg
+	@rm -f $(MACOS_ICNS)
+	@rm -rf $(MACOS_DIR)/Promptheus.iconset
+	@echo "✅ macOS artifacts cleaned"
 
 # Default target
 all: help
