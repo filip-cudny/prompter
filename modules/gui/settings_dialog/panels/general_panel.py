@@ -2,6 +2,7 @@
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QFormLayout,
     QLabel,
@@ -73,6 +74,12 @@ FORM_STYLE = f"""
     QLabel {{
         color: {COLOR_TEXT};
     }}
+    QCheckBox {{
+        color: {COLOR_TEXT};
+        spacing: 8px;
+        padding: 4px 0px;
+        min-height: 24px;
+    }}
 """
 
 
@@ -113,6 +120,18 @@ class GeneralPanel(SettingsPanelBase):
         debounce_label.setToolTip("Delay before processing number input in menus (milliseconds)")
         form_layout.addRow(debounce_label, self._debounce_spin)
 
+        self._tray_icon_checkbox = QCheckBox("Show system tray icon")
+        self._tray_icon_checkbox.setToolTip("Display an icon in the system tray (requires restart)")
+        self._load_tray_icon_value()
+        self._tray_icon_checkbox.stateChanged.connect(self._on_tray_icon_changed)
+        form_layout.addRow("", self._tray_icon_checkbox)
+
+        self._debug_mode_checkbox = QCheckBox("Enable debug mode")
+        self._debug_mode_checkbox.setToolTip("Log detailed debug information to debug.log (requires restart)")
+        self._load_debug_mode_value()
+        self._debug_mode_checkbox.stateChanged.connect(self._on_debug_mode_changed)
+        form_layout.addRow("", self._debug_mode_checkbox)
+
         layout.addWidget(form_container)
 
     def _populate_model_combo(self):
@@ -138,6 +157,18 @@ class GeneralPanel(SettingsPanelBase):
         debounce = settings_data.get("number_input_debounce_ms", 200)
         self._debounce_spin.setValue(debounce)
 
+    def _load_tray_icon_value(self):
+        """Load the tray icon setting from config."""
+        settings_data = self._config_service.get_settings_data()
+        show_tray = settings_data.get("show_tray_icon", True)
+        self._tray_icon_checkbox.setChecked(show_tray)
+
+    def _load_debug_mode_value(self):
+        """Load the debug mode setting from config."""
+        settings_data = self._config_service.get_settings_data()
+        debug_mode = settings_data.get("debug_mode", False)
+        self._debug_mode_checkbox.setChecked(debug_mode)
+
     def _on_model_changed(self, index: int):
         """Handle model selection change."""
         if index >= 0:
@@ -145,6 +176,14 @@ class GeneralPanel(SettingsPanelBase):
 
     def _on_debounce_changed(self, value: int):
         """Handle debounce value change."""
+        self.mark_dirty()
+
+    def _on_tray_icon_changed(self, state: int):
+        """Handle tray icon checkbox change."""
+        self.mark_dirty()
+
+    def _on_debug_mode_changed(self, state: int):
+        """Handle debug mode checkbox change."""
         self.mark_dirty()
 
     def save_changes(self) -> bool:
@@ -157,6 +196,12 @@ class GeneralPanel(SettingsPanelBase):
         debounce_value = self._debounce_spin.value()
         self._config_service.update_setting("number_input_debounce_ms", debounce_value, persist=False)
 
+        show_tray = self._tray_icon_checkbox.isChecked()
+        self._config_service.update_setting("show_tray_icon", show_tray, persist=False)
+
+        debug_mode = self._debug_mode_checkbox.isChecked()
+        self._config_service.update_setting("debug_mode", debug_mode, persist=False)
+
         self.mark_clean()
         return True
 
@@ -164,4 +209,6 @@ class GeneralPanel(SettingsPanelBase):
         """Reload settings from config."""
         self._populate_model_combo()
         self._load_debounce_value()
+        self._load_tray_icon_value()
+        self._load_debug_mode_value()
         self.mark_clean()

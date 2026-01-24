@@ -1,4 +1,6 @@
 {
+  "show_tray_icon": true,
+  "debug_mode": false,
   "description_generator": {
     "model": "",
     "prompt": "Generate a concise 3-4 word description for the following AI prompt.\nThe description should capture the primary purpose or action.\nOnly respond with the description, nothing else.\n\nPrompt name: {{name}}\nSystem message: {{system}}\nUser message template: {{user}}"

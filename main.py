@@ -7,8 +7,23 @@ import os
 import sys
 
 from app.application import PromtheusApp
-from modules.utils.paths import get_debug_log_path, get_user_config_dir
+from modules.utils.paths import get_debug_log_path, get_error_log_path, get_settings_file, get_user_config_dir
 from modules.utils.system import is_macos
+
+
+def get_debug_mode_from_settings() -> bool:
+    """Read debug_mode setting from settings.json."""
+    import json
+
+    settings_file = get_settings_file()
+    if settings_file.exists():
+        try:
+            with open(settings_file, encoding="utf-8") as f:
+                settings = json.load(f)
+            return settings.get("debug_mode", False)
+        except Exception:
+            pass
+    return False
 
 
 def acquire_instance_lock():
@@ -32,23 +47,40 @@ def acquire_instance_lock():
 
 
 def setup_logging(debug: bool = False) -> None:
-    """Configure logging for the application."""
-    log_level = logging.DEBUG if debug else logging.WARNING
-    log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    """Configure logging for the application.
 
-    handlers = [logging.StreamHandler()]
+    Args:
+        debug: Whether to enable debug mode (verbose logging to debug.log)
+
+    Logging behavior:
+        - Errors (ERROR level and above) are always logged to error.log
+        - Debug mode logs all levels (DEBUG+) to debug.log
+        - Console output shows WARNING+ normally, DEBUG+ in debug mode
+    """
+    log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    formatter = logging.Formatter(log_format)
+
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.DEBUG)
+
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.DEBUG if debug else logging.WARNING)
+    console_handler.setFormatter(formatter)
+
+    error_handler = logging.FileHandler(get_error_log_path())
+    error_handler.setLevel(logging.ERROR)
+    error_handler.setFormatter(formatter)
+
+    handlers = [console_handler, error_handler]
 
     if debug:
-        # Add file handler in debug mode
-        file_handler = logging.FileHandler(get_debug_log_path())
-        file_handler.setFormatter(logging.Formatter(log_format))
-        handlers.append(file_handler)
+        debug_handler = logging.FileHandler(get_debug_log_path())
+        debug_handler.setLevel(logging.DEBUG)
+        debug_handler.setFormatter(formatter)
+        handlers.append(debug_handler)
 
-    logging.basicConfig(
-        level=log_level,
-        format=log_format,
-        handlers=handlers,
-    )
+    for handler in handlers:
+        root_logger.addHandler(handler)
 
 
 def main():
@@ -72,11 +104,15 @@ def main():
     parser.add_argument("--debug", "-d", action="store_true", help="Enable debug mode with detailed logging")
     args = parser.parse_args()
 
-    debug_enabled = args.debug or os.environ.get("PROMPTHEUS_DEBUG", "").lower() in ("1", "true", "yes")
+    debug_enabled = (
+        args.debug
+        or os.environ.get("PROMPTHEUS_DEBUG", "").lower() in ("1", "true", "yes")
+        or get_debug_mode_from_settings()
+    )
     setup_logging(debug=debug_enabled)
 
     if debug_enabled:
-        logging.info("Debug mode enabled - logging to promptheus-debug.log")
+        logging.info("Debug mode enabled - logging to debug.log")
 
     try:
         app = PromtheusApp(args.config)

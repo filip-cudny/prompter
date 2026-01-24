@@ -8,8 +8,8 @@ from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QTimer, Signal
-from PySide6.QtGui import QColor, QPalette
-from PySide6.QtWidgets import QApplication, QToolTip
+from PySide6.QtGui import QAction, QColor, QIcon, QPalette, QPixmap
+from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon, QToolTip
 
 from core.context_manager import ContextManager
 from core.exceptions import ConfigurationError
@@ -138,6 +138,9 @@ class PromtheusApp(QObject):
         self.speech_service = None
         self.speech_history_service = None
 
+        # System tray
+        self.system_tray: QSystemTrayIcon | None = None
+
         # Initialize basic services needed for config loading
         self._initialize_basic_services()
 
@@ -208,6 +211,9 @@ class PromtheusApp(QObject):
 
             # Initialize GUI components
             self._initialize_gui()
+
+            # Initialize system tray if enabled
+            self._initialize_system_tray()
 
             # Register execution handlers
             self._register_execution_handlers()
@@ -391,6 +397,93 @@ class PromtheusApp(QObject):
 
         # Connect context manager for cache invalidation
         self.menu_coordinator.set_context_manager(self.context_manager)
+
+    def _initialize_system_tray(self) -> None:
+        """Initialize system tray icon if enabled in settings."""
+        config_service = ConfigService()
+        settings_data = config_service.get_settings_data()
+        show_tray = settings_data.get("show_tray_icon", True)
+
+        if not show_tray:
+            return
+
+        try:
+            from modules.utils.paths import get_root_icon_path
+
+            icon_path = get_root_icon_path("tray_icon.svg")
+            if icon_path.exists():
+                icon = QIcon(str(icon_path))
+            else:
+                icon = self._create_fallback_tray_icon()
+
+            self.system_tray = QSystemTrayIcon(icon, self.app)
+            self.system_tray.setToolTip("Promptheus")
+
+            tray_menu = QMenu()
+            tray_menu.setStyleSheet("""
+                QMenu {
+                    background-color: #1a1a1a;
+                    color: #f0f0f0;
+                    border: 1px solid #333;
+                    border-radius: 4px;
+                    padding: 4px;
+                }
+                QMenu::item {
+                    padding: 6px 20px;
+                    border-radius: 2px;
+                }
+                QMenu::item:selected {
+                    background-color: #333;
+                }
+            """)
+
+            show_menu_action = QAction("Show Menu", self.app)
+            show_menu_action.triggered.connect(self._on_show_menu_hotkey_pressed)
+            tray_menu.addAction(show_menu_action)
+
+            settings_action = QAction("Settings...", self.app)
+            settings_action.triggered.connect(self._show_settings_dialog)
+            tray_menu.addAction(settings_action)
+
+            tray_menu.addSeparator()
+
+            quit_action = QAction("Quit", self.app)
+            quit_action.triggered.connect(self.stop)
+            tray_menu.addAction(quit_action)
+
+            self.system_tray.setContextMenu(tray_menu)
+            self.system_tray.show()
+
+        except Exception as e:
+            import logging
+
+            logging.error(f"Failed to initialize system tray: {e}")
+
+    def _create_fallback_tray_icon(self) -> QIcon:
+        """Create a simple colored circle as fallback tray icon."""
+        from PySide6.QtCore import Qt
+        from PySide6.QtGui import QPainter
+
+        pixmap = QPixmap(16, 16)
+        pixmap.fill(Qt.transparent)
+        painter = QPainter(pixmap)
+        painter.setBrush(QColor("#4a90d9"))
+        painter.setPen(Qt.NoPen)
+        painter.drawEllipse(0, 0, 16, 16)
+        painter.end()
+        return QIcon(pixmap)
+
+    def _show_settings_dialog(self) -> None:
+        """Show the settings dialog."""
+        try:
+            from modules.gui.settings_dialog.settings_dialog import SettingsDialog
+
+            dialog = SettingsDialog(parent=None)
+            dialog.exec()
+        except Exception as e:
+            import logging
+
+            logging.error(f"Failed to show settings dialog: {e}")
 
     def _initialize_menu_providers(self) -> None:
         """Initialize menu providers."""
@@ -635,8 +728,9 @@ class PromtheusApp(QObject):
             self.notification_manager.cleanup()
 
         # Hide system tray
-        # if self.system_tray:
-        #     self.system_tray.hide()
+        if self.system_tray:
+            self.system_tray.hide()
+            self.system_tray = None
 
         # Quit application
         if self.app:

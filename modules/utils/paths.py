@@ -117,6 +117,16 @@ def get_debug_log_path() -> Path:
     return config_dir / "debug.log"
 
 
+def get_error_log_path() -> Path:
+    """Get the path to error.log file.
+
+    Returns platform-appropriate log location and ensures directory exists.
+    """
+    config_dir = get_user_config_dir()
+    config_dir.mkdir(parents=True, exist_ok=True)
+    return config_dir / "error.log"
+
+
 def _initialize_user_settings(config_dir: Path) -> None:
     """Copy settings_example to user config directory on first run.
 
