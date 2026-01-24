@@ -17,10 +17,10 @@ from modules.utils.keymap import KeymapManager
 
 def _write_hotkey_debug_log(message: str) -> None:
     """Write hotkey debug info to help diagnose hotkey issues."""
-    debug_log_path = Path.home() / ".config" / "promptheus" / "debug.log"
-    debug_log_path.parent.mkdir(parents=True, exist_ok=True)
+    from modules.utils.paths import get_debug_log_path
+
     timestamp = datetime.now().isoformat()
-    with open(debug_log_path, "a") as f:
+    with open(get_debug_log_path(), "a") as f:
         f.write(f"[{timestamp}] HOTKEY: {message}\n")
 
 

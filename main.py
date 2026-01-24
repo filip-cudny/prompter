@@ -6,6 +6,7 @@ import os
 import sys
 
 from app.application import PromtheusApp
+from modules.utils.paths import get_debug_log_path
 from modules.utils.system import is_macos
 
 
@@ -18,7 +19,7 @@ def setup_logging(debug: bool = False) -> None:
 
     if debug:
         # Add file handler in debug mode
-        file_handler = logging.FileHandler("promptheus-debug.log")
+        file_handler = logging.FileHandler(get_debug_log_path())
         file_handler.setFormatter(logging.Formatter(log_format))
         handlers.append(file_handler)
 
@@ -59,11 +60,9 @@ def main():
     except Exception as e:
         # Log exception to debug file since stdout isn't visible from GUI
         from datetime import datetime
-        from pathlib import Path
         import traceback
 
-        debug_log = Path.home() / ".config" / "promptheus" / "debug.log"
-        with open(debug_log, "a") as f:
+        with open(get_debug_log_path(), "a") as f:
             f.write(f"\n[{datetime.now().isoformat()}] EXCEPTION in main():\n")
             f.write(f"  {type(e).__name__}: {e}\n")
             f.write(f"  Traceback:\n{traceback.format_exc()}\n")

@@ -1,7 +1,7 @@
 # Promptheus Makefile
 # Background process management for the Promptheus application
 
-.PHONY: help install setup start stop restart status logs logs-follow logs-debug start-debug debug clean clean-all autostart-macos autostart-linux info test test-cov lint lint-fix build build-macos build-linux install-build-deps icons-macos clean-build dmg-macos install-linux install-linux-user appimage-linux clean-appimage
+.PHONY: help install setup start stop restart status logs logs-follow logs-debug start-debug debug clean clean-all autostart-linux info test test-cov lint lint-fix build build-linux install-build-deps clean-build install-linux install-linux-user appimage-linux clean-appimage
 
 PYTHON := python3
 VENV_DIR := .venv
@@ -206,36 +206,6 @@ clean-all: clean ## Clean everything including virtual environment
 	@rm -rf $(VENV_DIR)
 	@echo "✅ Deep cleanup complete"
 
-autostart-macos: ## Setup macOS LaunchAgent for autostart
-	@echo "🍎 Setting up macOS autostart..."
-	@mkdir -p ~/Library/LaunchAgents
-	@echo '<?xml version="1.0" encoding="UTF-8"?>' > ~/Library/LaunchAgents/com.promptheus.service.plist
-	@echo '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> ~/Library/LaunchAgents/com.promptheus.service.plist
-	@echo '<plist version="1.0">' >> ~/Library/LaunchAgents/com.promptheus.service.plist
-	@echo '<dict>' >> ~/Library/LaunchAgents/com.promptheus.service.plist
-	@echo '    <key>Label</key>' >> ~/Library/LaunchAgents/com.promptheus.service.plist
-	@echo '    <string>com.promptheus.service</string>' >> ~/Library/LaunchAgents/com.promptheus.service.plist
-	@echo '    <key>ProgramArguments</key>' >> ~/Library/LaunchAgents/com.promptheus.service.plist
-	@echo '    <array>' >> ~/Library/LaunchAgents/com.promptheus.service.plist
-	@echo '        <string>$(PWD)/$(VENV_PYTHON)</string>' >> ~/Library/LaunchAgents/com.promptheus.service.plist
-	@echo '        <string>$(PWD)/main.py</string>' >> ~/Library/LaunchAgents/com.promptheus.service.plist
-	@echo '    </array>' >> ~/Library/LaunchAgents/com.promptheus.service.plist
-	@echo '    <key>WorkingDirectory</key>' >> ~/Library/LaunchAgents/com.promptheus.service.plist
-	@echo '    <string>$(PWD)</string>' >> ~/Library/LaunchAgents/com.promptheus.service.plist
-	@echo '    <key>RunAtLoad</key>' >> ~/Library/LaunchAgents/com.promptheus.service.plist
-	@echo '    <true/>' >> ~/Library/LaunchAgents/com.promptheus.service.plist
-	@echo '    <key>KeepAlive</key>' >> ~/Library/LaunchAgents/com.promptheus.service.plist
-	@echo '    <true/>' >> ~/Library/LaunchAgents/com.promptheus.service.plist
-	@echo '    <key>StandardOutPath</key>' >> ~/Library/LaunchAgents/com.promptheus.service.plist
-	@echo '    <string>$(PWD)/promptheus-daemon.log</string>' >> ~/Library/LaunchAgents/com.promptheus.service.plist
-	@echo '    <key>StandardErrorPath</key>' >> ~/Library/LaunchAgents/com.promptheus.service.plist
-	@echo '    <string>$(PWD)/promptheus-daemon-error.log</string>' >> ~/Library/LaunchAgents/com.promptheus.service.plist
-	@echo '</dict>' >> ~/Library/LaunchAgents/com.promptheus.service.plist
-	@echo '</plist>' >> ~/Library/LaunchAgents/com.promptheus.service.plist
-	@echo "✅ LaunchAgent created"
-	@echo "To enable: launchctl load ~/Library/LaunchAgents/com.promptheus.service.plist"
-	@echo "To disable: launchctl unload ~/Library/LaunchAgents/com.promptheus.service.plist"
-
 autostart-linux: ## Setup Linux systemd service for autostart
 	@echo "🐧 Setting up Linux systemd service..."
 	@mkdir -p ~/.config/systemd/user
@@ -304,25 +274,12 @@ install-build-deps: ## Install PyInstaller and build dependencies
 	@echo "✅ Build dependencies installed"
 
 build: ## Build for current platform
-	@if [ "$$(uname)" = "Darwin" ]; then \
-		$(MAKE) build-macos; \
-	elif [ "$$(uname)" = "Linux" ]; then \
+	@if [ "$$(uname)" = "Linux" ]; then \
 		$(MAKE) build-linux; \
 	else \
 		echo "❌ Unsupported platform for build"; \
 		exit 1; \
 	fi
-
-build-macos: install-build-deps ## Build macOS .app bundle
-	@echo "🍎 Building macOS application..."
-	@if [ ! -f "packaging/macos/Promptheus.icns" ]; then \
-		echo "⚠️  Icon file not found. Run 'make icons-macos' first (optional)."; \
-	fi
-	@$(PYINSTALLER) --clean --noconfirm $(SPEC_DIR)/promptheus_macos.spec
-	@echo "✅ Build complete: $(DIST_DIR)/Promptheus.app"
-	@echo ""
-	@echo "To test: open $(DIST_DIR)/Promptheus.app"
-	@echo "To create DMG: make dmg-macos"
 
 build-linux: install-build-deps ## Build Linux executable
 	@echo "🐧 Building Linux application..."
@@ -332,27 +289,11 @@ build-linux: install-build-deps ## Build Linux executable
 	@echo "To test: $(DIST_DIR)/promptheus/promptheus"
 	@echo "To install: make install-linux-user"
 
-icons-macos: ## Generate macOS .icns icon file
-	@echo "🎨 Generating macOS icon..."
-	@chmod +x packaging/macos/generate_icns.sh
-	@packaging/macos/generate_icns.sh
-	@echo "✅ Icon generated: packaging/macos/Promptheus.icns"
-
 clean-build: ## Clean build artifacts
 	@echo "🧹 Cleaning build artifacts..."
 	@rm -rf $(BUILD_DIR) $(DIST_DIR)
 	@rm -rf *.spec 2>/dev/null || true
 	@echo "✅ Build artifacts cleaned"
-
-dmg-macos: ## Create macOS DMG installer
-	@echo "💿 Creating macOS DMG..."
-	@if [ ! -d "$(DIST_DIR)/Promptheus.app" ]; then \
-		echo "❌ Build not found. Run 'make build-macos' first."; \
-		exit 1; \
-	fi
-	@rm -f $(DIST_DIR)/Promptheus.dmg
-	@hdiutil create -volname "Promptheus" -srcfolder $(DIST_DIR)/Promptheus.app -ov -format UDZO $(DIST_DIR)/Promptheus.dmg
-	@echo "✅ DMG created: $(DIST_DIR)/Promptheus.dmg"
 
 install-linux: ## Install on Linux system-wide (requires sudo)
 	@echo "🐧 Installing system-wide..."
