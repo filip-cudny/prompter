@@ -465,7 +465,7 @@ class PyQtContextMenu(QObject):
         """Refresh menu when execution completes while open."""
         if result and hasattr(result, "metadata") and result.metadata:
             action = result.metadata.get("action", "")
-            if action.startswith("speech_recording"):
+            if action == "speech_recording_started":
                 return
 
         if self.menu and self.menu.isVisible() and self._last_menu_position:
@@ -1375,7 +1375,7 @@ class PyQtContextMenu(QObject):
                     ["osascript", "-e", script],
                     capture_output=True,
                     text=True,
-                    timeout=0.3,
+                    timeout=1.0,
                 )
                 if result.returncode == 0:
                     app_info = result.stdout.strip().split("|||")
@@ -1440,7 +1440,7 @@ class PyQtContextMenu(QObject):
                                 "pid": None,
                             }
         except Exception as e:
-            print(f"Error storing active window: {e}")
+            _debug.debug("Error storing active window: %s", e)
             self.original_active_window = None
 
     def _restore_focus(self):
