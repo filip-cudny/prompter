@@ -12,6 +12,19 @@ from core.interfaces import ClipboardManager
 logger = logging.getLogger(__name__)
 
 
+def _safe_decode_bytes(data: bytes) -> str:
+    """Decode bytes to string, replacing invalid UTF-8 sequences."""
+    text = data.decode("utf-8", errors="replace")
+    if "\ufffd" in text:
+        logger.debug("Clipboard content contained non-UTF-8 bytes that were replaced")
+    return text
+
+
+def _safe_encode_string(text: str) -> bytes:
+    """Encode string to UTF-8 bytes."""
+    return text.encode("utf-8")
+
+
 class SystemClipboardManager(ClipboardManager):
     """Cross-platform clipboard manager implementation."""
 
@@ -185,11 +198,10 @@ class SystemClipboardManager(ClipboardManager):
             result = subprocess.run(
                 ["xclip", "-selection", "clipboard", "-t", "TARGETS", "-out"],
                 capture_output=True,
-                text=True,
                 timeout=3,
                 check=True,
             )
-            targets = result.stdout.lower()
+            targets = _safe_decode_bytes(result.stdout).lower()
             logger.debug(f"xclip targets: {targets}")
             has_image = any(fmt in targets for fmt in ["image/png", "image/jpeg", "image/gif", "image/bmp"])
             logger.debug(f"xclip image detection result: {has_image}")
@@ -363,14 +375,14 @@ class SystemClipboardManager(ClipboardManager):
 
     def _get_content_macos(self) -> str:
         """Get clipboard content on macOS."""
-        result = subprocess.run(["pbpaste"], capture_output=True, text=True, timeout=5)
+        result = subprocess.run(["pbpaste"], capture_output=True, timeout=5)
         if result.returncode != 0:
-            raise ClipboardError(f"pbpaste failed: {result.stderr}")
-        return result.stdout
+            raise ClipboardError(f"pbpaste failed: {_safe_decode_bytes(result.stderr)}")
+        return _safe_decode_bytes(result.stdout)
 
     def _set_content_macos(self, content: str) -> bool:
         """Set clipboard content on macOS."""
-        result = subprocess.run(["pbcopy"], input=content, text=True, capture_output=True, timeout=5)
+        result = subprocess.run(["pbcopy"], input=_safe_encode_string(content), capture_output=True, timeout=5)
         return result.returncode == 0
 
     def _get_content_linux(self) -> str:
@@ -398,35 +410,33 @@ class SystemClipboardManager(ClipboardManager):
             result = subprocess.run(
                 ["xclip", "-selection", "clipboard", "-out"],
                 capture_output=True,
-                text=True,
                 timeout=3,
                 check=True,
             )
-            return result.stdout
+            return _safe_decode_bytes(result.stdout)
         except FileNotFoundError:
             xclip_error = "xclip not found"
         except subprocess.TimeoutExpired:
             xclip_error = "xclip timed out"
         except subprocess.CalledProcessError as e:
-            xclip_error = f"xclip failed with code {e.returncode}: {e.stderr}"
+            xclip_error = f"xclip failed with code {e.returncode}: {_safe_decode_bytes(e.stderr)}"
 
         # Try xsel as fallback
         try:
             result = subprocess.run(
                 ["xsel", "--clipboard", "--output"],
                 capture_output=True,
-                text=True,
                 timeout=3,
                 check=True,
             )
-            return result.stdout
+            return _safe_decode_bytes(result.stdout)
         except FileNotFoundError as e:
             raise ClipboardError(f"xclip failed ({xclip_error}) and xsel not found") from e
         except subprocess.TimeoutExpired as e:
             raise ClipboardError(f"xclip failed ({xclip_error}) and xsel timed out") from e
         except subprocess.CalledProcessError as e:
             raise ClipboardError(
-                f"xclip failed ({xclip_error}) and xsel failed with code {e.returncode}: {e.stderr}"
+                f"xclip failed ({xclip_error}) and xsel failed with code {e.returncode}: {_safe_decode_bytes(e.stderr)}"
             ) from e
 
     def _set_content_linux(self, content: str) -> bool:
@@ -435,8 +445,7 @@ class SystemClipboardManager(ClipboardManager):
         try:
             subprocess.run(
                 ["xclip", "-selection", "clipboard", "-in"],
-                input=content,
-                text=True,
+                input=_safe_encode_string(content),
                 timeout=3,
                 check=True,
             )
@@ -452,8 +461,7 @@ class SystemClipboardManager(ClipboardManager):
         try:
             subprocess.run(
                 ["xsel", "--clipboard", "--input"],
-                input=content,
-                text=True,
+                input=_safe_encode_string(content),
                 timeout=3,
                 check=True,
             )
