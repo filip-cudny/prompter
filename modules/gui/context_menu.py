@@ -1,14 +1,11 @@
 """PySide6-based context menu system for the Promptheus application."""
 
 import contextlib
-import logging
 import os
 import subprocess
 from collections.abc import Callable
 
 from modules.utils.system import is_linux, is_macos, is_windows
-
-_debug = logging.getLogger("promptheus.context_menu")
 
 from PySide6.QtCore import QEvent, QObject, QPoint, Qt, QTimer
 from PySide6.QtGui import QAction, QCursor
@@ -86,10 +83,7 @@ class InvisibleFocusWindow(QWidget):
 
     def grab_focus_and_show_menu(self, menu: QMenu, position: QPoint):
         """Grab focus and show the menu."""
-        _debug.debug("grab_focus_and_show_menu called at position=%s", position)
         self.menu = menu
-
-        # Position the invisible window near the menu
         self.move(position.x(), position.y())
 
         self._force_app_activation()
@@ -103,7 +97,6 @@ class InvisibleFocusWindow(QWidget):
 
     def _force_app_activation(self):
         """Force application activation based on platform."""
-        _debug.debug("_force_app_activation called")
         if is_macos():
             self._activate_macos()
         elif is_windows():
@@ -112,25 +105,22 @@ class InvisibleFocusWindow(QWidget):
             self._activate_linux()
 
     def _activate_macos(self):
-        """Activate application on macOS."""
+        """Activate application on macOS by switching to regular dock mode."""
         try:
+            from AppKit import NSApp, NSApplicationActivationPolicyRegular
+
+            NSApp.setActivationPolicy_(NSApplicationActivationPolicyRegular)
+            NSApp.activateIgnoringOtherApps_(True)
+        except ImportError:
             try:
-                from Foundation import NSRunningApplication
-
-                app = NSRunningApplication.runningApplicationWithProcessIdentifier_(os.getpid())
-                if app:
-                    app.activateWithOptions_(1)
-                    return
-            except ImportError:
+                script = f"""
+                tell application "System Events"
+                    set frontmost of first process whose unix id is {os.getpid()} to true
+                end tell
+                """
+                subprocess.run(["osascript", "-e", script], capture_output=True, timeout=0.3, check=False)
+            except Exception:
                 pass
-
-            script = f"""
-            tell application "System Events"
-                set frontmost of first process whose unix id is {os.getpid()} to true
-            end tell
-            """
-            subprocess.run(["osascript", "-e", script], capture_output=True, timeout=0.3, check=False)
-
         except Exception:
             pass
 
@@ -159,11 +149,6 @@ class InvisibleFocusWindow(QWidget):
 
     def _show_menu_at_position(self, position: QPoint):
         """Show the menu at the specified position."""
-        _debug.debug(
-            "_show_menu_at_position called, menu=%s, visible=%s",
-            self.menu,
-            self.menu.isVisible() if self.menu else None,
-        )
         if self.menu and not self.menu.isVisible():
             self.menu.popup(position)
             _set_macos_window_move_to_active_space(self.menu)
@@ -281,7 +266,6 @@ class PyQtContextMenu(QObject):
 
     def show_at_position(self, items: list[MenuItem], position: tuple[int, int]) -> None:
         """Show context menu at specific position with invisible focus window for keyboard navigation."""
-        _debug.debug("show_at_position called, position=%s, item_count=%d", position, len(items) if items else 0)
         if not items:
             return
 
@@ -1193,11 +1177,6 @@ class PyQtContextMenu(QObject):
 
     def _on_menu_about_to_hide(self):
         """Handle menu about to hide - cleanup number timer and restore focus."""
-        _debug.debug(
-            "_on_menu_about_to_hide called, rebuilding=%s, focus_pending=%s",
-            self._is_rebuilding_menu,
-            hasattr(self, "_focus_restore_pending"),
-        )
         # Remove global event filter
         QApplication.instance().removeEventFilter(self)
 
@@ -1209,10 +1188,25 @@ class PyQtContextMenu(QObject):
         self.number_input_buffer = ""
         self.shift_pressed = False
 
+        # Switch back to accessory mode if no dialogs are open
+        from modules.utils import system
+
+        if is_macos() and system._open_dialog_count == 0:
+            self._set_macos_accessory_mode()
+
         # Restore focus when menu closes (only if not rebuilding and not already restoring)
         if not self._is_rebuilding_menu and not hasattr(self, "_focus_restore_pending"):
             self._focus_restore_pending = True
             QTimer.singleShot(_MENU_SHOW_DELAY_MS, self._restore_focus_with_cleanup)
+
+    def _set_macos_accessory_mode(self):
+        """Switch back to accessory mode (hidden from dock) on macOS."""
+        try:
+            from AppKit import NSApp, NSApplicationActivationPolicyAccessory
+
+            NSApp.setActivationPolicy_(NSApplicationActivationPolicyAccessory)
+        except Exception:
+            pass
 
     def _handle_number_key_press(self, menu, number, is_alternative):
         """Handle number key press to execute prompts by index."""
@@ -1373,13 +1367,11 @@ class PyQtContextMenu(QObject):
                                 "name": "Unknown",
                                 "pid": None,
                             }
-        except Exception as e:
-            _debug.debug("Error storing active window: %s", e)
+        except Exception:
             self.original_active_window = None
 
     def _restore_focus(self):
         """Restore focus to the original application that was active before menu was shown."""
-        _debug.debug("_restore_focus called")
         try:
             # First try Qt-native focus restoration (fast)
             if self.qt_active_window and isValid(self.qt_active_window):
