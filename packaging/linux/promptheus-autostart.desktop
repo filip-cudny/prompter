@@ -8,3 +8,5 @@ Type=Application
 X-GNOME-Autostart-enabled=true
 Hidden=false
 NoDisplay=false
+X-GNOME-UsesNotifications=true
+X-KDE-StartupNotify=false

@@ -21,7 +21,16 @@ from PySide6.QtWidgets import (
 
 from modules.gui.icons import ICON_COLOR_NORMAL
 from modules.gui.shared.context_widgets import IconButton
-from modules.gui.shared.dialog_styles import TOOLTIP_STYLE
+from modules.gui.shared.theme import (
+    COLOR_BORDER,
+    COLOR_BUTTON_BG,
+    COLOR_BUTTON_HOVER,
+    COLOR_TEXT,
+    ICON_BTN_STYLE,
+    SECTION_HINT_STYLE,
+    SECTION_TITLE_STYLE,
+    TOOLTIP_STYLE,
+)
 from modules.gui.shared.undo_redo import TextEditUndoHelper
 from modules.utils.notification_config import is_notification_enabled
 
@@ -29,20 +38,6 @@ logger = logging.getLogger(__name__)
 
 # Type variable for generic undo/redo manager
 T = TypeVar("T")
-
-# Transparent button style (no border, no background)
-ICON_BTN_STYLE = (
-    """
-    QPushButton {
-        background: transparent;
-        border: none;
-        padding: 2px;
-        min-width: 0px;
-        max-width: 24px;
-    }
-"""
-    + TOOLTIP_STYLE
-)
 
 # Minimum height for text edit widgets in dialogs
 TEXT_EDIT_MIN_HEIGHT = 300
@@ -93,13 +88,13 @@ class CollapsibleSectionHeader(QWidget):
 
         # Title label after chevron
         self.title_label = QLabel(title)
-        self.title_label.setStyleSheet("QLabel { color: #888888; font-size: 11px; font-weight: bold; }")
+        self.title_label.setStyleSheet(SECTION_TITLE_STYLE)
         layout.addWidget(self.title_label)
 
         # Optional hint text (e.g., "Paste image: Ctrl+V")
         if hint_text:
             hint_label = QLabel(hint_text)
-            hint_label.setStyleSheet("QLabel { color: #666666; font-size: 11px; }")
+            hint_label.setStyleSheet(SECTION_HINT_STYLE)
             layout.addWidget(hint_label)
 
         layout.addStretch()
@@ -130,7 +125,7 @@ class CollapsibleSectionHeader(QWidget):
             version_layout.addWidget(self.version_prev_btn)
 
             self.version_label = QLabel("1 of 1")
-            self.version_label.setStyleSheet("QLabel { color: #888888; font-size: 11px; }")
+            self.version_label.setStyleSheet(SECTION_HINT_STYLE)
             version_layout.addWidget(self.version_label)
 
             self.version_next_btn = IconButton("chevron-right", size=16)
@@ -271,14 +266,14 @@ class ImageChipWidget(QWidget):
     copy_requested = Signal(int)
 
     # Styles matching ContextChipBase in context_widgets.py
-    _chip_style = """
-        QWidget#editorChip {
-            background-color: #3a3a3a;
-            border: 1px solid #555555;
+    _chip_style = f"""
+        QWidget#editorChip {{
+            background-color: {COLOR_BUTTON_BG};
+            border: 1px solid {COLOR_BORDER};
             border-radius: 12px;
             padding: 2px;
-        }
-        QWidget#editorChip QPushButton {
+        }}
+        QWidget#editorChip QPushButton {{
             background: transparent;
             border: none;
             padding: 2px;
@@ -286,23 +281,23 @@ class ImageChipWidget(QWidget):
             max-width: 20px;
             min-height: 20px;
             max-height: 20px;
-        }
-        QWidget#editorChip QLabel {
-            color: #f0f0f0;
+        }}
+        QWidget#editorChip QLabel {{
+            color: {COLOR_TEXT};
             font-size: 12px;
             padding: 2px 4px;
             background: transparent;
-        }
+        }}
     """
 
-    _chip_hover_style = """
-        QWidget#editorChip {
-            background-color: #454545;
-            border: 1px solid #555555;
+    _chip_hover_style = f"""
+        QWidget#editorChip {{
+            background-color: {COLOR_BUTTON_HOVER};
+            border: 1px solid {COLOR_BORDER};
             border-radius: 12px;
             padding: 2px;
-        }
-        QWidget#editorChip QPushButton {
+        }}
+        QWidget#editorChip QPushButton {{
             background: transparent;
             border: none;
             padding: 2px;
@@ -310,13 +305,13 @@ class ImageChipWidget(QWidget):
             max-width: 20px;
             min-height: 20px;
             max-height: 20px;
-        }
-        QWidget#editorChip QLabel {
-            color: #f0f0f0;
+        }}
+        QWidget#editorChip QLabel {{
+            color: {COLOR_TEXT};
             font-size: 12px;
             padding: 2px 4px;
             background: transparent;
-        }
+        }}
     """
 
     def __init__(

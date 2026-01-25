@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
 
 from core.context_manager import ContextItem, ContextItemType, ContextManager
 from modules.gui.shared.base_dialog import BaseDialog
-from modules.gui.shared.dialog_styles import (
+from modules.gui.shared.theme import (
     DEFAULT_WRAPPED_HEIGHT,
     DIALOG_CONTENT_MARGINS,
     SCROLL_CONTENT_MARGINS,

@@ -5,6 +5,12 @@ from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QSizePolicy, QWidget
 
 from modules.gui.icons import create_icon
+from modules.gui.shared.theme import (
+    COLOR_TEXT_SECONDARY,
+    TAB_CLOSE_BTN_STYLE,
+    TAB_LABEL_STYLE,
+    TAB_STYLE,
+)
 
 
 class ConversationTabBar(QWidget):
@@ -75,20 +81,7 @@ class ConversationTabBar(QWidget):
         tab = QWidget()
         tab.setProperty("active", False)
         tab.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        tab.setStyleSheet("""
-            QWidget {
-                background: transparent;
-                border: none;
-                border-bottom: 2px solid transparent;
-                padding: 4px 8px 2px 8px;
-            }
-            QWidget:hover {
-                background: rgba(255, 255, 255, 0.05);
-            }
-            QWidget[active="true"] {
-                border-bottom: 2px solid #888888;
-            }
-        """)
+        tab.setStyleSheet(TAB_STYLE)
 
         layout = QHBoxLayout(tab)
         layout.setContentsMargins(6, 4, 4, 4)
@@ -96,28 +89,17 @@ class ConversationTabBar(QWidget):
 
         # Tab label (non-compressible)
         label = QLabel(name)
-        label.setStyleSheet("border: none; background: transparent; color: #cccccc;")
+        label.setStyleSheet(TAB_LABEL_STYLE)
         label.setCursor(Qt.PointingHandCursor)
         label.setMinimumWidth(label.sizeHint().width())
         layout.addWidget(label)
 
         # Close button
         close_btn = QPushButton()
-        close_btn.setIcon(create_icon("delete", "#888888", 14))
+        close_btn.setIcon(create_icon("delete", COLOR_TEXT_SECONDARY, 14))
         close_btn.setIconSize(QSize(14, 14))
         close_btn.setFixedSize(18, 18)
-        close_btn.setStyleSheet("""
-            QPushButton {
-                background: transparent;
-                border: none;
-                border-radius: 9px;
-                padding: 0;
-                margin: 0;
-            }
-            QPushButton:hover {
-                background: #555555;
-            }
-        """)
+        close_btn.setStyleSheet(TAB_CLOSE_BTN_STYLE)
         close_btn.clicked.connect(lambda: self.tab_close_requested.emit(tab_id))
         layout.addWidget(close_btn)
 

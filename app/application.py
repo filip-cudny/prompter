@@ -17,7 +17,7 @@ from core.openai_service import OpenAiService
 from modules.context.context_menu_provider import ContextMenuProvider
 from modules.gui.hotkey_manager import PyQtHotkeyManager
 from modules.gui.menu_coordinator import PyQtMenuCoordinator, PyQtMenuEventHandler
-from modules.gui.shared import TOOLTIP_STYLE
+from modules.gui.shared import MENU_STYLESHEET, TOOLTIP_STYLE
 from modules.history.history_execution_handler import HistoryExecutionHandler
 from modules.history.last_interaction_menu_provider import LastInteractionMenuProvider
 from modules.prompts.prompt_execution_handler import PromptExecutionHandler
@@ -140,6 +140,7 @@ class PromtheusApp(QObject):
 
         # System tray
         self.system_tray: QSystemTrayIcon | None = None
+        self.tray_menu: QMenu | None = None
 
         # Initialize basic services needed for config loading
         self._initialize_basic_services()
@@ -419,39 +420,28 @@ class PromtheusApp(QObject):
             self.system_tray = QSystemTrayIcon(icon, self.app)
             self.system_tray.setToolTip("Promptheus")
 
-            tray_menu = QMenu()
-            tray_menu.setStyleSheet("""
-                QMenu {
-                    background-color: #1a1a1a;
-                    color: #f0f0f0;
-                    border: 1px solid #333;
-                    border-radius: 4px;
-                    padding: 4px;
-                }
-                QMenu::item {
-                    padding: 6px 20px;
-                    border-radius: 2px;
-                }
-                QMenu::item:selected {
-                    background-color: #333;
-                }
-            """)
+            self.tray_menu = QMenu()
+            self.tray_menu.setStyleSheet(MENU_STYLESHEET)
 
-            show_menu_action = QAction("Show Menu", self.app)
-            show_menu_action.triggered.connect(self._on_show_menu_hotkey_pressed)
-            tray_menu.addAction(show_menu_action)
+            self._tray_show_menu_action = QAction("Show Menu", self.tray_menu)
+            self._tray_show_menu_action.triggered.connect(self._on_show_menu_hotkey_pressed)
+            self.tray_menu.addAction(self._tray_show_menu_action)
 
-            settings_action = QAction("Settings...", self.app)
-            settings_action.triggered.connect(self._show_settings_dialog)
-            tray_menu.addAction(settings_action)
+            self._tray_settings_action = QAction("Settings", self.tray_menu)
+            self._tray_settings_action.triggered.connect(self._show_settings_dialog)
+            self.tray_menu.addAction(self._tray_settings_action)
 
-            tray_menu.addSeparator()
+            self.tray_menu.addSeparator()
 
-            quit_action = QAction("Quit", self.app)
-            quit_action.triggered.connect(self.stop)
-            tray_menu.addAction(quit_action)
+            self._tray_quit_action = QAction("Quit", self.tray_menu)
+            self._tray_quit_action.triggered.connect(self.stop)
+            self.tray_menu.addAction(self._tray_quit_action)
 
-            self.system_tray.setContextMenu(tray_menu)
+            # On macOS, setContextMenu() creates disabled menu items, so we skip it
+            # and handle clicks manually via the activated signal
+            if sys.platform != "darwin":
+                self.system_tray.setContextMenu(self.tray_menu)
+            self.system_tray.activated.connect(self._on_tray_icon_activated)
             self.system_tray.show()
 
         except Exception as e:
@@ -472,6 +462,17 @@ class PromtheusApp(QObject):
         painter.drawEllipse(0, 0, 16, 16)
         painter.end()
         return QIcon(pixmap)
+
+    def _on_tray_icon_activated(self, reason: QSystemTrayIcon.ActivationReason) -> None:
+        """Handle tray icon activation - show menu manually on macOS."""
+        if sys.platform == "darwin":
+            if reason in (
+                QSystemTrayIcon.ActivationReason.Trigger,
+                QSystemTrayIcon.ActivationReason.Context,
+            ):
+                from PySide6.QtGui import QCursor
+
+                self.tray_menu.popup(QCursor.pos())
 
     def _show_settings_dialog(self) -> None:
         """Show the settings dialog."""
@@ -727,10 +728,12 @@ class PromtheusApp(QObject):
         if self.notification_manager:
             self.notification_manager.cleanup()
 
-        # Hide system tray
+        # Hide system tray and cleanup menu
         if self.system_tray:
             self.system_tray.hide()
             self.system_tray = None
+        if hasattr(self, "tray_menu"):
+            self.tray_menu = None
 
         # Quit application
         if self.app:

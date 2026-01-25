@@ -18,7 +18,7 @@ from core.models import HistoryEntry, HistoryEntryType
 from modules.gui.icons import ICON_COLOR_NORMAL, create_icon_pixmap
 from modules.gui.shared.base_dialog import BaseDialog
 from modules.gui.shared.context_widgets import IconButton
-from modules.gui.shared.dialog_styles import (
+from modules.gui.shared.theme import (
     COMBOBOX_STYLE,
     SCROLL_CONTENT_MARGINS,
     SCROLL_CONTENT_SPACING,

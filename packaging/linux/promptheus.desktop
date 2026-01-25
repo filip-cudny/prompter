@@ -8,3 +8,5 @@ Type=Application
 Categories=Utility;Development;
 Keywords=ai;prompt;assistant;clipboard;
 StartupNotify=false
+X-GNOME-UsesNotifications=true
+X-KDE-StartupNotify=false

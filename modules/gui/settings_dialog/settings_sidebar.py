@@ -3,8 +3,9 @@
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QListWidget, QListWidgetItem, QVBoxLayout, QWidget
 
-from modules.gui.shared.dialog_styles import (
+from modules.gui.shared.theme import (
     COLOR_BORDER,
+    COLOR_BUTTON_BG,
     COLOR_DIALOG_BG,
     COLOR_SELECTION,
     COLOR_TEXT,
@@ -63,7 +64,7 @@ class SettingsSidebar(QWidget):
                 border-radius: 6px;
             }}
             QListWidget::item:hover {{
-                background-color: #3a3a3a;
+                background-color: {COLOR_BUTTON_BG};
             }}
             QListWidget::item:selected {{
                 background-color: {COLOR_SELECTION};

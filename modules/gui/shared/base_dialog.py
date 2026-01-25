@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from modules.gui.shared.dialog_styles import (
+from modules.gui.shared.theme import (
     DEFAULT_DIALOG_SIZE,
     DIALOG_SHOW_DELAY_MS,
     MIN_DIALOG_SIZE,

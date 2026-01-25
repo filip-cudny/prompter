@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 )
 
 from modules.gui.icons import create_icon_pixmap
+from modules.gui.shared.theme import NOTIFICATION_BODY_STYLE, NOTIFICATION_TITLE_STYLE
 from modules.utils.notification_config import (
     NOTIFICATION_ICON_MONOCHROME_COLOR,
     NOTIFICATION_TYPES,
@@ -135,15 +136,7 @@ class EnhancedNotificationWidget(QWidget):
         if title:
             title_label = QLabel()
             title_label.setText(title)
-            title_label.setStyleSheet("""
-                QLabel {
-                    color: #1a1a1a;
-                    font-size: 14px;
-                    font-weight: 600;
-                    background: transparent;
-                    border: none;
-                }
-            """)
+            title_label.setStyleSheet(NOTIFICATION_TITLE_STYLE)
             title_label.setWordWrap(False)
             title_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
             text_layout.addWidget(title_label)
@@ -151,14 +144,7 @@ class EnhancedNotificationWidget(QWidget):
         if message:
             body_label = QLabel()
             body_label.setText(message)
-            body_label.setStyleSheet("""
-                QLabel {
-                    color: #4a4a4a;
-                    font-size: 13px;
-                    background: transparent;
-                    border: none;
-                }
-            """)
+            body_label.setStyleSheet(NOTIFICATION_BODY_STYLE)
             body_label.setWordWrap(False)
             body_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
             text_layout.addWidget(body_label)

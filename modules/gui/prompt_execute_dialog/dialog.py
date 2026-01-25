@@ -28,7 +28,7 @@ from modules.gui.prompt_execute_dialog.data import (
 from modules.gui.prompt_execute_dialog.execution_handler import ExecutionHandler
 from modules.gui.prompt_execute_dialog.tab_bar import ConversationTabBar
 from modules.gui.shared.base_dialog import BaseDialog
-from modules.gui.shared.dialog_styles import (
+from modules.gui.shared.theme import (
     DIALOG_SHOW_DELAY_MS,
     QWIDGETSIZE_MAX,
     SCROLL_CONTENT_MARGINS,

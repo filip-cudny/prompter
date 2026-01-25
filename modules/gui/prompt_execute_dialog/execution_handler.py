@@ -10,7 +10,7 @@ from PySide6.QtGui import QTextCursor
 from core.models import ExecutionResult, MenuItem
 from modules.gui.icons import create_icon
 from modules.gui.prompt_execute_dialog.data import OutputVersionState
-from modules.gui.shared.dialog_styles import get_text_edit_content_height
+from modules.gui.shared.theme import get_text_edit_content_height
 
 if TYPE_CHECKING:
     from modules.gui.prompt_execute_dialog.dialog import PromptExecuteDialog

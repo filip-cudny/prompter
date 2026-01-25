@@ -17,7 +17,7 @@ from shiboken6 import isValid
 
 from core.models import MenuItem, MenuItemType
 from modules.gui.icons import DISABLED_OPACITY
-from modules.gui.shared import TOOLTIP_STYLE
+from modules.gui.shared import MENU_STYLESHEET, TOOLTIP_STYLE
 
 # Timer delay constants (in milliseconds)
 _MENU_SHOW_DELAY_MS = 50          # Delay before showing menu after focus grab
@@ -213,46 +213,7 @@ class PyQtContextMenu(QObject):
         self._last_menu_position = None
         self._is_rebuilding_menu = False
 
-        self._menu_stylesheet = (
-            """
-            QMenu {
-                background-color: #2b2b2b;
-                border: 1px solid #555555;
-                border-radius: 6px;
-                padding: 4px;
-                color: #ffffff;
-                font-size: 13px;
-            }
-            QMenu::item {
-                background-color: transparent;
-                padding: 8px 16px;
-                border-radius: 4px;
-                margin: 1px;
-            }
-            QMenu::item:selected {
-                background-color: #454545;
-                color: #ffffff;
-            }
-            QMenu::item:focus {
-                background-color: #454545;
-                color: #ffffff;
-            }
-            QMenu::item:disabled {
-                color: #666666;
-            }
-            QMenu::separator {
-                height: 1px;
-                background-color: #555555;
-                margin: 4px 8px;
-            }
-            QMenu::indicator {
-                width: 16px;
-                height: 16px;
-                margin-left: 4px;
-            }
-        """
-            + TOOLTIP_STYLE
-        )
+        self._menu_stylesheet = MENU_STYLESHEET + TOOLTIP_STYLE
 
     def set_execution_callback(self, callback: Callable):
         """Set callback for menu item execution."""

@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
 )
 
 from modules.gui.shared.base_dialog import BaseDialog
-from modules.gui.shared.dialog_styles import (
+from modules.gui.shared.theme import (
     BUTTON_ROW_SPACING,
     COLOR_BORDER,
     COLOR_BUTTON_BG,
