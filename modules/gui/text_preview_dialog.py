@@ -6,7 +6,7 @@ from PySide6.QtWidgets import QApplication, QFrame, QHBoxLayout, QScrollArea, QV
 from core.interfaces import ClipboardManager
 from modules.gui.shared.base_dialog import BaseDialog
 from modules.gui.shared.context_widgets import IconButton
-from modules.gui.shared.dialog_styles import (
+from modules.gui.shared.theme import (
     SCROLL_CONTENT_MARGINS,
     SCROLL_CONTENT_SPACING,
     SMALL_DIALOG_SIZE,

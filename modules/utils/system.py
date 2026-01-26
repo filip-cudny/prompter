@@ -51,31 +51,50 @@ def get_cursor_position() -> tuple[int, int]:
 
 
 def check_macos_permissions() -> bool:
-    """Check if accessibility permissions are granted on macOS."""
+    """Check if Input Monitoring permission is granted on macOS.
+
+    Uses AXIsProcessTrusted() which is the authoritative check for
+    whether the app can monitor keyboard/mouse input.
+    """
     if not is_macos():
         return True
 
     try:
-        result = subprocess.run(
-            [
-                sys.executable,
-                "-c",
-                "from pynput import keyboard; listener = keyboard.Listener(lambda key: None); listener.start(); listener.stop()",
-            ],
-            capture_output=True,
-            timeout=5,
-        )
-        return result.returncode == 0
+        from ApplicationServices import AXIsProcessTrusted
+
+        return AXIsProcessTrusted()
+    except ImportError:
+        return True
     except Exception:
-        return False
+        return True
 
 
 def show_macos_permissions_help() -> None:
-    """Show help message for macOS accessibility permissions."""
-    if is_macos():
-        print("Warning: Accessibility permissions may be required on macOS")
-        print("Go to System Preferences > Security & Privacy > Privacy > Accessibility")
-        print("and grant access to Terminal or your Python application")
+    """Show help and open System Preferences for Input Monitoring."""
+    if not is_macos():
+        return
+
+    print("\n" + "=" * 60)
+    print("INPUT MONITORING PERMISSION REQUIRED")
+    print("=" * 60)
+    print("Promptheus needs Input Monitoring permission to detect hotkeys.")
+    print("")
+    print("For unsigned/dev builds: Permission must be RE-GRANTED after each rebuild!")
+    print("")
+    print("Steps:")
+    print("1. Open System Preferences > Security & Privacy > Privacy > Input Monitoring")
+    print("2. Remove old Promptheus entries (if any)")
+    print("3. Click '+' and add the new Promptheus.app")
+    print("4. Restart Promptheus")
+    print("=" * 60 + "\n")
+
+    try:
+        subprocess.run([
+            "open",
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"
+        ], check=False)
+    except Exception:
+        pass
 
 
 def get_process_info() -> dict:

@@ -16,11 +16,12 @@ from PySide6.QtWidgets import (
 
 from core.context_manager import ContextItem, ContextItemType, ContextManager
 from modules.gui.shared.base_dialog import BaseDialog
-from modules.gui.shared.dialog_styles import (
+from modules.gui.shared.theme import (
     DEFAULT_WRAPPED_HEIGHT,
     DIALOG_CONTENT_MARGINS,
     SCROLL_CONTENT_MARGINS,
     SCROLL_CONTENT_SPACING,
+    TEXT_CHANGE_DEBOUNCE_MS,
     apply_section_size_policy,
     apply_wrap_state,
     create_singleton_dialog_manager,
@@ -168,7 +169,7 @@ class ContextEditorDialog(BaseDialog):
         self._last_clipboard_text = ""
         self._text_change_timer = QTimer()
         self._text_change_timer.setSingleShot(True)
-        self._text_change_timer.setInterval(500)
+        self._text_change_timer.setInterval(TEXT_CHANGE_DEBOUNCE_MS)
         self._text_change_timer.timeout.connect(self._save_text_state)
 
     def _create_images_section(self) -> QWidget:

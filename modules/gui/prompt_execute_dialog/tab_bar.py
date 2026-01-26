@@ -1,9 +1,16 @@
 """Conversation tab bar widget for PromptExecuteDialog."""
 
 from PySide6.QtCore import QSize, Qt, Signal
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QWidget
+from PySide6.QtGui import QFont
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QSizePolicy, QWidget
 
 from modules.gui.icons import create_icon
+from modules.gui.shared.theme import (
+    COLOR_TEXT_SECONDARY,
+    TAB_CLOSE_BTN_STYLE,
+    TAB_LABEL_STYLE,
+    TAB_STYLE,
+)
 
 
 class ConversationTabBar(QWidget):
@@ -32,7 +39,6 @@ class ConversationTabBar(QWidget):
         self._tabs[tab_id] = tab_widget
         self._tab_order.append(tab_id)
 
-        # Insert before the stretch
         self._layout.insertWidget(self._layout.count() - 1, tab_widget)
 
     def remove_tab(self, tab_id: str):
@@ -59,7 +65,7 @@ class ConversationTabBar(QWidget):
             widget.style().polish(widget)
             if hasattr(widget, "label"):
                 font = widget.label.font()
-                font.setWeight(63 if is_active else 50)  # DemiBold : Normal
+                font.setWeight(QFont.Weight.DemiBold if is_active else QFont.Weight.Normal)
                 widget.label.setFont(font)
 
     def get_tab_count(self) -> int:
@@ -74,48 +80,26 @@ class ConversationTabBar(QWidget):
         """Create a tab button widget."""
         tab = QWidget()
         tab.setProperty("active", False)
-        tab.setStyleSheet("""
-            QWidget {
-                background: transparent;
-                border: none;
-                border-bottom: 2px solid transparent;
-                padding: 4px 8px 2px 8px;
-            }
-            QWidget:hover {
-                background: rgba(255, 255, 255, 0.05);
-            }
-            QWidget[active="true"] {
-                border-bottom: 2px solid #888888;
-            }
-        """)
+        tab.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        tab.setStyleSheet(TAB_STYLE)
 
         layout = QHBoxLayout(tab)
         layout.setContentsMargins(6, 4, 4, 4)
         layout.setSpacing(6)
 
-        # Tab label
+        # Tab label (non-compressible)
         label = QLabel(name)
-        label.setStyleSheet("border: none; background: transparent; color: #cccccc;")
+        label.setStyleSheet(TAB_LABEL_STYLE)
         label.setCursor(Qt.PointingHandCursor)
+        label.setMinimumWidth(label.sizeHint().width())
         layout.addWidget(label)
 
         # Close button
         close_btn = QPushButton()
-        close_btn.setIcon(create_icon("delete", "#888888", 14))
+        close_btn.setIcon(create_icon("delete", COLOR_TEXT_SECONDARY, 14))
         close_btn.setIconSize(QSize(14, 14))
         close_btn.setFixedSize(18, 18)
-        close_btn.setStyleSheet("""
-            QPushButton {
-                background: transparent;
-                border: none;
-                border-radius: 9px;
-                padding: 0;
-                margin: 0;
-            }
-            QPushButton:hover {
-                background: #555555;
-            }
-        """)
+        close_btn.setStyleSheet(TAB_CLOSE_BTN_STYLE)
         close_btn.clicked.connect(lambda: self.tab_close_requested.emit(tab_id))
         layout.addWidget(close_btn)
 
@@ -132,3 +116,13 @@ class ConversationTabBar(QWidget):
     def _on_tab_clicked(self, tab_id: str):
         """Handle tab click."""
         self.tab_selected.emit(tab_id)
+
+    def sizeHint(self) -> QSize:
+        if not self._tabs:
+            return QSize(100, 32)
+        width = sum(tab.sizeHint().width() for tab in self._tabs.values())
+        width += self._layout.spacing() * max(0, len(self._tabs) - 1)
+        return QSize(max(width, 100), 32)
+
+    def minimumSizeHint(self) -> QSize:
+        return self.sizeHint()

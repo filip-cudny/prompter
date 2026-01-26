@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 from PySide6.QtWidgets import QHBoxLayout, QSizePolicy, QVBoxLayout, QWidget
 
 from core.context_manager import ContextItem, ContextItemType
-from modules.gui.shared.dialog_styles import (
+from modules.gui.shared.theme import (
     apply_section_size_policy,
     get_text_edit_content_height,
 )

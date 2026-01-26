@@ -1,0 +1,12 @@
+[Desktop Entry]
+Name=Promptheus
+Comment=AI-powered prompt assistant with global hotkeys
+Exec=promptheus
+Icon=promptheus
+Terminal=false
+Type=Application
+Categories=Utility;Development;
+Keywords=ai;prompt;assistant;clipboard;
+StartupNotify=false
+X-GNOME-UsesNotifications=true
+X-KDE-StartupNotify=false

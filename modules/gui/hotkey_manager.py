@@ -1,7 +1,9 @@
 """PySide6-based hotkey manager for global hotkey detection."""
 
+import os
 import threading
 from collections.abc import Callable
+from datetime import datetime
 from pathlib import Path
 
 from pynput import keyboard
@@ -11,6 +13,15 @@ from PySide6.QtCore import QObject, Signal
 from core.exceptions import HotkeyError
 from modules.utils.config import ConfigService
 from modules.utils.keymap import KeymapManager
+
+
+def _write_hotkey_debug_log(message: str) -> None:
+    """Write hotkey debug info to help diagnose hotkey issues."""
+    from modules.utils.paths import get_debug_log_path
+
+    timestamp = datetime.now().isoformat()
+    with open(get_debug_log_path(), "a") as f:
+        f.write(f"[{timestamp}] HOTKEY: {message}\n")
 
 
 class HotkeySignals(QObject):
@@ -203,11 +214,18 @@ class PyQtHotkeyListener:
         if HOTKEY_CONFIG is None:
             HOTKEY_CONFIG = HotkeyConfig(self.keymap_manager)
 
+        _write_hotkey_debug_log("Starting pynput keyboard listener...")
+        _write_hotkey_debug_log(f"  DISPLAY={os.environ.get('DISPLAY', 'NOT SET')}")
+        _write_hotkey_debug_log(f"  WAYLAND_DISPLAY={os.environ.get('WAYLAND_DISPLAY', 'NOT SET')}")
+        _write_hotkey_debug_log(f"  XDG_SESSION_TYPE={os.environ.get('XDG_SESSION_TYPE', 'NOT SET')}")
+
         try:
             self.listener = keyboard.Listener(on_press=self._on_press, on_release=self._on_release, suppress=False)
             self.listener.start()
             self.running = True
+            _write_hotkey_debug_log("Keyboard listener started successfully")
         except Exception as e:
+            _write_hotkey_debug_log(f"FAILED to start keyboard listener: {type(e).__name__}: {e}")
             raise HotkeyError(f"Failed to start hotkey listener: {e}") from e
 
     def stop(self) -> None:

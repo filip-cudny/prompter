@@ -9,3 +9,10 @@ promptheus-debug.log
 
 settings/
 .promptheus.pid
+
+dist/
+build/
+packaging/linux/appimagetool-*.AppImage
+
+.DS_Store
+.vscode/

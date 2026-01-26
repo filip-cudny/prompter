@@ -83,6 +83,7 @@ make autostart-linux   # Setup Linux systemd service
 - **API Integration**: OpenAI-compatible endpoints for both chat and transcription
 - **Service Architecture**: Background daemon with proper process management
 - **Template System**: Flexible prompt templating with variable substitution and file inclusion
+- **Always use `uv`** for Python commands (e.g., `uv run python`, `uv pip install`, `uv run pytest`)
 
 ## Environment Setup
 

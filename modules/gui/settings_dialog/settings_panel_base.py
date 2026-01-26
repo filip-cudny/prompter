@@ -3,7 +3,7 @@
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QFrame, QLabel, QScrollArea, QVBoxLayout, QWidget
 
-from modules.gui.shared.dialog_styles import COLOR_DIALOG_BG, COLOR_TEXT
+from modules.gui.shared.theme import COLOR_DIALOG_BG, COLOR_TEXT
 
 
 class SettingsPanelBase(QWidget):

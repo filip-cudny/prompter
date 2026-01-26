@@ -28,7 +28,7 @@ from modules.gui.prompt_execute_dialog.data import (
 from modules.gui.prompt_execute_dialog.execution_handler import ExecutionHandler
 from modules.gui.prompt_execute_dialog.tab_bar import ConversationTabBar
 from modules.gui.shared.base_dialog import BaseDialog
-from modules.gui.shared.dialog_styles import (
+from modules.gui.shared.theme import (
     DIALOG_SHOW_DELAY_MS,
     QWIDGETSIZE_MAX,
     SCROLL_CONTENT_MARGINS,
@@ -49,6 +49,17 @@ from modules.utils.notification_config import is_notification_enabled
 _open_dialogs: dict[str, "PromptExecuteDialog"] = {}
 
 
+def _generate_window_key(menu_item: MenuItem) -> str:
+    if menu_item.data:
+        prompt_id = menu_item.data.get("prompt_id")
+        if prompt_id:
+            return f"prompt_{prompt_id}"
+        prompt_name = menu_item.data.get("prompt_name")
+        if prompt_name:
+            return f"prompt_name_{prompt_name}"
+    return f"menu_item_{menu_item.id}"
+
+
 def show_prompt_execute_dialog(
     menu_item: MenuItem,
     execution_callback: Callable[[MenuItem, bool], None],
@@ -66,9 +77,7 @@ def show_prompt_execute_dialog(
         context_manager: The context manager for loading/saving context
         notification_manager: The notification manager for UI notifications
     """
-    # Get unique key for this prompt window
-    prompt_id = menu_item.data.get("prompt_id", "") if menu_item.data else ""
-    window_key = prompt_id or str(id(menu_item))
+    window_key = _generate_window_key(menu_item)
 
     # Check if dialog for THIS prompt already exists
     if window_key in _open_dialogs:
@@ -1073,7 +1082,7 @@ class PromptExecuteDialog(BaseDialog):
         if not hasattr(section, "_save_timer"):
             section._save_timer = QTimer()
             section._save_timer.setSingleShot(True)
-            section._save_timer.setInterval(500)
+            section._save_timer.setInterval(TEXT_CHANGE_DEBOUNCE_MS)
             section._save_timer.timeout.connect(lambda s=section: self._save_dynamic_state(s))
         section._save_timer.start()
 
@@ -1520,6 +1529,9 @@ class PromptExecuteDialog(BaseDialog):
         """Show tab bar only when there are multiple tabs."""
         has_multiple_tabs = self._tab_bar.get_tab_count() > 1
         self._tab_scroll.setVisible(has_multiple_tabs)
+        if has_multiple_tabs:
+            self._tab_bar.updateGeometry()
+            self._tab_scroll.updateGeometry()
 
     def _on_add_tab_clicked(self):
         """Handle add tab button click."""

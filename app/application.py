@@ -1,12 +1,15 @@
 """Main PySide6 application class for the Promptheus application."""
 
 import contextlib
+import os
 import signal
 import sys
+from datetime import datetime
+from pathlib import Path
 
 from PySide6.QtCore import QObject, QTimer, Signal
-from PySide6.QtGui import QColor, QPalette
-from PySide6.QtWidgets import QApplication, QToolTip
+from PySide6.QtGui import QAction, QColor, QIcon, QPalette, QPixmap
+from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon, QToolTip
 
 from core.context_manager import ContextManager
 from core.exceptions import ConfigurationError
@@ -14,7 +17,7 @@ from core.openai_service import OpenAiService
 from modules.context.context_menu_provider import ContextMenuProvider
 from modules.gui.hotkey_manager import PyQtHotkeyManager
 from modules.gui.menu_coordinator import PyQtMenuCoordinator, PyQtMenuEventHandler
-from modules.gui.shared import TOOLTIP_STYLE
+from modules.gui.shared import MENU_STYLESHEET, TOOLTIP_STYLE
 from modules.history.history_execution_handler import HistoryExecutionHandler
 from modules.history.last_interaction_menu_provider import LastInteractionMenuProvider
 from modules.prompts.prompt_execution_handler import PromptExecutionHandler
@@ -32,7 +35,57 @@ from modules.utils.config import ConfigService, load_config, validate_config
 from modules.utils.keymap_actions import initialize_global_action_registry
 from modules.utils.notification_config import is_notification_enabled
 from modules.utils.notifications import PyQtNotificationManager
-from modules.utils.system import check_macos_permissions, show_macos_permissions_help
+
+
+def _write_startup_debug_log() -> None:
+    """Write startup debug info to help diagnose config loading issues."""
+    from modules.utils.paths import get_settings_file, get_user_config_dir, is_frozen
+
+    debug_log_path = Path.home() / ".config" / "promptheus" / "debug.log"
+    debug_log_path.parent.mkdir(parents=True, exist_ok=True)
+
+    lines = [
+        f"\n{'=' * 60}",
+        f"Startup Debug Log - {datetime.now().isoformat()}",
+        f"{'=' * 60}",
+        f"is_frozen(): {is_frozen()}",
+        f"sys.frozen attr: {getattr(sys, 'frozen', 'NOT SET')}",
+        f"sys._MEIPASS attr: {getattr(sys, '_MEIPASS', 'NOT SET')}",
+        f"Path.home(): {Path.home()}",
+        f"os.environ.get('HOME'): {os.environ.get('HOME', 'NOT SET')}",
+        f"os.environ.get('XDG_CONFIG_HOME'): {os.environ.get('XDG_CONFIG_HOME', 'NOT SET')}",
+        f"get_user_config_dir(): {get_user_config_dir()}",
+        f"get_settings_file(): {get_settings_file()}",
+        f"Settings file exists: {get_settings_file().exists()}",
+        f"sys.executable: {sys.executable}",
+        f"sys.argv: {sys.argv}",
+        f"os.getcwd(): {os.getcwd()}",
+        "",
+        "--- Display Server Info (for hotkey diagnostics) ---",
+        f"DISPLAY: {os.environ.get('DISPLAY', 'NOT SET')}",
+        f"WAYLAND_DISPLAY: {os.environ.get('WAYLAND_DISPLAY', 'NOT SET')}",
+        f"XDG_SESSION_TYPE: {os.environ.get('XDG_SESSION_TYPE', 'NOT SET')}",
+        f"sys.platform: {sys.platform}",
+    ]
+
+    settings_file = get_settings_file()
+    if settings_file.exists():
+        try:
+            import json
+
+            with open(settings_file) as f:
+                settings = json.load(f)
+            keys = list(settings.keys())[:10]
+            lines.append(f"Settings keys (first 10): {keys}")
+            if "default_model" in settings:
+                lines.append(f"default_model value: {settings['default_model']}")
+        except Exception as e:
+            lines.append(f"Error reading settings: {e}")
+
+    lines.append(f"{'=' * 60}\n")
+
+    with open(debug_log_path, "a") as f:
+        f.write("\n".join(lines))
 
 
 class PromtheusApp(QObject):
@@ -43,6 +96,9 @@ class PromtheusApp(QObject):
 
     def __init__(self, config_file: str | None = None):
         super().__init__()
+
+        # Write debug log at very start of initialization
+        _write_startup_debug_log()
 
         # Create QApplication (Qt6 handles HiDPI automatically)
         self.app = QApplication(sys.argv)
@@ -66,6 +122,7 @@ class PromtheusApp(QObject):
         self.context_manager: ContextManager | None = None
         self.openai_service: OpenAiService | None = None
         self.prompt_store_service: PromptStoreService | None = None
+        self._pending_api_key_warning: str | None = None
 
         # Providers
         self.prompt_providers: list = []
@@ -80,6 +137,10 @@ class PromtheusApp(QObject):
         # Speech service
         self.speech_service = None
         self.speech_history_service = None
+
+        # System tray
+        self.system_tray: QSystemTrayIcon | None = None
+        self.tray_menu: QMenu | None = None
 
         # Initialize basic services needed for config loading
         self._initialize_basic_services()
@@ -133,6 +194,7 @@ class PromtheusApp(QObject):
             # Initialize speech service
             self._initialize_speech_service()
             self._initialize_history_service()
+
             # Initialize core service
             self.prompt_store_service = PromptStoreService(
                 self.prompt_providers,
@@ -151,11 +213,18 @@ class PromtheusApp(QObject):
             # Initialize GUI components
             self._initialize_gui()
 
+            # Initialize system tray if enabled
+            self._initialize_system_tray()
+
             # Register execution handlers
             self._register_execution_handlers()
 
             # Initialize menu providers
             self._initialize_menu_providers()
+
+            # Show warning notification if API key is missing (delayed to ensure notification manager is ready)
+            if self._pending_api_key_warning and self.notification_manager:
+                QTimer.singleShot(500, lambda: self._show_api_key_warning())
 
         except Exception as e:
             print(f"Failed to initialize application: {e}")
@@ -163,16 +232,28 @@ class PromtheusApp(QObject):
 
     def _initialize_openai_service(self) -> None:
         """Initialize OpenAI service with all model configurations."""
-        try:
-            if not self.config or not self.config.models:
-                raise ConfigurationError("No models configured")
+        if not self.config or not self.config.models:
+            self._pending_api_key_warning = "No AI models configured in settings"
+            return
 
-            self.openai_service = OpenAiService(
-                models_config=self.config.models,
-                speech_to_text_config=self.config.speech_to_text_model,
-            )
-        except Exception as e:
-            raise ConfigurationError(f"Failed to initialize OpenAI service: {e}") from e
+        self.openai_service = OpenAiService(
+            models_config=self.config.models,
+            speech_to_text_config=self.config.speech_to_text_model,
+        )
+
+        default_model = self.config.default_model
+        if default_model and not self.openai_service.has_model(default_model):
+            reason = self.openai_service.get_model_unavailable_reason(default_model)
+            if reason and "Missing API key" in reason:
+                display_name = default_model
+                for model in self.config.models:
+                    if model.get("id") == default_model:
+                        display_name = model.get("display_name", default_model)
+                        break
+                self._pending_api_key_warning = (
+                    f"Default model '{display_name}' unavailable: API key not configured. "
+                    "Set OPENAI_API_KEY in ~/.config/promptheus/.env"
+                )
 
     def _initialize_speech_service(self) -> None:
         """Initialize speech-to-text service as singleton."""
@@ -305,6 +386,7 @@ class PromtheusApp(QObject):
         self.menu_coordinator.set_menu_position_offset(self.config.menu_position_offset)
         self.menu_coordinator.set_number_input_debounce_ms(self.config.number_input_debounce_ms)
         self.menu_coordinator.notification_manager = self.notification_manager
+        self.menu_coordinator.set_shutdown_callback(self.stop)
 
         # Initialize event handler
         self.event_handler = PyQtMenuEventHandler(self.menu_coordinator)
@@ -316,6 +398,93 @@ class PromtheusApp(QObject):
 
         # Connect context manager for cache invalidation
         self.menu_coordinator.set_context_manager(self.context_manager)
+
+    def _initialize_system_tray(self) -> None:
+        """Initialize system tray icon if enabled in settings."""
+        config_service = ConfigService()
+        settings_data = config_service.get_settings_data()
+        show_tray = settings_data.get("show_tray_icon", True)
+
+        if not show_tray:
+            return
+
+        try:
+            from modules.utils.paths import get_root_icon_path
+
+            icon_path = get_root_icon_path("tray_icon.svg")
+            if icon_path.exists():
+                icon = QIcon(str(icon_path))
+            else:
+                icon = self._create_fallback_tray_icon()
+
+            self.system_tray = QSystemTrayIcon(icon, self.app)
+            self.system_tray.setToolTip("Promptheus")
+
+            self.tray_menu = QMenu()
+            self.tray_menu.setStyleSheet(MENU_STYLESHEET)
+
+            self._tray_show_menu_action = QAction("Show Menu", self.tray_menu)
+            self._tray_show_menu_action.triggered.connect(self._on_show_menu_hotkey_pressed)
+            self.tray_menu.addAction(self._tray_show_menu_action)
+
+            self._tray_settings_action = QAction("Settings", self.tray_menu)
+            self._tray_settings_action.triggered.connect(self._show_settings_dialog)
+            self.tray_menu.addAction(self._tray_settings_action)
+
+            self.tray_menu.addSeparator()
+
+            self._tray_quit_action = QAction("Quit", self.tray_menu)
+            self._tray_quit_action.triggered.connect(self.stop)
+            self.tray_menu.addAction(self._tray_quit_action)
+
+            # On macOS, setContextMenu() creates disabled menu items, so we skip it
+            # and handle clicks manually via the activated signal
+            if sys.platform != "darwin":
+                self.system_tray.setContextMenu(self.tray_menu)
+            self.system_tray.activated.connect(self._on_tray_icon_activated)
+            self.system_tray.show()
+
+        except Exception as e:
+            import logging
+
+            logging.error(f"Failed to initialize system tray: {e}")
+
+    def _create_fallback_tray_icon(self) -> QIcon:
+        """Create a simple colored circle as fallback tray icon."""
+        from PySide6.QtCore import Qt
+        from PySide6.QtGui import QPainter
+
+        pixmap = QPixmap(16, 16)
+        pixmap.fill(Qt.transparent)
+        painter = QPainter(pixmap)
+        painter.setBrush(QColor("#4a90d9"))
+        painter.setPen(Qt.NoPen)
+        painter.drawEllipse(0, 0, 16, 16)
+        painter.end()
+        return QIcon(pixmap)
+
+    def _on_tray_icon_activated(self, reason: QSystemTrayIcon.ActivationReason) -> None:
+        """Handle tray icon activation - show menu manually on macOS."""
+        if sys.platform == "darwin":
+            if reason in (
+                QSystemTrayIcon.ActivationReason.Trigger,
+                QSystemTrayIcon.ActivationReason.Context,
+            ):
+                from PySide6.QtGui import QCursor
+
+                self.tray_menu.popup(QCursor.pos())
+
+    def _show_settings_dialog(self) -> None:
+        """Show the settings dialog."""
+        try:
+            from modules.gui.settings_dialog.settings_dialog import SettingsDialog
+
+            dialog = SettingsDialog(parent=None)
+            dialog.exec()
+        except Exception as e:
+            import logging
+
+            logging.error(f"Failed to show settings dialog: {e}")
 
     def _initialize_menu_providers(self) -> None:
         """Initialize menu providers."""
@@ -470,16 +639,24 @@ class PromtheusApp(QObject):
             else:
                 print(f"Failed to execute active prompt: {e}")
 
+    def _show_api_key_warning(self) -> None:
+        """Show warning notification about missing API key."""
+        if self._pending_api_key_warning and self.notification_manager:
+            self.notification_manager.show_warning_notification(
+                "API Key Missing",
+                self._pending_api_key_warning,
+            )
+            self._pending_api_key_warning = None
+
     def run(self) -> int:
         """Run the application."""
         print("Starting app")
         print("Press Ctrl+C to stop\n")
 
-        # Check platform-specific permissions
-        if not check_macos_permissions():
-            show_macos_permissions_help()
-
         self.running = True
+
+        # Handle macOS reopen events to prevent multiple launches
+        self._setup_macos_app_delegate()
 
         try:
             # Start hotkey manager
@@ -497,6 +674,35 @@ class PromtheusApp(QObject):
             print(f"Application error: {e}")
             self.stop()
             return 1
+
+    def _setup_macos_app_delegate(self) -> None:
+        """Setup macOS app delegate to handle reopen events properly."""
+        if sys.platform != "darwin":
+            return
+
+        try:
+            from AppKit import NSApplication, NSObject
+
+            class AppDelegate(NSObject):
+                """macOS app delegate to handle application events."""
+
+                def applicationShouldHandleReopen_hasVisibleWindows_(self, app, flag) -> bool:
+                    """Handle reopen events (clicking dock icon, etc).
+
+                    Return False to prevent macOS from trying to reopen/relaunch the app.
+                    """
+                    return False
+
+                def applicationShouldTerminateAfterLastWindowClosed_(self, app) -> bool:
+                    """Prevent app from terminating when last window closes."""
+                    return False
+
+            delegate = AppDelegate.alloc().init()
+            NSApplication.sharedApplication().setDelegate_(delegate)
+            # Keep reference to prevent garbage collection
+            self._macos_app_delegate = delegate
+        except Exception:
+            pass
 
     def stop(self) -> None:
         """Stop the application."""
@@ -522,9 +728,12 @@ class PromtheusApp(QObject):
         if self.notification_manager:
             self.notification_manager.cleanup()
 
-        # Hide system tray
-        # if self.system_tray:
-        #     self.system_tray.hide()
+        # Hide system tray and cleanup menu
+        if self.system_tray:
+            self.system_tray.hide()
+            self.system_tray = None
+        if hasattr(self, "tray_menu"):
+            self.tray_menu = None
 
         # Quit application
         if self.app:

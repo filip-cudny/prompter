@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from core.exceptions import ConfigurationError
 
 from .keymap import KeymapManager
+from .paths import get_env_file, get_settings_file
 
 
 def safe_load_json(file_path: Path) -> dict[str, Any]:
@@ -97,7 +98,7 @@ class ConfigService:
 
     def reload_settings(self) -> None:
         """Reload settings from disk, discarding any in-memory changes."""
-        settings_file = Path("settings/settings.json")
+        settings_file = get_settings_file()
         if not settings_file.exists():
             raise ConfigurationError(f"Settings file not found: {settings_file}")
 
@@ -143,7 +144,7 @@ class ConfigService:
         if self._settings_data is None:
             raise ConfigurationError("ConfigService not initialized. Call initialize() first.")
 
-        settings_file = Path("settings/settings.json")
+        settings_file = get_settings_file()
         settings_to_save = self._sanitize_settings_for_save(self._settings_data)
         with open(settings_file, "w", encoding="utf-8") as f:
             json.dump(settings_to_save, f, indent=2, ensure_ascii=False)
@@ -449,10 +450,8 @@ class ConfigService:
 
     def _load_config(self, env_file: str | None = None, settings_file: str | None = None) -> AppConfig:
         """Load configuration from environment variables and settings file."""
-        if env_file:
-            load_dotenv(env_file, override=True)
-        else:
-            load_dotenv(override=True)
+        env_path = env_file or str(get_env_file())
+        load_dotenv(env_path, override=True)
 
         config = AppConfig()
 
@@ -472,7 +471,7 @@ class ConfigService:
             config.number_input_debounce_ms = 200
 
         # Load settings file
-        keymap_settings_file = settings_file or "settings/settings.json"
+        keymap_settings_file = settings_file or str(get_settings_file())
         if Path(keymap_settings_file).exists():
             try:
                 self._settings_data = safe_load_json(Path(keymap_settings_file))

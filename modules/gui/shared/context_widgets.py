@@ -27,7 +27,7 @@ from modules.gui.icons import (
     ICON_COLOR_NORMAL,
     create_icon,
 )
-from modules.gui.shared.dialog_styles import TOOLTIP_STYLE
+from modules.gui.shared.theme import TOOLTIP_STYLE
 
 
 class IconButton(QPushButton):

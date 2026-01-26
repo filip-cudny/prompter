@@ -6,6 +6,8 @@ from pathlib import Path
 from threading import Lock
 from typing import Any
 
+from .paths import get_settings_dir
+
 logger = logging.getLogger(__name__)
 
 
@@ -24,7 +26,7 @@ class UIStateManager:
 
     def __init__(self):
         if not hasattr(self, "_initialized"):
-            self._state_file = Path("settings/ui_state.json")
+            self._state_file = get_settings_dir() / "ui_state.json"
             self._state: dict[str, Any] = {}
             self._load_state()
             self._initialized = True

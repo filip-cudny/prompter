@@ -48,6 +48,9 @@ class PyQtMenuCoordinator(QObject):
         # Notification manager for UI notifications
         self.notification_manager = None
 
+        # Shutdown callback for proper app termination
+        self.shutdown_callback: Callable[[], None] | None = None
+
         # Menu state
         self.last_menu_items: list[MenuItem] = []
 
@@ -104,6 +107,22 @@ class PyQtMenuCoordinator(QObject):
         self.context_manager = context_manager
         if context_manager:
             context_manager.add_change_callback(self._on_context_changed)
+
+    def set_shutdown_callback(self, callback: Callable[[], None]) -> None:
+        """Set callback for application shutdown."""
+        self.shutdown_callback = callback
+
+    def _handle_close_app(self) -> None:
+        """Handle close app request with proper cleanup."""
+        from PySide6.QtCore import QTimer
+
+        if self.context_menu:
+            self.context_menu.destroy()
+
+        if self.shutdown_callback:
+            self.shutdown_callback()
+        else:
+            QTimer.singleShot(100, lambda: QApplication.instance().quit())
 
     def _on_context_changed(self):
         """Handle context changes."""
@@ -370,7 +389,7 @@ class PyQtMenuCoordinator(QObject):
                 "current_prompt": active_prompt_display_name,
                 "on_prompt_clear": self._handle_prompt_clear,
                 "on_settings_click": self._open_settings_dialog,
-                "on_close_app_click": lambda: QApplication.instance().quit(),
+                "on_close_app_click": self._handle_close_app,
             },
         )
 
