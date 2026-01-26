@@ -324,6 +324,7 @@ class ExecutionHandler:
                 "custom_context": full_message,
                 "conversation_data": conv_data,
                 "skip_clipboard_copy": keep_open,
+                "is_from_dialog": True,
             },
             enabled=dialog.menu_item.enabled,
         )
@@ -581,6 +582,10 @@ class ExecutionHandler:
                 section.text_edit.setMinimumHeight(content_height)
 
         dialog._scroll_to_bottom()
+
+        # Save conversation to history after successful execution
+        if result.success:
+            dialog._save_to_history()
 
     # --- Button State Management ---
 

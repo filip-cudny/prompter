@@ -17,10 +17,10 @@ from modules.gui.icons import DISABLED_OPACITY
 from modules.gui.shared import MENU_STYLESHEET, TOOLTIP_STYLE
 
 # Timer delay constants (in milliseconds)
-_MENU_SHOW_DELAY_MS = 50          # Delay before showing menu after focus grab
-_MENU_REBUILD_DELAY_MS = 10       # Delay before rebuilding menu after execution
-_FOCUS_RESTORE_DELAY_MS = 100     # Delay before restoring focus to previous window
-_MENU_TRANSITION_DELAY_MS = 50    # Delay for old menu cleanup during rebuild
+_MENU_SHOW_DELAY_MS = 50  # Delay before showing menu after focus grab
+_MENU_REBUILD_DELAY_MS = 10  # Delay before rebuilding menu after execution
+_FOCUS_RESTORE_DELAY_MS = 100  # Delay before restoring focus to previous window
+_MENU_TRANSITION_DELAY_MS = 50  # Delay for old menu cleanup during rebuild
 
 
 def _set_macos_window_move_to_active_space(widget):
@@ -545,10 +545,12 @@ class PyQtContextMenu(QObject):
 
         notification_manager = item.data.get("notification_manager") if item.data else None
         clipboard_manager = item.data.get("clipboard_manager") if item.data else None
+        prompt_store_service = item.data.get("prompt_store_service") if item.data else None
         widget = LastInteractionSectionWidget(
             history_service,
             notification_manager=notification_manager,
             clipboard_manager=clipboard_manager,
+            prompt_store_service=prompt_store_service,
         )
         self._cleanable_widgets.append(widget)
         action = QWidgetAction(menu)
@@ -919,12 +921,16 @@ class PyQtContextMenu(QObject):
                 context_manager = None
                 clipboard_manager = None
                 notification_manager = None
+                history_service = None
                 if hasattr(self._context_menu, "menu_coordinator") and self._context_menu.menu_coordinator:
                     prompt_store_service = self._context_menu.menu_coordinator.prompt_store_service
                     context_manager = self._context_menu.menu_coordinator.context_manager
                     notification_manager = self._context_menu.menu_coordinator.notification_manager
-                    if prompt_store_service and hasattr(prompt_store_service, "clipboard_manager"):
-                        clipboard_manager = prompt_store_service.clipboard_manager
+                    if prompt_store_service:
+                        if hasattr(prompt_store_service, "clipboard_manager"):
+                            clipboard_manager = prompt_store_service.clipboard_manager
+                        if hasattr(prompt_store_service, "history_service"):
+                            history_service = prompt_store_service.history_service
 
                 # Open message share dialog
                 from modules.gui.prompt_execute_dialog import show_prompt_execute_dialog
@@ -936,6 +942,7 @@ class PyQtContextMenu(QObject):
                     context_manager=context_manager,
                     clipboard_manager=clipboard_manager,
                     notification_manager=notification_manager,
+                    history_service=history_service,
                 )
 
             def _on_mic_clicked(self):
@@ -1373,6 +1380,15 @@ class PyQtContextMenu(QObject):
     def _restore_focus(self):
         """Restore focus to the original application that was active before menu was shown."""
         try:
+            current_active = QApplication.activeWindow()
+            if current_active is not None:
+                return
+
+            from modules.utils import system
+
+            if is_macos() and system._open_dialog_count > 0:
+                return
+
             # First try Qt-native focus restoration (fast)
             if self.qt_active_window and isValid(self.qt_active_window):
                 self.qt_active_window.activateWindow()

@@ -23,6 +23,11 @@ SCROLL_CONTENT_SPACING = 8
 # Button layout constants
 BUTTON_ROW_SPACING = 8
 
+# Header/toolbar layout constants
+HEADER_RIGHT_MARGIN = 12
+HEADER_ICON_SIZE = 16
+HEADER_BUTTON_SPACING = 2
+
 # Window size defaults
 DEFAULT_DIALOG_SIZE = (600, 500)
 MIN_DIALOG_SIZE = (500, 400)

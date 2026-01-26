@@ -26,6 +26,7 @@ from modules.gui.shared.theme import (
     COLOR_BUTTON_BG,
     COLOR_BUTTON_HOVER,
     COLOR_TEXT,
+    HEADER_ICON_SIZE,
     ICON_BTN_STYLE,
     SECTION_HINT_STYLE,
     SECTION_TITLE_STYLE,
@@ -449,6 +450,31 @@ def create_text_edit(
     if placeholder:
         text_edit.setPlaceholderText(placeholder)
     return text_edit
+
+
+def create_header_button(
+    icon_name: str,
+    tooltip: str,
+    on_click: Callable[[], None],
+    enabled: bool = True,
+) -> IconButton:
+    """Create a styled header/toolbar button with consistent appearance.
+
+    Args:
+        icon_name: Name of the icon to display
+        tooltip: Tooltip text for the button
+        on_click: Callback function when button is clicked
+        enabled: Whether button is initially enabled (default: True)
+
+    Returns:
+        Configured IconButton widget
+    """
+    btn = IconButton(icon_name, size=HEADER_ICON_SIZE)
+    btn.setToolTip(tooltip)
+    btn.setStyleSheet(ICON_BTN_STYLE)
+    btn.clicked.connect(on_click)
+    btn.setEnabled(enabled)
+    return btn
 
 
 class ExpandableTextSection(QWidget):

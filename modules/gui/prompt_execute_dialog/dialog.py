@@ -29,6 +29,7 @@ from modules.gui.prompt_execute_dialog.execution_handler import ExecutionHandler
 from modules.gui.prompt_execute_dialog.tab_bar import ConversationTabBar
 from modules.gui.shared.base_dialog import BaseDialog
 from modules.gui.shared.theme import (
+    COLOR_TEXT,
     DIALOG_SHOW_DELAY_MS,
     QWIDGETSIZE_MAX,
     SCROLL_CONTENT_MARGINS,
@@ -67,6 +68,8 @@ def show_prompt_execute_dialog(
     context_manager: ContextManager | None = None,
     clipboard_manager=None,
     notification_manager=None,
+    history_service=None,
+    history_entry_id: str | None = None,
 ):
     """Show the prompt execute dialog.
 
@@ -76,8 +79,20 @@ def show_prompt_execute_dialog(
         prompt_store_service: The prompt store service for execution
         context_manager: The context manager for loading/saving context
         notification_manager: The notification manager for UI notifications
+        history_service: The history service for conversation persistence
+        history_entry_id: If provided, restore conversation from this history entry
     """
     window_key = _generate_window_key(menu_item)
+
+    # If restoring from history and dialog already exists, create new tab
+    if history_entry_id and window_key in _open_dialogs:
+        dialog = _open_dialogs[window_key]
+        dialog.raise_()
+        dialog.activateWindow()
+        # Create new tab and restore from history
+        dialog._on_add_tab_clicked()
+        dialog.restore_from_history(history_entry_id)
+        return
 
     # Check if dialog for THIS prompt already exists
     if window_key in _open_dialogs:
@@ -89,8 +104,12 @@ def show_prompt_execute_dialog(
     def create_and_show():
         # Double-check after timer delay
         if window_key in _open_dialogs:
-            _open_dialogs[window_key].raise_()
-            _open_dialogs[window_key].activateWindow()
+            existing = _open_dialogs[window_key]
+            existing.raise_()
+            existing.activateWindow()
+            if history_entry_id:
+                existing._on_add_tab_clicked()
+                existing.restore_from_history(history_entry_id)
             return
 
         dialog = PromptExecuteDialog(
@@ -100,12 +119,17 @@ def show_prompt_execute_dialog(
             context_manager,
             clipboard_manager,
             notification_manager,
+            history_service=history_service,
         )
         _open_dialogs[window_key] = dialog
         dialog.finished.connect(lambda: _open_dialogs.pop(window_key, None))
         dialog.show()
         dialog.raise_()
         dialog.activateWindow()
+
+        # Restore from history if entry_id provided
+        if history_entry_id:
+            dialog.restore_from_history(history_entry_id)
 
     QTimer.singleShot(DIALOG_SHOW_DELAY_MS, create_and_show)
 
@@ -123,6 +147,7 @@ class PromptExecuteDialog(BaseDialog):
         context_manager: ContextManager | None = None,
         clipboard_manager=None,
         notification_manager=None,
+        history_service=None,
         parent=None,
     ):
         super().__init__(parent)
@@ -132,6 +157,8 @@ class PromptExecuteDialog(BaseDialog):
         self.context_manager = context_manager
         self.clipboard_manager = clipboard_manager
         self.notification_manager = notification_manager
+        self._history_service = history_service
+        self._history_entry_id: str | None = None
 
         # Working state for context section
         self._current_images: list[ContextItem] = []
@@ -1331,6 +1358,8 @@ class PromptExecuteDialog(BaseDialog):
             waiting_for_result=self._waiting_for_result,
             is_streaming=self._is_streaming,
             streaming_accumulated=self._execution_handler._streaming_accumulated,
+            # History tracking
+            history_entry_id=self._history_entry_id,
             # UI collapsed/wrapped states
             context_collapsed=self.context_header.is_collapsed(),
             input_collapsed=self.input_header.is_collapsed(),
@@ -1392,6 +1421,9 @@ class PromptExecuteDialog(BaseDialog):
         # Restore multi-turn conversation state
         self._conversation_turns = list(state.conversation_turns)
         self._current_turn_number = state.current_turn_number
+
+        # Restore history tracking
+        self._history_entry_id = state.history_entry_id
 
         # Restore dynamic sections
         self._conversation_manager.restore_dynamic_sections(state.dynamic_sections_data, state.output_sections_data)
@@ -1510,6 +1542,9 @@ class PromptExecuteDialog(BaseDialog):
         # Reset multi-turn conversation state
         self._conversation_turns.clear()
         self._current_turn_number = 0
+
+        # Reset history tracking (new tab = new conversation)
+        self._history_entry_id = None
 
         # Reset version display for Output #1
         self.output_header.set_version_info(0, 0)
@@ -1679,6 +1714,168 @@ class PromptExecuteDialog(BaseDialog):
                 turn = self._conversation_turns[turn_idx]
                 turn.message_text = section.text_edit.toPlainText()
                 turn.message_images = list(section.turn_images)
+
+    def set_history_service(self, service) -> None:
+        """Set the history service for conversation persistence."""
+        self._history_service = service
+
+    def restore_from_history(self, entry_id: str) -> bool:
+        """Restore full conversation state from history entry.
+
+        Args:
+            entry_id: ID of the history entry to restore
+
+        Returns:
+            True if restoration successful, False otherwise
+        """
+        if not self._history_service:
+            return False
+
+        conv_data = self._history_service.get_conversation_data(entry_id)
+        if not conv_data:
+            return False
+
+        # Clear current state
+        self._clear_dynamic_sections()
+        if self._output_section_shown:
+            self.sections_layout.removeWidget(self.output_section)
+            self.output_section.setParent(None)
+            self._output_section_shown = False
+
+        # Restore context
+        self._current_images = self._history_service.load_images_from_paths(conv_data.context_image_paths)
+        self._rebuild_image_chips()
+        self.context_text_edit.blockSignals(True)
+        self.context_text_edit.setPlainText(conv_data.context_text)
+        self.context_text_edit.blockSignals(False)
+        self._last_context_text = conv_data.context_text
+
+        # Clear undo stacks since we're loading saved state
+        self._context_undo_stack.clear()
+        self._context_redo_stack.clear()
+        self._input_undo_stack.clear()
+        self._input_redo_stack.clear()
+        self._output_undo_stack.clear()
+        self._output_redo_stack.clear()
+
+        # Restore conversation turns
+        self._conversation_turns.clear()
+        self._current_turn_number = 0
+
+        for serialized_turn in conv_data.turns:
+            turn_images = self._history_service.load_images_from_paths(serialized_turn.message_image_paths)
+            turn = ConversationTurn(
+                turn_number=serialized_turn.turn_number,
+                message_text=serialized_turn.message_text,
+                message_images=turn_images,
+                output_text=serialized_turn.output_text,
+                is_complete=serialized_turn.is_complete,
+                output_versions=list(serialized_turn.output_versions),
+                current_version_index=serialized_turn.current_version_index,
+            )
+            self._conversation_turns.append(turn)
+            self._current_turn_number = max(self._current_turn_number, turn.turn_number)
+
+        # Rebuild UI from turns
+        self._restore_conversation_ui()
+
+        # Store entry ID for future updates
+        self._history_entry_id = entry_id
+
+        # Update buttons
+        self._update_undo_redo_buttons()
+        self._update_send_buttons_state()
+        self._update_delete_button_visibility()
+
+        # Show reply button if we have output to reply to
+        has_output = self._output_section_shown or bool(self._output_sections)
+        if has_output:
+            self.reply_btn.setIcon(create_icon("message-square-reply", COLOR_TEXT, 16))
+            self.reply_btn.setVisible(True)
+
+        return True
+
+    def _restore_conversation_ui(self):
+        """Rebuild UI sections from conversation turns."""
+        if not self._conversation_turns:
+            return
+
+        # First turn goes to main input/output sections
+        turn1 = self._conversation_turns[0]
+        self._message_images = list(turn1.message_images)
+        self._rebuild_message_image_chips()
+        self.input_edit.blockSignals(True)
+        self.input_edit.setPlainText(turn1.message_text)
+        self.input_edit.blockSignals(False)
+        self._last_input_text = turn1.message_text
+
+        if turn1.is_complete and turn1.output_text:
+            self._expand_output_section()
+            self.output_edit.blockSignals(True)
+            self.output_edit.setPlainText(turn1.output_text)
+            self.output_edit.blockSignals(False)
+            self._last_output_text = turn1.output_text
+            if turn1.output_versions:
+                self.output_header.set_version_info(turn1.current_version_index + 1, len(turn1.output_versions))
+
+        # Subsequent turns create dynamic sections
+        for turn in self._conversation_turns[1:]:
+            visual_number = turn.turn_number + 1
+            reply_section = self._conversation_manager.create_reply_section(visual_number)
+            reply_section.turn_number = turn.turn_number
+            reply_section.turn_images = list(turn.message_images)
+            self._conversation_manager.rebuild_reply_image_chips(reply_section)
+            reply_section.text_edit.setPlainText(turn.message_text)
+            reply_section.last_text = turn.message_text
+            self._dynamic_sections.append(reply_section)
+            self.sections_layout.addWidget(reply_section)
+            reply_section.text_edit.installEventFilter(self)
+
+            if turn.is_complete and turn.output_text:
+                output_section = self._conversation_manager.create_dynamic_output_section(turn.turn_number)
+                output_section.text_edit.setPlainText(turn.output_text)
+                output_section.last_text = turn.output_text
+                if turn.output_versions:
+                    output_section.header.set_version_info(turn.current_version_index + 1, len(turn.output_versions))
+                self._output_sections.append(output_section)
+                self.sections_layout.addWidget(output_section)
+                output_section.text_edit.installEventFilter(self)
+
+        self._renumber_sections()
+
+    def _save_to_history(self):
+        """Save or update conversation state to history service."""
+        if not self._history_service:
+            return
+
+        # Don't save if no completed turns
+        if not any(t.is_complete for t in self._conversation_turns):
+            return
+
+        # Sync UI to turn data before saving
+        self._sync_ui_to_conversation_turns()
+        self._sync_all_outputs_to_versions()
+
+        prompt_id = self.menu_item.data.get("prompt_id") if self.menu_item.data else None
+        prompt_name = self.menu_item.data.get("prompt_name") if self.menu_item.data else None
+
+        if self._history_entry_id:
+            # Update existing entry
+            self._history_service.update_conversation_entry(
+                self._history_entry_id,
+                self._conversation_turns,
+                self.context_text_edit.toPlainText(),
+                self._current_images,
+            )
+        else:
+            # Create new entry
+            self._history_entry_id = self._history_service.add_conversation_entry(
+                self._conversation_turns,
+                self.context_text_edit.toPlainText(),
+                self._current_images,
+                prompt_id=prompt_id,
+                prompt_name=prompt_name,
+            )
 
     def _regenerate_last_output(self):
         """Regenerate the last AI output by re-executing the last message."""

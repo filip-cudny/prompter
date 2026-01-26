@@ -274,6 +274,7 @@ class PromtheusApp(QObject):
             from modules.history.history_service import HistoryService
 
             self.history_service = HistoryService()
+            self.history_service.initialize()  # Clear temp images on startup
         except Exception:
             self.history_service = None
 
@@ -511,6 +512,7 @@ class PromtheusApp(QObject):
                 history_service,
                 self.notification_manager,
                 self.clipboard_manager,
+                self.prompt_store_service,
             ),
             SpeechMenuProvider(
                 self._speech_to_text,

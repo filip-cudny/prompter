@@ -701,9 +701,12 @@ class AsyncPromptExecutionManager:
                 self.clipboard_manager.set_content(result.content)
 
             # Add to history using prompt store service which has proper logic
+            # Skip for dialog executions - dialog handles its own conversation history
             if self.prompt_store_service and current_item:
-                input_content = original_input or ""
-                self.prompt_store_service.add_history_entry(current_item, input_content, result)
+                is_dialog_execution = current_item.data and current_item.data.get("is_from_dialog", False)
+                if not is_dialog_execution:
+                    input_content = original_input or ""
+                    self.prompt_store_service.add_history_entry(current_item, input_content, result)
 
             # Get model configuration for display name
             model_config = None

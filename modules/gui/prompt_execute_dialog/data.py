@@ -96,3 +96,6 @@ class TabState:
     context_wrapped: bool
     input_wrapped: bool
     output_wrapped: bool
+
+    # History tracking (must be at end due to default value)
+    history_entry_id: str | None = None

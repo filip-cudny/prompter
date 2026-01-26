@@ -87,6 +87,30 @@ class ExecutionResult:
 
 
 @dataclass
+class SerializedConversationTurn:
+    """Serializable conversation turn for storage."""
+
+    turn_number: int
+    message_text: str
+    message_image_paths: list[str] = field(default_factory=list)
+    output_text: str | None = None
+    is_complete: bool = False
+    output_versions: list[str] = field(default_factory=list)
+    current_version_index: int = 0
+
+
+@dataclass
+class ConversationHistoryData:
+    """Complete conversation data for history storage."""
+
+    context_text: str
+    context_image_paths: list[str] = field(default_factory=list)
+    turns: list[SerializedConversationTurn] = field(default_factory=list)
+    prompt_id: str | None = None
+    prompt_name: str | None = None
+
+
+@dataclass
 class HistoryEntry:
     """Represents a history entry for input/output tracking."""
 
@@ -100,6 +124,7 @@ class HistoryEntry:
     error: str | None = None
     is_conversation: bool = False
     prompt_name: str | None = None
+    conversation_data: ConversationHistoryData | None = None
 
 
 @dataclass

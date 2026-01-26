@@ -68,6 +68,7 @@ class TabState:
     context_wrapped: bool
     input_wrapped: bool
     output_wrapped: bool
+    history_entry_id: str | None = None
 
 
 def make_section(turn_number: int, text: str = "", images: list = None) -> Mock:
