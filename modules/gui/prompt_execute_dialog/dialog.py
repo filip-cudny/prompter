@@ -36,7 +36,6 @@ from modules.gui.prompt_execute_dialog.execution_handler import ExecutionHandler
 from modules.gui.prompt_execute_dialog.tab_bar import ConversationTabBar
 from modules.gui.shared.base_dialog import BaseDialog
 from modules.gui.shared.theme import (
-    COLOR_TEXT,
     DIALOG_SHOW_DELAY_MS,
     QWIDGETSIZE_MAX,
     SCROLL_CONTENT_MARGINS,
@@ -485,14 +484,6 @@ class PromptExecuteDialog(BaseDialog):
         button_bar.addWidget(self._tab_scroll, 1)  # stretch factor 1
 
         button_bar.addStretch()
-
-        # Reply button (hidden until output received)
-        self.reply_btn = QPushButton()
-        self.reply_btn.setIcon(create_icon("message-square-reply", "#444444", 16))
-        self.reply_btn.setToolTip("Reply to continue conversation")
-        self.reply_btn.clicked.connect(self._on_reply)
-        self.reply_btn.setVisible(False)
-        button_bar.addWidget(self.reply_btn)
 
         # Send & Show button (Alt+Enter)
         self.send_show_btn = QPushButton()
@@ -1481,7 +1472,6 @@ class PromptExecuteDialog(BaseDialog):
         self._execution_handler._pending_user_node_id = user_node_id
         self._execution_handler._pending_assistant_node_id = new_assistant.node_id
 
-        self.reply_btn.setVisible(False)
         self._pending_is_regeneration = True
 
         self._rebuild_message_bubbles_from_tree()
@@ -1651,11 +1641,6 @@ class PromptExecuteDialog(BaseDialog):
         self._update_send_buttons_state()
         self._update_delete_button_visibility()
 
-        # Show reply button if needed
-        has_output = self._output_section_shown or bool(self._output_sections)
-        has_pending_reply = bool(self._dynamic_sections)
-        self.reply_btn.setVisible(has_output and not self._waiting_for_result and not has_pending_reply)
-
     def _clear_dynamic_sections(self):
         """Remove all dynamic reply and output sections from layout."""
         self._conversation_manager.clear_dynamic_sections()
@@ -1768,7 +1753,6 @@ class PromptExecuteDialog(BaseDialog):
         self.context_header.set_collapsed(False)
         self.input_edit.show()
         self.input_header.set_collapsed(False)
-        self.reply_btn.setVisible(False)
 
         # Update button states
         self._update_undo_redo_buttons()
@@ -2007,12 +1991,6 @@ class PromptExecuteDialog(BaseDialog):
         self._update_send_buttons_state()
         self._update_delete_button_visibility()
 
-        # Show reply button if we have output to reply to
-        has_output = self._output_section_shown or bool(self._output_sections) or bool(self._message_bubbles)
-        if has_output:
-            self.reply_btn.setIcon(create_icon("message-square-reply", COLOR_TEXT, 16))
-            self.reply_btn.setVisible(True)
-
         return True
 
     def _restore_conversation_ui(self):
@@ -2038,19 +2016,8 @@ class PromptExecuteDialog(BaseDialog):
             if turn1.output_versions:
                 self.output_header.set_version_info(turn1.current_version_index + 1, len(turn1.output_versions))
 
-        # Subsequent turns create dynamic sections
+        # Subsequent turns create output sections only
         for turn in self._conversation_turns[1:]:
-            visual_number = turn.turn_number + 1
-            reply_section = self._conversation_manager.create_reply_section(visual_number)
-            reply_section.turn_number = turn.turn_number
-            reply_section.turn_images = list(turn.message_images)
-            self._conversation_manager.rebuild_reply_image_chips(reply_section)
-            reply_section.text_edit.setPlainText(turn.message_text)
-            reply_section.last_text = turn.message_text
-            self._dynamic_sections.append(reply_section)
-            self.sections_layout.addWidget(reply_section)
-            reply_section.text_edit.installEventFilter(self)
-
             if turn.is_complete and turn.output_text:
                 output_section = self._conversation_manager.create_dynamic_output_section(turn.turn_number)
                 output_section.text_edit.setPlainText(turn.output_text)
@@ -2165,9 +2132,6 @@ class PromptExecuteDialog(BaseDialog):
         if turn_number == 1:
             self._current_turn_number = 0
 
-        # Hide reply button during regeneration
-        self.reply_btn.setVisible(False)
-
         # Store version history with NEW version already added
         self._pending_version_history = existing_versions
         self._pending_version_undo_states = existing_version_undo_states
@@ -2217,8 +2181,6 @@ class PromptExecuteDialog(BaseDialog):
         self._execution_handler._pending_user_node_id = user_node_id
         self._execution_handler._pending_assistant_node_id = new_assistant.node_id
 
-        # Hide reply button during regeneration
-        self.reply_btn.setVisible(False)
         self._pending_is_regeneration = True
 
         # Rebuild bubbles to show the new branch
@@ -2229,37 +2191,9 @@ class PromptExecuteDialog(BaseDialog):
             user_node.content, keep_open=True, regenerate=True
         )
 
-    def _on_reply(self):
-        """Add new input section for reply."""
-        self._current_turn_number += 1
-        visual_number = len(self._dynamic_sections) + 2
-        section = self._conversation_manager.create_reply_section(visual_number)
-        section.turn_number = self._current_turn_number
-        self._dynamic_sections.append(section)
-        self.sections_layout.addWidget(section)
-        section.text_edit.installEventFilter(self)
-        self.reply_btn.setVisible(False)
-        section.text_edit.setFocus()
-        self._renumber_sections()
-        self._update_delete_button_visibility()
-        self._update_send_buttons_state()
-        self._scroll_to_bottom()
-
-    def _create_reply_section(self, turn_number: int) -> QWidget:
-        """Create input section for a reply turn (displayed as Message)."""
-        return self._conversation_manager.create_reply_section(turn_number)
-
     def _create_dynamic_output_section(self, turn_number: int) -> QWidget:
         """Create output section for a conversation turn."""
         return self._conversation_manager.create_dynamic_output_section(turn_number)
-
-    def _rebuild_reply_image_chips(self, section: QWidget):
-        """Rebuild image chips for a reply section."""
-        self._conversation_manager.rebuild_reply_image_chips(section)
-
-    def _paste_image_to_reply(self, section: QWidget) -> bool:
-        """Paste image to reply section."""
-        return self._conversation_manager.paste_image_to_reply(section)
 
     # --- Event handling ---
 
@@ -2358,11 +2292,6 @@ class PromptExecuteDialog(BaseDialog):
 
             # Ctrl+V for paste image (if clipboard has image)
             if key == Qt.Key_V and (modifiers & Qt.ControlModifier):
-                # Check reply sections first
-                for section in self._dynamic_sections:
-                    if obj == section.text_edit and self._paste_image_to_reply(section):
-                        return True  # Event handled, don't paste as text
-
                 if obj == self.context_text_edit:
                     if self._paste_image_from_clipboard():
                         return True  # Event handled, don't paste as text

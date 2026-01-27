@@ -15,6 +15,7 @@ from modules.gui.prompt_execute_dialog.data import (
     create_node,
 )
 from modules.gui.shared.theme import get_text_edit_content_height
+from modules.gui.shared.widgets import BUBBLE_TEXT_EDIT_MIN_HEIGHT
 
 if TYPE_CHECKING:
     from modules.gui.prompt_execute_dialog.dialog import PromptExecuteDialog
@@ -243,6 +244,18 @@ class ExecutionHandler:
         output_edit.setTextCursor(cursor)
         output_edit.blockSignals(False)
 
+        # Update height for tree-based bubbles in expanded mode during streaming
+        if self._pending_assistant_node_id:
+            for bubble in reversed(dialog._message_bubbles):
+                if hasattr(bubble, "node_id") and bubble.node_id == self._pending_assistant_node_id:
+                    if hasattr(bubble, "header") and not bubble.header.is_wrapped():
+                        content_height = get_text_edit_content_height(
+                            bubble.text_edit, min_height=BUBBLE_TEXT_EDIT_MIN_HEIGHT
+                        )
+                        bubble.text_edit.setMinimumHeight(content_height)
+                        bubble.text_edit.setMaximumHeight(content_height)
+                    break
+
         # Auto-scroll to show new streaming content
         self.dialog._scroll_to_bottom()
 
@@ -350,6 +363,9 @@ class ExecutionHandler:
 
         dialog._conversation_turns.append(turn)
 
+        # Sync any user edits in bubbles back to tree nodes BEFORE adding new nodes
+        dialog._sync_bubbles_to_tree()
+
         # Add to conversation tree (skip if regeneration already set up nodes)
         if not self._pending_assistant_node_id:
             if dialog._conversation_tree is None:
@@ -378,9 +394,6 @@ class ExecutionHandler:
 
             # Rebuild bubbles immediately so user sees message + placeholder output
             dialog._rebuild_message_bubbles_from_tree()
-
-        # Sync any user edits in bubbles back to tree nodes BEFORE building API data
-        dialog._sync_bubbles_to_tree()
 
         # Build conversation data for API (can use tree or legacy)
         if dialog._conversation_tree and not dialog._conversation_tree.is_empty():
@@ -639,11 +652,8 @@ class ExecutionHandler:
                 dialog._update_dynamic_section_buttons(section)
 
     def _finalize_execution_ui(self):
-        """Show reply button and update send buttons after execution ends."""
-        dialog = self.dialog
-        dialog.reply_btn.setVisible(True)
-        dialog.reply_btn.setIcon(create_icon("message-square-reply", "#f0f0f0", 16))
-        dialog._update_send_buttons_state()
+        """Update send buttons after execution ends."""
+        self.dialog._update_send_buttons_state()
 
     def stop_execution(self):
         """Cancel this dialog's execution only."""
