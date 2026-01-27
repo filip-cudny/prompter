@@ -5,6 +5,15 @@ from typing import TYPE_CHECKING
 from PySide6.QtWidgets import QHBoxLayout, QSizePolicy, QVBoxLayout, QWidget
 
 from core.context_manager import ContextItem, ContextItemType
+from modules.gui.prompt_execute_dialog.data import (
+    ConversationNode,
+    ConversationTree,
+    create_node,
+)
+from modules.gui.prompt_execute_dialog.message_widgets import (
+    AssistantBubble,
+    UserMessageBubble,
+)
 from modules.gui.shared.theme import (
     apply_section_size_policy,
     get_text_edit_content_height,
@@ -353,6 +362,10 @@ class ConversationManager:
         if not dialog._conversation_turns or not dialog._conversation_turns[-1].is_complete:
             return False
 
+        # If input_edit has content, user wants to send a new message, not regenerate
+        if dialog.input_edit.toPlainText().strip() or dialog._message_images:
+            return False
+
         if not dialog._dynamic_sections:
             return True
 
@@ -485,3 +498,181 @@ class ConversationManager:
                 if turn.turn_number == turn_number and turn.output_versions:
                     section.header.set_version_info(turn.current_version_index + 1, len(turn.output_versions))
                     break
+
+    # --- Tree-Based Conversation Methods ---
+
+    def add_user_message_to_tree(
+        self,
+        content: str,
+        images: list[ContextItem] | None = None,
+    ) -> ConversationNode:
+        """Add a user message to the conversation tree.
+
+        Args:
+            content: Message text content
+            images: Optional list of images
+
+        Returns:
+            The created user node
+        """
+        dialog = self.dialog
+        tree = dialog._conversation_tree
+        if not tree:
+            tree = ConversationTree()
+            dialog._conversation_tree = tree
+
+        # Find parent (last node in current path, should be assistant or None)
+        parent_id = None
+        if tree.current_path:
+            parent_id = tree.current_path[-1]
+
+        user_node = create_node(
+            role="user",
+            content=content,
+            parent_id=parent_id,
+            images=images,
+        )
+        tree.append_to_current_path(user_node)
+        return user_node
+
+    def add_assistant_response_to_tree(
+        self,
+        content: str,
+        user_node_id: str,
+    ) -> ConversationNode:
+        """Add an assistant response to the conversation tree.
+
+        Args:
+            content: Response text content
+            user_node_id: ID of the parent user node
+
+        Returns:
+            The created assistant node
+        """
+        dialog = self.dialog
+        tree = dialog._conversation_tree
+        if not tree:
+            return None
+
+        assistant_node = create_node(
+            role="assistant",
+            content=content,
+            parent_id=user_node_id,
+        )
+        tree.append_to_current_path(assistant_node)
+        return assistant_node
+
+    def regenerate_response_in_tree(self, assistant_node_id: str) -> ConversationNode:
+        """Create a new branch by regenerating a response.
+
+        This creates a new assistant node as a sibling of the existing one.
+
+        Args:
+            assistant_node_id: ID of the assistant node to regenerate
+
+        Returns:
+            The new assistant node (placeholder with empty content)
+        """
+        dialog = self.dialog
+        tree = dialog._conversation_tree
+        if not tree:
+            return None
+
+        old_node = tree.get_node(assistant_node_id)
+        if not old_node or old_node.role != "assistant":
+            return None
+
+        parent_id = old_node.parent_id
+        if not parent_id:
+            return None
+
+        # Create new assistant node as sibling
+        new_node = create_node(
+            role="assistant",
+            content="",
+            parent_id=parent_id,
+        )
+        tree.add_node(new_node)
+
+        # Update current path to point to new branch
+        try:
+            old_idx = tree.current_path.index(assistant_node_id)
+            tree.current_path = tree.current_path[:old_idx]
+            tree._extend_path_to_leaf(new_node.node_id)
+        except ValueError:
+            tree.current_path.append(new_node.node_id)
+
+        return new_node
+
+    def get_tree_branch_count(self, node_id: str) -> tuple[int, int]:
+        """Get the branch index and total count for a node.
+
+        Args:
+            node_id: The node ID
+
+        Returns:
+            Tuple of (current_index_1based, total_count)
+        """
+        dialog = self.dialog
+        tree = dialog._conversation_tree
+        if not tree:
+            return (1, 1)
+
+        siblings, idx = tree.get_siblings(node_id)
+        return (idx + 1, len(siblings))
+
+    def switch_to_branch(self, node_id: str, direction: int):
+        """Switch to a different branch.
+
+        Args:
+            node_id: The node whose branch to switch
+            direction: -1 for previous, +1 for next
+        """
+        dialog = self.dialog
+        tree = dialog._conversation_tree
+        if not tree:
+            return
+
+        node = tree.get_node(node_id)
+        if not node or not node.parent_id:
+            return
+
+        siblings, idx = tree.get_siblings(node_id)
+        new_idx = idx + direction
+        if 0 <= new_idx < len(siblings):
+            tree.switch_branch(node.parent_id, new_idx)
+            dialog._rebuild_message_bubbles_from_tree()
+
+    def is_tree_regenerate_mode(self) -> bool:
+        """Check if dialog is in regenerate mode using tree structure."""
+        dialog = self.dialog
+        if dialog._execution_handler.is_waiting:
+            return False
+
+        tree = dialog._conversation_tree
+        if not tree or tree.is_empty():
+            return False
+
+        # Regenerate mode: last node in path is an assistant node
+        leaf = tree.get_current_leaf()
+        if not leaf:
+            return False
+
+        return leaf.role == "assistant"
+
+    def has_empty_tree_sections(self) -> bool:
+        """Check if there are empty nodes in the tree path."""
+        dialog = self.dialog
+        tree = dialog._conversation_tree
+        if not tree or tree.is_empty():
+            return False
+
+        # Check all nodes in current path except the last user node (current input)
+        nodes = tree.get_current_branch()
+        for i, node in enumerate(nodes):
+            # Skip the last node if it's a user node (active input)
+            if i == len(nodes) - 1 and node.role == "user":
+                continue
+            if not node.content.strip() and not node.images:
+                return True
+        return False

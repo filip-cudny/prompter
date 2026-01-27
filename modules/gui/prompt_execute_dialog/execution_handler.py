@@ -9,7 +9,11 @@ from PySide6.QtGui import QTextCursor
 
 from core.models import ExecutionResult, MenuItem
 from modules.gui.icons import create_icon
-from modules.gui.prompt_execute_dialog.data import OutputVersionState
+from modules.gui.prompt_execute_dialog.data import (
+    ConversationTree,
+    OutputVersionState,
+    create_node,
+)
 from modules.gui.shared.theme import get_text_edit_content_height
 
 if TYPE_CHECKING:
@@ -53,6 +57,10 @@ class ExecutionHandler:
         self._streaming_throttle_timer.setSingleShot(True)
         self._streaming_throttle_timer.setInterval(16)
         self._streaming_throttle_timer.timeout.connect(self._flush_streaming_update)
+
+        # Tree-based execution tracking
+        self._pending_user_node_id: str | None = None
+        self._pending_assistant_node_id: str | None = None
 
     @property
     def is_waiting(self) -> bool:
@@ -217,6 +225,13 @@ class ExecutionHandler:
 
         self._last_ui_update_time = time.time() * 1000
 
+        # Update tree node content during streaming (in case of rebuild)
+        dialog = self.dialog
+        if dialog._conversation_tree and self._pending_assistant_node_id:
+            node = dialog._conversation_tree.get_node(self._pending_assistant_node_id)
+            if node:
+                node.content = self._streaming_accumulated
+
         # Get correct output text edit based on turn number
         output_edit = self._get_current_output_edit()
 
@@ -228,11 +243,32 @@ class ExecutionHandler:
         output_edit.setTextCursor(cursor)
         output_edit.blockSignals(False)
 
+        # Auto-scroll to show new streaming content
+        self.dialog._scroll_to_bottom()
+
     def _get_current_output_edit(self):
         """Get the current output text edit based on turn number."""
-        if self.dialog._current_turn_number == 1 or not self.dialog._output_sections:
-            return self.dialog.output_edit
-        return self.dialog._output_sections[-1].text_edit
+        dialog = self.dialog
+
+        # When using tree-based bubbles, return the assistant bubble's text_edit
+        if dialog._conversation_tree and not dialog._conversation_tree.is_empty():
+            # First check if there's a pending assistant node we're streaming to
+            if self._pending_assistant_node_id:
+                for bubble in reversed(dialog._message_bubbles):
+                    if hasattr(bubble, "node_id") and bubble.node_id == self._pending_assistant_node_id:
+                        return bubble.text_edit
+
+            # Fallback to any assistant bubble
+            for bubble in reversed(dialog._message_bubbles):
+                if hasattr(bubble, "node_id"):
+                    node = dialog._conversation_tree.get_node(bubble.node_id)
+                    if node and node.role == "assistant":
+                        return bubble.text_edit
+
+        # Legacy fallback
+        if dialog._current_turn_number == 1 or not dialog._output_sections:
+            return dialog.output_edit
+        return dialog._output_sections[-1].text_edit
 
     # --- Execution ---
 
@@ -255,7 +291,12 @@ class ExecutionHandler:
         dialog = self.dialog
 
         # Get current input from reply section if exists, otherwise original input
-        if dialog._dynamic_sections:
+        # When using tree-based conversation, ALWAYS use the message parameter
+        # (ignore legacy _dynamic_sections to avoid interference)
+        if dialog._conversation_tree and not dialog._conversation_tree.is_empty():
+            msg_text = message
+            msg_images = list(dialog._message_images)
+        elif dialog._dynamic_sections:
             section = dialog._dynamic_sections[-1]
             msg_text = section.text_edit.toPlainText()
             msg_images = list(section.turn_images)
@@ -266,6 +307,15 @@ class ExecutionHandler:
         # Validate message has content
         if not msg_text.strip() and not msg_images:
             return
+
+        # Clear input after capturing message
+        if dialog._dynamic_sections:
+            section.text_edit.setPlainText("")
+            section.turn_images.clear()
+        else:
+            dialog.input_edit.setPlainText("")
+            dialog._message_images.clear()
+            dialog._rebuild_message_image_chips()
 
         # Get the prompt store service
         service = self._get_prompt_store_service()
@@ -300,8 +350,43 @@ class ExecutionHandler:
 
         dialog._conversation_turns.append(turn)
 
-        # Build conversation data for API
-        conv_data = self._build_conversation_data()
+        # Add to conversation tree (skip if regeneration already set up nodes)
+        if not self._pending_assistant_node_id:
+            if dialog._conversation_tree is None:
+                from modules.gui.prompt_execute_dialog.data import ConversationTree
+
+                dialog._conversation_tree = ConversationTree()
+
+            # Create user node
+            user_node = create_node(
+                role="user",
+                content=msg_text,
+                parent_id=dialog._conversation_tree.current_path[-1] if dialog._conversation_tree.current_path else None,
+                images=msg_images,
+            )
+            dialog._conversation_tree.append_to_current_path(user_node)
+            self._pending_user_node_id = user_node.node_id
+
+            # Create placeholder assistant node
+            assistant_node = create_node(
+                role="assistant",
+                content="",
+                parent_id=user_node.node_id,
+            )
+            dialog._conversation_tree.append_to_current_path(assistant_node)
+            self._pending_assistant_node_id = assistant_node.node_id
+
+            # Rebuild bubbles immediately so user sees message + placeholder output
+            dialog._rebuild_message_bubbles_from_tree()
+
+        # Sync any user edits in bubbles back to tree nodes BEFORE building API data
+        dialog._sync_bubbles_to_tree()
+
+        # Build conversation data for API (can use tree or legacy)
+        if dialog._conversation_tree and not dialog._conversation_tree.is_empty():
+            conv_data = self._build_conversation_data_from_tree()
+        else:
+            conv_data = self._build_conversation_data()
 
         # Enable streaming for "Send & Show" mode
         if keep_open:
@@ -377,6 +462,11 @@ class ExecutionHandler:
         """Set up output section before execution starts."""
         dialog = self.dialog
 
+        # Skip legacy output section creation when using tree-based bubbles
+        if dialog._conversation_tree and not dialog._conversation_tree.is_empty():
+            dialog._scroll_to_bottom()
+            return
+
         if dialog._current_turn_number == 1:
             # First turn uses existing output section
             dialog._expand_output_section()
@@ -444,6 +534,39 @@ class ExecutionHandler:
 
         return {"turns": turns}
 
+    def _build_conversation_data_from_tree(self) -> dict:
+        """Build conversation history for API from tree structure."""
+        dialog = self.dialog
+        tree = dialog._conversation_tree
+        context_text = dialog.context_text_edit.toPlainText().strip()
+        context_images = [
+            {"data": img.data, "media_type": img.media_type or "image/png"} for img in dialog._current_images
+        ]
+
+        turns = []
+        if not tree or tree.is_empty():
+            return {"turns": turns}
+
+        pairs = tree.get_message_pairs()
+        for i, (user_node, assistant_node) in enumerate(pairs):
+            turn_data = {
+                "role": "user",
+                "text": user_node.content,
+                "images": [
+                    {"data": img.data, "media_type": img.media_type or "image/png"} for img in user_node.images
+                ],
+            }
+            if i == 0:
+                turn_data["context_text"] = context_text
+                turn_data["context_images"] = context_images
+
+            turns.append(turn_data)
+
+            if assistant_node and assistant_node.content:
+                turns.append({"role": "assistant", "text": assistant_node.content})
+
+        return {"turns": turns}
+
     def _clear_regeneration_flag(self) -> bool:
         """Clear regeneration flag and return whether it was set."""
         dialog = self.dialog
@@ -474,6 +597,22 @@ class ExecutionHandler:
             turn.output_versions.append(output_text)
             turn.current_version_index = len(turn.output_versions) - 1
             turn.version_undo_states.append(OutputVersionState(undo_stack=[], redo_stack=[], last_text=output_text))
+
+    def _update_tree_with_output(self, output_text: str):
+        """Update tree node with execution output."""
+        dialog = self.dialog
+        tree = dialog._conversation_tree
+        if not tree or not self._pending_assistant_node_id:
+            return
+
+        node = tree.get_node(self._pending_assistant_node_id)
+        if node:
+            node.content = output_text or ""
+            node.last_text = output_text or ""
+
+        # Clear pending node IDs
+        self._pending_user_node_id = None
+        self._pending_assistant_node_id = None
 
     def _update_version_ui(self, output_text: str):
         """Update version display and sync undo state in UI."""
@@ -558,8 +697,19 @@ class ExecutionHandler:
 
         output_text = result.content if result.success else None
         self._update_turn_with_output(output_text, is_regeneration)
+        self._update_tree_with_output(output_text)
+
+        # Sync bubble content to tree before any operations that read from tree
+        dialog._sync_bubbles_to_tree()
+
         self._update_version_ui(output_text)
         self._finalize_execution_ui()
+
+        # Only rebuild for non-streaming execution (streaming already has live bubbles)
+        # For streaming, bubbles were created in execute_with_message() and have been
+        # receiving updates via _flush_streaming_update(). No need to rebuild.
+        if not is_streaming and dialog._conversation_tree and not dialog._conversation_tree.is_empty():
+            dialog._rebuild_message_bubbles_from_tree()
 
         output_edit = self._get_current_output_edit()
 

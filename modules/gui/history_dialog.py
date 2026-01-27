@@ -356,31 +356,51 @@ class HistoryEntryWidget(QWidget):
 
         main_layout.addLayout(output_row)
 
+    def _get_full_input_content(self) -> str | None:
+        if self.entry.conversation_data and self.entry.conversation_data.turns:
+            last_turn = self.entry.conversation_data.turns[-1]
+            if last_turn.message_text:
+                return last_turn.message_text
+            if last_turn.message_image_paths:
+                return "(image)"
+            return None
+        return self.entry.input_content if self.entry.input_content else None
+
+    def _get_full_output_content(self) -> str | None:
+        if self.entry.conversation_data and self.entry.conversation_data.turns:
+            last_turn = self.entry.conversation_data.turns[-1]
+            return last_turn.output_text if last_turn.output_text else None
+        return self.entry.output_content if self.entry.output_content else None
+
     def _copy_input(self):
-        if self.entry.input_content and self.clipboard_manager:
-            self.clipboard_manager.set_content(self.entry.input_content)
+        full_content = self._get_full_input_content()
+        if full_content and self.clipboard_manager:
+            self.clipboard_manager.set_content(full_content)
 
     def _copy_output(self):
-        if self.entry.output_content and self.clipboard_manager:
-            self.clipboard_manager.set_content(self.entry.output_content)
+        full_content = self._get_full_output_content()
+        if full_content and self.clipboard_manager:
+            self.clipboard_manager.set_content(full_content)
 
     def _preview_input(self):
-        if self.entry.input_content:
+        full_content = self._get_full_input_content()
+        if full_content:
             from modules.gui.text_preview_dialog import show_preview_dialog
 
             show_preview_dialog(
                 "Input Content",
-                self.entry.input_content,
+                full_content,
                 clipboard_manager=self.clipboard_manager,
             )
 
     def _preview_output(self):
-        if self.entry.output_content:
+        full_content = self._get_full_output_content()
+        if full_content:
             from modules.gui.text_preview_dialog import show_preview_dialog
 
             show_preview_dialog(
                 "Output Content",
-                self.entry.output_content,
+                full_content,
                 clipboard_manager=self.clipboard_manager,
             )
 

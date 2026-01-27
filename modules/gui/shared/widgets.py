@@ -43,6 +43,9 @@ T = TypeVar("T")
 # Minimum height for text edit widgets in dialogs
 TEXT_EDIT_MIN_HEIGHT = 300
 
+# Minimum height for text edits in chat message bubbles (approximately 1 line with padding)
+BUBBLE_TEXT_EDIT_MIN_HEIGHT = 36
+
 
 class CollapsibleSectionHeader(QWidget):
     """Header widget for collapsible sections with title, collapse toggle, and optional buttons."""
@@ -55,6 +58,7 @@ class CollapsibleSectionHeader(QWidget):
     wrap_requested = Signal()
     version_prev_requested = Signal()
     version_next_requested = Signal()
+    regenerate_requested = Signal()
 
     def __init__(
         self,
@@ -64,6 +68,7 @@ class CollapsibleSectionHeader(QWidget):
         show_delete_button: bool = False,
         show_wrap_button: bool = False,
         show_version_nav: bool = False,
+        show_regenerate_button: bool = False,
         hint_text: str = "",
         parent: QWidget | None = None,
     ):
@@ -105,6 +110,15 @@ class CollapsibleSectionHeader(QWidget):
         btn_layout = QHBoxLayout(btn_container)
         btn_layout.setContentsMargins(0, 0, 0, 0)
         btn_layout.setSpacing(2)
+
+        # Regenerate button (optional) - for re-running AI generation
+        self.regenerate_btn = None
+        if show_regenerate_button:
+            self.regenerate_btn = IconButton("refresh-cw", size=16)
+            self.regenerate_btn.setToolTip("Regenerate response")
+            self.regenerate_btn.setStyleSheet(ICON_BTN_STYLE)
+            self.regenerate_btn.clicked.connect(lambda: self.regenerate_requested.emit())
+            btn_layout.addWidget(self.regenerate_btn)
 
         # Version navigation (optional) - shown only when multiple versions exist
         self.version_container = None
@@ -258,6 +272,16 @@ class CollapsibleSectionHeader(QWidget):
         self.version_label.setText(f"{current} of {total}")
         self.version_prev_btn.setEnabled(current > 1)
         self.version_next_btn.setEnabled(current < total)
+
+    def set_regenerate_button_visible(self, visible: bool):
+        """Show or hide the regenerate button."""
+        if self.regenerate_btn:
+            self.regenerate_btn.setVisible(visible)
+
+    def set_regenerate_button_enabled(self, enabled: bool):
+        """Enable or disable the regenerate button."""
+        if self.regenerate_btn:
+            self.regenerate_btn.setEnabled(enabled)
 
 
 class ImageChipWidget(QWidget):

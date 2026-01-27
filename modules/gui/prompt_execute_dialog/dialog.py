@@ -19,11 +19,18 @@ from modules.gui.icons import create_composite_icon, create_icon
 from modules.gui.prompt_execute_dialog.conversation_manager import ConversationManager
 from modules.gui.prompt_execute_dialog.data import (
     ContextSectionState,
+    ConversationNode,
+    ConversationTree,
     ConversationTurn,
     OutputState,
     OutputVersionState,
     PromptInputState,
     TabState,
+    create_node,
+)
+from modules.gui.prompt_execute_dialog.message_widgets import (
+    AssistantBubble,
+    UserMessageBubble,
 )
 from modules.gui.prompt_execute_dialog.execution_handler import ExecutionHandler
 from modules.gui.prompt_execute_dialog.tab_bar import ConversationTabBar
@@ -171,11 +178,15 @@ class PromptExecuteDialog(BaseDialog):
         # Track if output section has been shown
         self._output_section_shown = False
 
-        # Multi-turn conversation state
+        # Multi-turn conversation state (legacy linear format)
         self._conversation_turns: list[ConversationTurn] = []
         self._current_turn_number: int = 0
         self._dynamic_sections: list[QWidget] = []  # Reply input sections
         self._output_sections: list[QWidget] = []  # Output sections for each turn
+
+        # Tree-based conversation state (new)
+        self._conversation_tree: ConversationTree | None = None
+        self._message_bubbles: list = []  # UserMessageBubble and AssistantBubble widgets
 
         # Separate undo/redo stacks for each section
         self._context_undo_stack: list[ContextSectionState] = []
@@ -246,38 +257,46 @@ class PromptExecuteDialog(BaseDialog):
     # --- UI Setup ---
 
     def _setup_ui(self):
-        """Set up the dialog UI with three collapsible sections."""
+        """Set up the dialog UI with sticky context/input and scrollable messages."""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 10, 0, 10)  # No right margin - scrollbar sticks to edge
         layout.setSpacing(8)
 
-        # Scroll area for scrolling when many sections
+        # Section 1: Context (STICKY TOP - outside scroll area)
+        self.context_section = self._create_context_section()
+        layout.addWidget(self.context_section)
+
+        # Scroll area for conversation messages only
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.scroll_area.setFrameShape(QFrame.NoFrame)
 
-        # Container widget with layout for all sections
+        # Container widget for messages
         self.sections_container = QWidget()
         self.sections_layout = QVBoxLayout(self.sections_container)
         self.sections_layout.setContentsMargins(*SCROLL_CONTENT_MARGINS)
         self.sections_layout.setSpacing(SCROLL_CONTENT_SPACING)
 
-        # Section 1: Context (with save button)
-        self.context_section = self._create_context_section()
-        self.sections_layout.addWidget(self.context_section)
+        # Add stretch to push messages to top when few
+        self.sections_layout.addStretch()
 
-        # Section 2: Prompt Input (no save button)
+        self.scroll_area.setWidget(self.sections_container)
+        layout.addWidget(self.scroll_area, 1)  # stretch factor 1 for scroll area
+
+        # Section 2: Prompt Input (STICKY BOTTOM - outside scroll area)
         self.input_section = self._create_input_section()
-        self.sections_layout.addWidget(self.input_section)
+        layout.addWidget(self.input_section)
 
-        # Section 3: Output (no save button) - NOT added initially
+        # Section 3: Output (legacy - kept for backward compatibility)
+        # In new tree-based flow, output sections are created as AssistantBubble widgets
         self.output_section = self._create_output_section()
         # Output section is hidden until user clicks Alt+Enter
 
-        self.scroll_area.setWidget(self.sections_container)
-        layout.addWidget(self.scroll_area)
+        # Initialize conversation tree
+        self._conversation_tree = ConversationTree()
+        self._message_bubbles: list[UserMessageBubble | AssistantBubble] = []
 
         # Button bar (includes tabs inline)
         self._create_button_bar(layout)
@@ -340,7 +359,7 @@ class PromptExecuteDialog(BaseDialog):
 
         # Header with collapse toggle, wrap button, and undo/redo (NO save button)
         self.input_header = CollapsibleSectionHeader(
-            "Message #1",
+            "Message",
             show_save_button=False,
             show_undo_redo=True,
             show_wrap_button=True,
@@ -1283,11 +1302,193 @@ class PromptExecuteDialog(BaseDialog):
         if turn1.output_versions:
             turn1.output_versions[turn1.current_version_index] = self.output_edit.toPlainText()
 
-        # Sync dynamic output sections (turns > 1)
-        for section in self._output_sections:
-            turn = self._find_turn_for_output_section(section)
-            if turn and turn.output_versions:
-                turn.output_versions[turn.current_version_index] = section.text_edit.toPlainText()
+    # --- Conversation Tree Helpers ---
+
+    def _capture_conversation_tree(self) -> ConversationTree | None:
+        """Capture the current conversation tree state."""
+        if not self._conversation_tree or self._conversation_tree.is_empty():
+            return None
+        # Sync bubble contents to tree nodes before capture
+        self._sync_bubbles_to_tree()
+        # Create deep copy
+        tree_copy = ConversationTree(
+            nodes={
+                nid: ConversationNode(
+                    node_id=node.node_id,
+                    parent_id=node.parent_id,
+                    role=node.role,
+                    content=node.content,
+                    images=[
+                        ContextItem(item_type=img.item_type, data=img.data, media_type=img.media_type)
+                        for img in node.images
+                    ],
+                    timestamp=node.timestamp,
+                    children=list(node.children),
+                    undo_stack=list(node.undo_stack),
+                    redo_stack=list(node.redo_stack),
+                    last_text=node.last_text,
+                )
+                for nid, node in self._conversation_tree.nodes.items()
+            },
+            root_node_id=self._conversation_tree.root_node_id,
+            current_path=list(self._conversation_tree.current_path),
+        )
+        return tree_copy
+
+    def _sync_bubbles_to_tree(self):
+        """Sync content from message bubbles back to tree nodes."""
+        if not self._conversation_tree:
+            return
+        for bubble in self._message_bubbles:
+            node = self._conversation_tree.get_node(bubble.node_id)
+            if node:
+                # Skip syncing empty assistant content (preserves streaming content in tree)
+                if node.role == "assistant" and not bubble.get_content().strip():
+                    continue
+                node.content = bubble.get_content()
+                if hasattr(bubble, "get_images"):
+                    node.images = bubble.get_images()
+
+    def _restore_conversation_tree(self, tree: ConversationTree | None):
+        """Restore conversation tree and rebuild message bubbles."""
+        self._clear_message_bubbles()
+        if not tree:
+            self._conversation_tree = ConversationTree()
+            return
+        self._conversation_tree = tree
+        self._rebuild_message_bubbles_from_tree()
+
+    def _clear_message_bubbles(self):
+        """Remove all message bubble widgets from layout."""
+        for bubble in self._message_bubbles:
+            self.sections_layout.removeWidget(bubble)
+            bubble.setParent(None)
+            bubble.deleteLater()
+        self._message_bubbles.clear()
+
+    def _rebuild_message_bubbles_from_tree(self):
+        """Rebuild message bubble widgets from the conversation tree."""
+        self._clear_message_bubbles()
+
+        if not self._conversation_tree or self._conversation_tree.is_empty():
+            return
+
+        pairs = self._conversation_tree.get_message_pairs()
+        for i, (user_node, assistant_node) in enumerate(pairs):
+            message_number = i + 1
+
+            # Create user message bubble
+            user_bubble = UserMessageBubble(
+                node_id=user_node.node_id,
+                message_number=message_number,
+                content=user_node.content,
+                images=list(user_node.images),
+                show_delete_button=False,
+            )
+            user_bubble.text_changed.connect(self._on_bubble_text_changed)
+            user_bubble.images_changed.connect(self._update_send_buttons_state)
+            user_bubble.text_edit.installEventFilter(self)
+            self._message_bubbles.append(user_bubble)
+            # Insert before stretch
+            insert_idx = self.sections_layout.count() - 1
+            self.sections_layout.insertWidget(insert_idx, user_bubble)
+
+            # Create assistant bubble if response exists
+            if assistant_node:
+                assistant_bubble = AssistantBubble(
+                    node_id=assistant_node.node_id,
+                    output_number=message_number,
+                    content=assistant_node.content,
+                    show_delete_button=False,
+                )
+                assistant_bubble.text_changed.connect(self._on_bubble_text_changed)
+                assistant_bubble.regenerate_requested.connect(self._on_regenerate_from_bubble)
+                assistant_bubble.branch_prev_requested.connect(self._on_branch_prev)
+                assistant_bubble.branch_next_requested.connect(self._on_branch_next)
+                assistant_bubble.text_edit.installEventFilter(self)
+                self._message_bubbles.append(assistant_bubble)
+                insert_idx = self.sections_layout.count() - 1
+                self.sections_layout.insertWidget(insert_idx, assistant_bubble)
+
+                # Update branch navigation
+                siblings, idx = self._conversation_tree.get_siblings(assistant_node.node_id)
+                assistant_bubble.set_branch_info(idx + 1, len(siblings))
+
+        self._update_delete_button_visibility()
+
+        # Ensure focus stays on sticky input for next message
+        self.input_edit.setFocus()
+
+    def _on_bubble_text_changed(self):
+        """Handle text change in any message bubble."""
+        self._update_send_buttons_state()
+
+    def _on_regenerate_from_bubble(self, node_id: str):
+        """Handle regenerate request from an assistant bubble."""
+        if not self._conversation_tree:
+            return
+        node = self._conversation_tree.get_node(node_id)
+        if not node or node.role != "assistant":
+            return
+        # Regenerate creates a new sibling branch
+        self._regenerate_at_node(node_id)
+
+    def _on_branch_prev(self, node_id: str):
+        """Navigate to previous branch."""
+        if not self._conversation_tree:
+            return
+        siblings, idx = self._conversation_tree.get_siblings(node_id)
+        if idx > 0:
+            node = self._conversation_tree.get_node(node_id)
+            if node and node.parent_id:
+                self._conversation_tree.switch_branch(node.parent_id, idx - 1)
+                self._rebuild_message_bubbles_from_tree()
+
+    def _on_branch_next(self, node_id: str):
+        """Navigate to next branch."""
+        if not self._conversation_tree:
+            return
+        siblings, idx = self._conversation_tree.get_siblings(node_id)
+        if idx < len(siblings) - 1:
+            node = self._conversation_tree.get_node(node_id)
+            if node and node.parent_id:
+                self._conversation_tree.switch_branch(node.parent_id, idx + 1)
+                self._rebuild_message_bubbles_from_tree()
+
+    def _regenerate_at_node(self, node_id: str):
+        """Regenerate response at a specific assistant node, creating a new branch."""
+        if not self._conversation_tree:
+            return
+
+        old_node = self._conversation_tree.get_node(node_id)
+        if not old_node or old_node.role != "assistant":
+            return
+
+        user_node_id = old_node.parent_id
+        if not user_node_id:
+            return
+
+        user_node = self._conversation_tree.get_node(user_node_id)
+        if not user_node:
+            return
+
+        self._sync_bubbles_to_tree()
+
+        new_assistant = self._conversation_manager.regenerate_response_in_tree(node_id)
+        if not new_assistant:
+            return
+
+        self._execution_handler._pending_user_node_id = user_node_id
+        self._execution_handler._pending_assistant_node_id = new_assistant.node_id
+
+        self.reply_btn.setVisible(False)
+        self._pending_is_regeneration = True
+
+        self._rebuild_message_bubbles_from_tree()
+
+        self._execution_handler.execute_with_message(
+            user_node.content, keep_open=True, regenerate=True
+        )
 
     # --- Tab Management ---
 
@@ -1349,7 +1550,9 @@ class PromptExecuteDialog(BaseDialog):
             output_undo_stack=list(self._output_undo_stack),
             output_redo_stack=list(self._output_redo_stack),
             last_output_text=self._last_output_text,
-            # Multi-turn conversation
+            # Tree-based conversation (new)
+            conversation_tree=self._capture_conversation_tree(),
+            # Legacy: Multi-turn conversation
             conversation_turns=list(self._conversation_turns),
             current_turn_number=self._current_turn_number,
             dynamic_sections_data=dynamic_sections_data,
@@ -1418,14 +1621,21 @@ class PromptExecuteDialog(BaseDialog):
             self.output_section.setParent(None)
             self._output_section_shown = False
 
-        # Restore multi-turn conversation state
+        # Restore multi-turn conversation state (legacy)
         self._conversation_turns = list(state.conversation_turns)
         self._current_turn_number = state.current_turn_number
+
+        # Restore tree-based conversation (new)
+        if state.conversation_tree:
+            self._restore_conversation_tree(state.conversation_tree)
+        else:
+            self._conversation_tree = ConversationTree()
+            self._clear_message_bubbles()
 
         # Restore history tracking
         self._history_entry_id = state.history_entry_id
 
-        # Restore dynamic sections
+        # Restore dynamic sections (legacy - for backward compatibility)
         self._conversation_manager.restore_dynamic_sections(state.dynamic_sections_data, state.output_sections_data)
 
         # Restore version display for Output #1
@@ -1539,9 +1749,13 @@ class PromptExecuteDialog(BaseDialog):
         self._output_redo_stack.clear()
         self._last_output_text = ""
 
-        # Reset multi-turn conversation state
+        # Reset multi-turn conversation state (legacy)
         self._conversation_turns.clear()
         self._current_turn_number = 0
+
+        # Reset tree-based conversation (new)
+        self._conversation_tree = ConversationTree()
+        self._clear_message_bubbles()
 
         # Reset history tracking (new tab = new conversation)
         self._history_entry_id = None
@@ -1776,8 +1990,14 @@ class PromptExecuteDialog(BaseDialog):
             self._conversation_turns.append(turn)
             self._current_turn_number = max(self._current_turn_number, turn.turn_number)
 
-        # Rebuild UI from turns
-        self._restore_conversation_ui()
+        # Restore tree-based conversation if available
+        tree = self._history_service.deserialize_tree_nodes(conv_data)
+        if tree:
+            self._conversation_tree = tree
+            self._rebuild_message_bubbles_from_tree()
+        else:
+            # Legacy: Rebuild UI from turns
+            self._restore_conversation_ui()
 
         # Store entry ID for future updates
         self._history_entry_id = entry_id
@@ -1788,7 +2008,7 @@ class PromptExecuteDialog(BaseDialog):
         self._update_delete_button_visibility()
 
         # Show reply button if we have output to reply to
-        has_output = self._output_section_shown or bool(self._output_sections)
+        has_output = self._output_section_shown or bool(self._output_sections) or bool(self._message_bubbles)
         if has_output:
             self.reply_btn.setIcon(create_icon("message-square-reply", COLOR_TEXT, 16))
             self.reply_btn.setVisible(True)
@@ -1848,13 +2068,20 @@ class PromptExecuteDialog(BaseDialog):
         if not self._history_service:
             return
 
-        # Don't save if no completed turns
-        if not any(t.is_complete for t in self._conversation_turns):
+        # Don't save if no completed turns (legacy) and no completed tree nodes
+        has_completed_turns = any(t.is_complete for t in self._conversation_turns)
+        has_completed_tree = (
+            self._conversation_tree
+            and not self._conversation_tree.is_empty()
+            and any(n.role == "assistant" and n.content for n in self._conversation_tree.nodes.values())
+        )
+        if not has_completed_turns and not has_completed_tree:
             return
 
         # Sync UI to turn data before saving
         self._sync_ui_to_conversation_turns()
         self._sync_all_outputs_to_versions()
+        self._sync_bubbles_to_tree()
 
         prompt_id = self.menu_item.data.get("prompt_id") if self.menu_item.data else None
         prompt_name = self.menu_item.data.get("prompt_name") if self.menu_item.data else None
@@ -1866,6 +2093,7 @@ class PromptExecuteDialog(BaseDialog):
                 self._conversation_turns,
                 self.context_text_edit.toPlainText(),
                 self._current_images,
+                conversation_tree=self._conversation_tree,
             )
         else:
             # Create new entry
@@ -1875,10 +2103,17 @@ class PromptExecuteDialog(BaseDialog):
                 self._current_images,
                 prompt_id=prompt_id,
                 prompt_name=prompt_name,
+                conversation_tree=self._conversation_tree,
             )
 
     def _regenerate_last_output(self):
         """Regenerate the last AI output by re-executing the last message."""
+        # Handle tree-based regeneration
+        if self._conversation_tree and not self._conversation_tree.is_empty():
+            self._regenerate_from_tree()
+            return
+
+        # Legacy: linear conversation handling
         if not self._conversation_turns:
             return
 
@@ -1940,6 +2175,59 @@ class PromptExecuteDialog(BaseDialog):
         self._pending_is_regeneration = True  # Flag for result handler
 
         self._execution_handler.execute_with_message(message_text, keep_open=True, regenerate=True)
+
+    def _regenerate_from_tree(self):
+        """Regenerate response using tree-based branching."""
+        if not self._conversation_tree:
+            return
+
+        leaf = self._conversation_tree.get_current_leaf()
+        if not leaf or leaf.role != "assistant":
+            return
+
+        # Find the parent user message
+        user_node_id = leaf.parent_id
+        if not user_node_id:
+            return
+
+        user_node = self._conversation_tree.get_node(user_node_id)
+        if not user_node:
+            return
+
+        # Sync current bubble content to tree
+        self._sync_bubbles_to_tree()
+
+        # Create new assistant node as sibling branch
+        new_assistant = create_node(
+            role="assistant",
+            content="",
+            parent_id=user_node_id,
+        )
+        self._conversation_tree.add_node(new_assistant)
+
+        # Update current path to new branch
+        try:
+            old_idx = self._conversation_tree.current_path.index(leaf.node_id)
+            self._conversation_tree.current_path = self._conversation_tree.current_path[:old_idx]
+            self._conversation_tree.current_path.append(new_assistant.node_id)
+        except ValueError:
+            self._conversation_tree.current_path.append(new_assistant.node_id)
+
+        # Set pending node for execution handler
+        self._execution_handler._pending_user_node_id = user_node_id
+        self._execution_handler._pending_assistant_node_id = new_assistant.node_id
+
+        # Hide reply button during regeneration
+        self.reply_btn.setVisible(False)
+        self._pending_is_regeneration = True
+
+        # Rebuild bubbles to show the new branch
+        self._rebuild_message_bubbles_from_tree()
+
+        # Execute using tree-based conversation data
+        self._execution_handler.execute_with_message(
+            user_node.content, keep_open=True, regenerate=True
+        )
 
     def _on_reply(self):
         """Add new input section for reply."""
