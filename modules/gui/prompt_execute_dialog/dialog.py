@@ -2197,6 +2197,16 @@ class PromptExecuteDialog(BaseDialog):
 
     # --- Event handling ---
 
+    def _trigger_send_from_text_edit(self):
+        """Trigger send action when Enter is pressed in a text edit."""
+        if self._is_regenerate_mode():
+            self._regenerate_last_output()
+            return
+
+        has_content = bool(self.input_edit.toPlainText().strip()) or bool(self._message_images)
+        if has_content and not self._waiting_for_result:
+            self._on_send_show()
+
     def keyPressEvent(self, event):
         """Handle key press events."""
         key = event.key()
@@ -2229,6 +2239,17 @@ class PromptExecuteDialog(BaseDialog):
             event.accept()
             return
 
+        # Plain Enter: Send & show (chat-like behavior, fallback for non-filtered events)
+        if key in (Qt.Key_Return, Qt.Key_Enter) and not (modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.ShiftModifier)):
+            if self._waiting_for_result and self._execution_handler._stop_button_active == "alt":
+                self._execution_handler.stop_execution()
+            elif is_regenerate and not self._waiting_for_result:
+                self._regenerate_last_output()
+            elif has_content and not self._waiting_for_result:
+                self._on_send_show()
+            event.accept()
+            return
+
         # Escape to close
         if key == Qt.Key_Escape:
             self.close()
@@ -2237,10 +2258,22 @@ class PromptExecuteDialog(BaseDialog):
         super().keyPressEvent(event)
 
     def eventFilter(self, obj, event):
-        """Filter events to intercept Ctrl+Z/Ctrl+Shift+Z on text edits."""
+        """Filter events to intercept key presses on text edits."""
         if event.type() == QEvent.KeyPress:
             key = event.key()
             modifiers = event.modifiers()
+
+            # Handle Enter key on text edits (chat-like behavior)
+            if key in (Qt.Key_Return, Qt.Key_Enter):
+                # Shift+Enter: Insert newline (let default handle it)
+                if modifiers & Qt.ShiftModifier:
+                    return False
+
+                # Plain Enter: Trigger send (like in chat apps)
+                # Don't consume if there are other modifiers (Ctrl, Alt handled elsewhere)
+                if not (modifiers & (Qt.ControlModifier | Qt.AltModifier)):
+                    self._trigger_send_from_text_edit()
+                    return True
 
             # Ctrl+Z for undo
             if key == Qt.Key_Z and (modifiers & Qt.ControlModifier):
