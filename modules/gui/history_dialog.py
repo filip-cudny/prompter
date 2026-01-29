@@ -289,7 +289,8 @@ class HistoryEntryWidget(QWidget):
         main_layout.addLayout(header_row)
 
         # Input row
-        has_input = bool(self.entry.input_content)
+        full_input = self._get_full_input_content()
+        has_input = bool(full_input)
         input_row = QHBoxLayout()
         input_row.setSpacing(8)
 
@@ -297,7 +298,7 @@ class HistoryEntryWidget(QWidget):
         input_label.setStyleSheet(self._section_label_style)
         input_row.addWidget(input_label)
 
-        input_text, input_truncated = self._truncate_text(self.entry.input_content)
+        input_text, input_truncated = self._truncate_text(full_input)
         input_text_label = ClickableLabel(input_text)
         input_text_label.setWordWrap(True)
         input_text_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
@@ -305,7 +306,7 @@ class HistoryEntryWidget(QWidget):
             input_text_label.setStyleSheet(self._truncated_text_style)
             input_text_label.clicked.connect(self._preview_input)
             if input_truncated:
-                input_text_label.setToolTip(self.entry.input_content)
+                input_text_label.setToolTip(full_input)
         else:
             input_text_label.setStyleSheet(self._truncated_text_empty_style)
             input_text_label.set_clickable(False)
@@ -323,7 +324,8 @@ class HistoryEntryWidget(QWidget):
         main_layout.addLayout(input_row)
 
         # Output row
-        has_output = bool(self.entry.output_content)
+        full_output = self._get_full_output_content()
+        has_output = bool(full_output)
         output_row = QHBoxLayout()
         output_row.setSpacing(8)
 
@@ -331,7 +333,7 @@ class HistoryEntryWidget(QWidget):
         output_label.setStyleSheet(self._section_label_style)
         output_row.addWidget(output_label)
 
-        output_text, output_truncated = self._truncate_text(self.entry.output_content)
+        output_text, output_truncated = self._truncate_text(full_output)
         output_text_label = ClickableLabel(output_text)
         output_text_label.setWordWrap(True)
         output_text_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
@@ -339,7 +341,7 @@ class HistoryEntryWidget(QWidget):
             output_text_label.setStyleSheet(self._truncated_text_style)
             output_text_label.clicked.connect(self._preview_output)
             if output_truncated:
-                output_text_label.setToolTip(self.entry.output_content)
+                output_text_label.setToolTip(full_output)
         else:
             output_text_label.setStyleSheet(self._truncated_text_empty_style)
             output_text_label.set_clickable(False)
