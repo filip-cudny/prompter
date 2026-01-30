@@ -63,6 +63,9 @@ class ExecutionHandler:
         self._pending_user_node_id: str | None = None
         self._pending_assistant_node_id: str | None = None
 
+        # Close-after-result tracking (for Ctrl+Enter flow)
+        self._close_after_result = False
+
     @property
     def is_waiting(self) -> bool:
         """Check if waiting for execution result."""
@@ -427,10 +430,13 @@ class ExecutionHandler:
             enabled=dialog.menu_item.enabled,
         )
 
+        # Always connect execution signal to save history
+        self._waiting_for_result = True
+        self.connect_execution_signal()
+        self._close_after_result = not keep_open
+
         if keep_open:
-            # Connect to receive result and streaming chunks
-            self._waiting_for_result = True
-            self.connect_execution_signal()
+            # Connect streaming for live updates
             self.connect_streaming_signal()
 
             status_text = "Regenerating..." if regenerate else "Executing..."
@@ -449,17 +455,20 @@ class ExecutionHandler:
                     # Always use async execution so it's cancellable via context menu
                     execution_id = handler.async_manager.execute_prompt_async(modified_item, full_message)
 
-                    if keep_open:
-                        # Stay open and track execution for result display
-                        self._current_execution_id = execution_id
-                    else:
-                        # Close dialog immediately - execution continues in background
-                        # Cancellable via context menu like normal context menu executions
-                        dialog.accept()
+                    # Track execution for result handling
+                    self._current_execution_id = execution_id
+
+                    if not keep_open:
+                        # Hide dialog immediately for quick visual feedback
+                        # Dialog will close after history save in on_execution_result
+                        dialog.hide()
                 else:
                     # Fallback for handlers without async_manager
                     handler.execute(modified_item, full_message)
                     if not keep_open:
+                        # No async execution, close immediately (no history save possible)
+                        self._close_after_result = False
+                        self._waiting_for_result = False
                         dialog.accept()
                 return
 
@@ -469,6 +478,9 @@ class ExecutionHandler:
                 dialog.menu_item.data["custom_context"] = full_message
             dialog.execution_callback(dialog.menu_item, False)
             if not keep_open:
+                # Callback execution, close immediately (no history save possible)
+                self._close_after_result = False
+                self._waiting_for_result = False
                 dialog.accept()
 
     def _setup_output_section_for_execution(self, regenerate: bool, status_text: str):
@@ -663,10 +675,12 @@ class ExecutionHandler:
         execution_id_to_cancel = self._current_execution_id
 
         is_regeneration = self._clear_regeneration_flag()
+        should_close = self._close_after_result
 
         self._waiting_for_result = False
         self._current_execution_id = None
         self._disable_for_global_execution = False
+        self._close_after_result = False
         self._revert_button_to_send_state()
 
         output_edit = self._get_current_output_edit()
@@ -684,6 +698,10 @@ class ExecutionHandler:
         service = self._get_prompt_store_service()
         if service:
             service.execution_service.cancel_execution(execution_id_to_cancel, silent=True)
+
+        # Close dialog if it was hidden (Ctrl+Enter flow)
+        if should_close:
+            self.dialog.accept()
 
     # --- Result Handling ---
 
@@ -746,6 +764,11 @@ class ExecutionHandler:
         # Save conversation to history after successful execution
         if result.success:
             dialog._save_to_history()
+
+        # Close dialog if it was hidden (Ctrl+Enter flow)
+        if self._close_after_result:
+            self._close_after_result = False
+            dialog.accept()
 
     # --- Button State Management ---
 
