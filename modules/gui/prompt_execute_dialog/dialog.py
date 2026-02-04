@@ -218,7 +218,6 @@ class PromptExecuteDialog(BaseDialog):
         self._tab_counter: int = 0
         self._tab_bar: ConversationTabBar | None = None
         self._tab_scroll: QScrollArea | None = None
-        self._max_tabs: int = 10
 
         # Extract prompt name for title
         prompt_name = menu_item.data.get("prompt_name", "Prompt") if menu_item.data else "Prompt"
@@ -228,9 +227,6 @@ class PromptExecuteDialog(BaseDialog):
         self.apply_dialog_styles()
         self._load_context()
         self._restore_ui_state()
-
-        # Connect to global execution signals for cross-dialog awareness
-        self._execution_handler.connect_global_execution_signals()
 
         # Focus message input for immediate typing
         self.input_edit.setFocus()
@@ -248,10 +244,6 @@ class PromptExecuteDialog(BaseDialog):
     @property
     def _current_execution_id(self) -> str | None:
         return self._execution_handler.current_execution_id
-
-    @property
-    def _disable_for_global_execution(self) -> bool:
-        return self._execution_handler.is_disabled_for_global
 
     # --- UI Setup ---
 
@@ -564,6 +556,7 @@ class PromptExecuteDialog(BaseDialog):
 
         if not self._current_images:
             self.context_images_container.hide()
+            self._update_context_header_highlight()
             return
 
         self.context_images_container.show()
@@ -581,6 +574,7 @@ class PromptExecuteDialog(BaseDialog):
             self.context_images_layout.addWidget(chip)
 
         self.context_images_layout.addStretch()
+        self._update_context_header_highlight()
 
     def _on_image_delete(self, index: int):
         """Handle image chip delete request."""
@@ -687,6 +681,12 @@ class PromptExecuteDialog(BaseDialog):
         else:
             self.context_section.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
         self.save_section_state("context_collapsed", is_visible)
+        self._update_context_header_highlight()
+
+    def _update_context_header_highlight(self):
+        """Update context header highlight based on content presence."""
+        has_content = bool(self._current_images) or bool(self.context_text_edit.toPlainText().strip())
+        self.context_header.set_has_content(has_content)
 
     def _toggle_input_section(self):
         """Toggle input section visibility."""
@@ -795,7 +795,12 @@ class PromptExecuteDialog(BaseDialog):
 
     def closeEvent(self, event):
         """Save geometry on close and disconnect signals."""
-        # Clean up execution handler
+        # Clean up all tab handlers
+        for state in self._tabs.values():
+            if state.execution_handler:
+                state.execution_handler.cleanup()
+
+        # Clean up current execution handler (may not be in tabs dict if no tabs created)
         self._execution_handler.cleanup()
 
         # BaseDialog handles geometry save
@@ -1189,14 +1194,12 @@ class PromptExecuteDialog(BaseDialog):
             has_message
             and not has_conversation_error
             and not self._waiting_for_result
-            and not self._disable_for_global_execution
         )
 
         can_act = (
             (has_message or is_regenerate)
             and not has_conversation_error
             and not self._waiting_for_result
-            and not self._disable_for_global_execution
         )
 
         # Enable buttons (stop button should stay enabled)
@@ -1225,6 +1228,7 @@ class PromptExecuteDialog(BaseDialog):
         if not self.context_header.is_wrapped():
             content_height = get_text_edit_content_height(self.context_text_edit)
             self.context_text_edit.setMinimumHeight(content_height)
+        self._update_context_header_highlight()
 
     def _on_input_text_changed(self):
         """Handle input text changes - debounce state saving and update buttons."""
@@ -1551,6 +1555,10 @@ class PromptExecuteDialog(BaseDialog):
             waiting_for_result=self._waiting_for_result,
             is_streaming=self._is_streaming,
             streaming_accumulated=self._execution_handler._streaming_accumulated,
+            current_execution_id=self._execution_handler._current_execution_id,
+            stop_button_active=self._execution_handler._stop_button_active,
+            pending_user_node_id=self._execution_handler._pending_user_node_id,
+            pending_assistant_node_id=self._execution_handler._pending_assistant_node_id,
             # History tracking
             history_entry_id=self._history_entry_id,
             # UI collapsed/wrapped states
@@ -1560,6 +1568,8 @@ class PromptExecuteDialog(BaseDialog):
             context_wrapped=self.context_header.is_wrapped(),
             input_wrapped=self.input_header.is_wrapped(),
             output_wrapped=self.output_header.is_wrapped(),
+            # Per-tab execution handler
+            execution_handler=self._execution_handler,
         )
 
     def _restore_state(self, state: TabState):
@@ -1579,6 +1589,7 @@ class PromptExecuteDialog(BaseDialog):
         self._context_undo_stack = list(state.context_undo_stack)
         self._context_redo_stack = list(state.context_redo_stack)
         self._last_context_text = state.last_context_text
+        self._update_context_header_highlight()
 
         # Restore message/input section
         self._message_images = [
@@ -1635,6 +1646,9 @@ class PromptExecuteDialog(BaseDialog):
 
         # Restore UI collapsed/wrapped states
         self._restore_section_ui_states(state)
+
+        # Note: Execution handler is switched in _on_tab_selected, not restored here
+        # The handler reference is stored in state.execution_handler
 
         # Update button states
         self._update_undo_redo_buttons()
@@ -1754,6 +1768,17 @@ class PromptExecuteDialog(BaseDialog):
         self.input_edit.show()
         self.input_header.set_collapsed(False)
 
+        # Note: When called from _on_add_tab_clicked, handler is already fresh.
+        # When called from _on_tab_close_requested (last tab), reset handler state.
+        if not self._tabs:
+            self._execution_handler._waiting_for_result = False
+            self._execution_handler._is_streaming = False
+            self._execution_handler._streaming_accumulated = ""
+            self._execution_handler._current_execution_id = None
+            self._execution_handler._stop_button_active = None
+            self._execution_handler._pending_user_node_id = None
+            self._execution_handler._pending_assistant_node_id = None
+
         # Update button states
         self._update_undo_redo_buttons()
         self._update_send_buttons_state()
@@ -1768,40 +1793,49 @@ class PromptExecuteDialog(BaseDialog):
 
     def _on_add_tab_clicked(self):
         """Handle add tab button click."""
-        if len(self._tabs) >= self._max_tabs:
-            return
-
         # If this is the first tab creation, create Tab 1 for current state
         if not self._active_tab_id:
             self._tab_counter += 1
             first_tab_id = f"tab_{self._tab_counter}"
             first_tab_name = f"Tab {self._tab_counter}"
 
-            # Capture current state as Tab 1
+            # Current handler becomes Tab 1's handler
+            self._execution_handler._tab_id = first_tab_id
             first_state = self._capture_current_state()
             first_state.tab_id = first_tab_id
             first_state.tab_name = first_tab_name
+            first_state.execution_handler = self._execution_handler
             self._tabs[first_tab_id] = first_state
             self._active_tab_id = first_tab_id
 
             # Add first tab to tab bar
             self._tab_bar.add_tab(first_tab_id, first_tab_name)
         else:
-            # Save current tab state
+            # Save current tab state (including current handler)
             self._tabs[self._active_tab_id] = self._capture_current_state()
+
+        # Revert button state from old handler before switching
+        if self._execution_handler._stop_button_active:
+            self._execution_handler._revert_button_to_send_state()
 
         # Increment tab counter and generate new tab ID
         self._tab_counter += 1
         new_tab_id = f"tab_{self._tab_counter}"
         new_tab_name = f"Tab {self._tab_counter}"
 
+        # Create fresh handler for new tab (no global signal connection - tabs execute independently)
+        new_handler = ExecutionHandler(self)
+        new_handler._tab_id = new_tab_id
+        self._execution_handler = new_handler
+
         # Reset dialog to initial state
         self._reset_to_initial_state()
 
-        # Create and store new tab state
+        # Create and store new tab state with new handler
         new_state = self._capture_current_state()
         new_state.tab_id = new_tab_id
         new_state.tab_name = new_tab_name
+        new_state.execution_handler = new_handler
         self._tabs[new_tab_id] = new_state
         self._active_tab_id = new_tab_id
 
@@ -1818,9 +1852,13 @@ class PromptExecuteDialog(BaseDialog):
         if tab_id == self._active_tab_id:
             return
 
-        # Save current tab state
+        # Save current tab state (including current handler reference)
         if self._active_tab_id:
             self._tabs[self._active_tab_id] = self._capture_current_state()
+
+        # Revert button state from old handler (if it had stop button active)
+        if self._execution_handler._stop_button_active:
+            self._execution_handler._revert_button_to_send_state()
 
         # Switch to new tab
         self._active_tab_id = tab_id
@@ -1828,13 +1866,40 @@ class PromptExecuteDialog(BaseDialog):
 
         # Restore state from selected tab
         if tab_id in self._tabs:
-            self._restore_state(self._tabs[tab_id])
+            state = self._tabs[tab_id]
+
+            # Switch to tab's handler
+            if state.execution_handler:
+                self._execution_handler = state.execution_handler
+
+            self._restore_state(state)
+
+            # Restore button state for this tab's handler
+            if self._execution_handler._stop_button_active:
+                self._execution_handler._transform_button_to_stop(
+                    is_alt_enter=(self._execution_handler._stop_button_active == "alt")
+                )
+
+            # If handler is streaming, sync accumulated content to restored tree/bubbles
+            if self._execution_handler._is_streaming and self._execution_handler._streaming_accumulated:
+                if self._conversation_tree and self._execution_handler._pending_assistant_node_id:
+                    node = self._conversation_tree.get_node(self._execution_handler._pending_assistant_node_id)
+                    if node:
+                        node.content = self._execution_handler._streaming_accumulated
+                self._rebuild_message_bubbles_from_tree()
+
+            # If handler has pending result (completed while inactive), process it now
+            if self._execution_handler._pending_result:
+                self._execution_handler._process_pending_result()
 
     def _on_tab_close_requested(self, tab_id: str):
         """Handle tab close request."""
         if self._tab_bar.get_tab_count() <= 1:
             self._reset_to_initial_state()
             return
+
+        # Get the tab being closed
+        closing_state = self._tabs.get(tab_id)
 
         # If closing active tab, switch to another first
         if tab_id == self._active_tab_id:
@@ -1843,6 +1908,15 @@ class PromptExecuteDialog(BaseDialog):
             new_idx = current_idx - 1 if current_idx > 0 else current_idx + 1
             new_tab_id = tab_ids[new_idx]
             self._on_tab_selected(new_tab_id)
+
+        # Clean up the closed tab's handler
+        if closing_state and closing_state.execution_handler:
+            handler = closing_state.execution_handler
+            # Cancel any active execution
+            if handler._current_execution_id:
+                handler.stop_execution()
+            # Disconnect signals to avoid memory leaks
+            handler.disconnect_all_signals()
 
         self._tabs.pop(tab_id, None)
         self._tab_bar.remove_tab(tab_id)

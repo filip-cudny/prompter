@@ -3,7 +3,7 @@
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Any, Literal
 
 from core.context_manager import ContextItem
 
@@ -250,5 +250,12 @@ class TabState:
     input_wrapped: bool
     output_wrapped: bool
 
-    # History tracking (must be at end due to default value)
+    # Fields with default values (must be at end)
     history_entry_id: str | None = None
+    current_execution_id: str | None = None
+    stop_button_active: str | None = None  # "alt", "ctrl", or None
+    pending_user_node_id: str | None = None
+    pending_assistant_node_id: str | None = None
+
+    # Per-tab execution handler (not serialized, runtime only)
+    execution_handler: Any = None  # ExecutionHandler instance

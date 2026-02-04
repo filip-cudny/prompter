@@ -75,6 +75,7 @@ class CollapsibleSectionHeader(QWidget):
         super().__init__(parent)
         self._collapsed = False
         self._title = title
+        self._has_content = False
 
         # Ensure transparent background
         self.setAttribute(Qt.WA_StyledBackground, True)
@@ -208,6 +209,21 @@ class CollapsibleSectionHeader(QWidget):
         self.toggle_btn._icon_name = icon_name
         self.toggle_btn._update_icon(ICON_COLOR_NORMAL)
         self.toggle_btn.setToolTip("Expand section" if collapsed else "Collapse section")
+        self._update_title_style()
+
+    def set_has_content(self, has_content: bool):
+        """Highlight title when section has content (visible when collapsed)."""
+        self._has_content = has_content
+        self._update_title_style()
+
+    def _update_title_style(self):
+        """Update title style based on collapsed + has_content state."""
+        from modules.gui.shared.theme import SECTION_TITLE_ACTIVE_STYLE, SECTION_TITLE_STYLE
+
+        if self._collapsed and self._has_content:
+            self.title_label.setStyleSheet(SECTION_TITLE_ACTIVE_STYLE)
+        else:
+            self.title_label.setStyleSheet(SECTION_TITLE_STYLE)
 
     def set_title(self, title: str):
         """Update the section title."""
@@ -454,6 +470,7 @@ def create_text_edit(
     placeholder: str = "",
     min_height: int = TEXT_EDIT_MIN_HEIGHT,
     font_size: int = 12,
+    is_bubble: bool = False,
 ) -> QTextEdit:
     """Create a pre-configured QTextEdit with standard styling.
 
@@ -461,6 +478,7 @@ def create_text_edit(
         placeholder: Placeholder text
         min_height: Minimum height in pixels (default: TEXT_EDIT_MIN_HEIGHT)
         font_size: Font size for monospace font
+        is_bubble: If True, apply gentler bubble styling for conversation inputs
 
     Returns:
         Configured QTextEdit widget
@@ -473,6 +491,27 @@ def create_text_edit(
         text_edit.setMinimumHeight(min_height)
     if placeholder:
         text_edit.setPlaceholderText(placeholder)
+
+    if is_bubble:
+        from modules.gui.shared.theme import (
+            COLOR_BUBBLE_BORDER,
+            COLOR_BUBBLE_TEXT_EDIT_BG,
+            COLOR_SELECTION,
+            COLOR_TEXT,
+        )
+
+        text_edit.setStyleSheet(f"""
+            QTextEdit {{
+                background-color: {COLOR_BUBBLE_TEXT_EDIT_BG};
+                color: {COLOR_TEXT};
+                border: 1px solid {COLOR_BUBBLE_BORDER};
+                border-radius: 4px;
+                padding: 8px;
+                margin-right: 14px;
+                selection-background-color: {COLOR_SELECTION};
+            }}
+        """)
+
     return text_edit
 
 

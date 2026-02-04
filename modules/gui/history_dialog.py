@@ -136,14 +136,12 @@ class HistoryEntryWidget(QWidget):
         }}
     """
 
-    _turn_count_style = """
-        QLabel {
-            color: #6ba3ff;
-            font-size: 10px;
-            background: #2a3a4a;
-            border-radius: 4px;
-            padding: 2px 6px;
-        }
+    _turn_count_style = f"""
+        QLabel {{
+            color: {COLOR_TEXT_SECONDARY};
+            font-size: 11px;
+            background: transparent;
+        }}
     """
 
     _label_style = f"""
@@ -359,19 +357,41 @@ class HistoryEntryWidget(QWidget):
         main_layout.addLayout(output_row)
 
     def _get_full_input_content(self) -> str | None:
-        if self.entry.conversation_data and self.entry.conversation_data.turns:
-            last_turn = self.entry.conversation_data.turns[-1]
-            if last_turn.message_text:
-                return last_turn.message_text
-            if last_turn.message_image_paths:
-                return "(image)"
+        if self.entry.conversation_data:
+            conv_data = self.entry.conversation_data
+            if conv_data.turns:
+                last_turn = conv_data.turns[-1]
+                if last_turn.message_text:
+                    return last_turn.message_text
+                if last_turn.message_image_paths:
+                    return "(image)"
+            if conv_data.nodes and conv_data.current_path:
+                nodes_by_id = {node.node_id: node for node in conv_data.nodes}
+                for node_id in reversed(conv_data.current_path):
+                    node = nodes_by_id.get(node_id)
+                    if node and node.role == "user":
+                        if node.content:
+                            return node.content
+                        if node.image_paths:
+                            return "(image)"
+                        break
             return None
         return self.entry.input_content if self.entry.input_content else None
 
     def _get_full_output_content(self) -> str | None:
-        if self.entry.conversation_data and self.entry.conversation_data.turns:
-            last_turn = self.entry.conversation_data.turns[-1]
-            return last_turn.output_text if last_turn.output_text else None
+        if self.entry.conversation_data:
+            conv_data = self.entry.conversation_data
+            if conv_data.turns:
+                last_turn = conv_data.turns[-1]
+                if last_turn.output_text:
+                    return last_turn.output_text
+            if conv_data.nodes and conv_data.current_path:
+                nodes_by_id = {node.node_id: node for node in conv_data.nodes}
+                for node_id in reversed(conv_data.current_path):
+                    node = nodes_by_id.get(node_id)
+                    if node and node.role == "assistant" and node.content:
+                        return node.content
+            return None
         return self.entry.output_content if self.entry.output_content else None
 
     def _copy_input(self):

@@ -88,6 +88,7 @@ class UserMessageBubble(QWidget):
         self.text_edit = create_text_edit(
             placeholder="Type your message...\n(Ctrl+Enter: Close & get result to clipboard | Alt+Enter: Send & show | Ctrl+V: Paste image)",
             min_height=BUBBLE_TEXT_EDIT_MIN_HEIGHT,
+            is_bubble=True,
         )
         self.text_edit.setPlainText(content)
         self.text_edit.textChanged.connect(self._on_text_changed)
@@ -298,6 +299,7 @@ class AssistantBubble(QWidget):
         self.text_edit = create_text_edit(
             placeholder="Output will appear here...",
             min_height=BUBBLE_TEXT_EDIT_MIN_HEIGHT,
+            is_bubble=True,
         )
         self.text_edit.setPlainText(content)
         self.text_edit.textChanged.connect(self._on_text_changed)

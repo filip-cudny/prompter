@@ -110,7 +110,6 @@ def mock_dialog():
     dialog._output_section_shown = False
     dialog._message_images = []
     dialog._current_images = []
-    dialog._disable_for_global_execution = False
     dialog._current_execution_id = None
     dialog._is_streaming = False
     dialog._streaming_accumulated = ""

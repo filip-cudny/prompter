@@ -10,7 +10,6 @@ from PySide6.QtGui import QTextCursor
 from core.models import ExecutionResult, MenuItem
 from modules.gui.icons import create_icon
 from modules.gui.prompt_execute_dialog.data import (
-    ConversationTree,
     OutputVersionState,
     create_node,
 )
@@ -29,11 +28,14 @@ class ExecutionHandler:
     - Streaming chunk processing with throttling
     - Execution result handling
     - Button state management (send/stop toggle)
-    - Global execution tracking for cross-dialog awareness
+    - Tab isolation for parallel executions
     """
 
     def __init__(self, dialog: "PromptExecuteDialog"):
         self.dialog = dialog
+
+        # Tab association (for streaming isolation)
+        self._tab_id: str | None = None
 
         # Execution state
         self._current_execution_id: str | None = None
@@ -45,13 +47,9 @@ class ExecutionHandler:
         self._streaming_accumulated = ""
         self._last_ui_update_time = 0
 
-        # Global execution tracking
-        self._disable_for_global_execution = False
-
         # Signal connection tracking
         self._execution_signal_connected = False
         self._streaming_signal_connected = False
-        self._global_execution_signal_connected = False
 
         # Streaming throttle timer (60fps max)
         self._streaming_throttle_timer = QTimer()
@@ -65,6 +63,9 @@ class ExecutionHandler:
 
         # Close-after-result tracking (for Ctrl+Enter flow)
         self._close_after_result = False
+
+        # Pending result for inactive tabs (result received while tab was not active)
+        self._pending_result: ExecutionResult | None = None
 
     @property
     def is_waiting(self) -> bool:
@@ -81,10 +82,11 @@ class ExecutionHandler:
         """Get current execution ID."""
         return self._current_execution_id
 
-    @property
-    def is_disabled_for_global(self) -> bool:
-        """Check if disabled due to global execution."""
-        return self._disable_for_global_execution
+    def _is_tab_active(self) -> bool:
+        """Check if this handler's tab is currently active."""
+        if not self._tab_id:
+            return True  # No tab system, always active
+        return self.dialog._active_tab_id == self._tab_id
 
     def _get_prompt_store_service(self):
         """Get the prompt store service."""
@@ -136,68 +138,22 @@ class ExecutionHandler:
                 service._menu_coordinator.streaming_chunk.disconnect(self.on_streaming_chunk)
         self._streaming_signal_connected = False
 
-    def connect_global_execution_signals(self):
-        """Connect to global execution state signals for cross-dialog awareness."""
-        if self._global_execution_signal_connected:
-            return
-        service = self._get_prompt_store_service()
-        if service and hasattr(service, "_menu_coordinator"):
-            try:
-                service._menu_coordinator.execution_started.connect(self.on_global_execution_started)
-                service._menu_coordinator.execution_completed.connect(self.on_global_execution_completed)
-                self._global_execution_signal_connected = True
-
-                # Check if an execution is already running when dialog opens
-                if service.is_executing():
-                    self._disable_for_global_execution = True
-                    self.dialog._update_send_buttons_state()
-            except Exception:
-                pass
-
-    def disconnect_global_execution_signals(self):
-        """Disconnect from global execution state signals."""
-        if not self._global_execution_signal_connected:
-            return
-        service = self._get_prompt_store_service()
-        if service and hasattr(service, "_menu_coordinator"):
-            with contextlib.suppress(Exception):
-                service._menu_coordinator.execution_started.disconnect(self.on_global_execution_started)
-            with contextlib.suppress(Exception):
-                service._menu_coordinator.execution_completed.disconnect(self.on_global_execution_completed)
-        self._global_execution_signal_connected = False
-
     def disconnect_all_signals(self):
         """Disconnect all signals."""
         self.disconnect_execution_signal()
         self.disconnect_streaming_signal()
-        self.disconnect_global_execution_signals()
-
-    # --- Global Execution Tracking ---
-
-    def on_global_execution_started(self, execution_id: str):
-        """Handle any execution starting globally."""
-        # If this dialog is NOT the one executing, disable its buttons
-        if execution_id != self._current_execution_id:
-            self._disable_for_global_execution = True
-            self.dialog._update_send_buttons_state()
-
-    def on_global_execution_completed(self, result: ExecutionResult, execution_id: str):
-        """Handle any execution completing globally."""
-        # Check if any execution is still running
-        service = self._get_prompt_store_service()
-        if service and not service.is_executing():
-            self._disable_for_global_execution = False
-            self.dialog._update_send_buttons_state()
 
     # --- Streaming ---
 
     def on_streaming_chunk(self, chunk: str, accumulated: str, is_final: bool, execution_id: str = ""):
         """Handle streaming chunk with adaptive throttling."""
-        if not self._waiting_for_result:
-            return
+        # Filter by execution_id FIRST - this is the primary discriminator
+        if execution_id and self._current_execution_id:
+            if execution_id != self._current_execution_id:
+                return  # Not for this handler
 
-        # Filter by execution_id - only process chunks for this dialog's execution
-        if execution_id and self._current_execution_id and execution_id != self._current_execution_id:
+        # THEN check handler state
+        if not self._waiting_for_result:
             return
 
         if not self._is_streaming and not is_final:
@@ -229,8 +185,14 @@ class ExecutionHandler:
 
         self._last_ui_update_time = time.time() * 1000
 
-        # Update tree node content during streaming (in case of rebuild)
+        # If tab is NOT active, only keep accumulated content (don't touch shared state).
+        # Content is preserved in _streaming_accumulated for when tab becomes active.
+        if not self._is_tab_active():
+            return
+
         dialog = self.dialog
+
+        # Update tree node content during streaming (in case of rebuild)
         if dialog._conversation_tree and self._pending_assistant_node_id:
             node = dialog._conversation_tree.get_node(self._pending_assistant_node_id)
             if node:
@@ -679,7 +641,6 @@ class ExecutionHandler:
 
         self._waiting_for_result = False
         self._current_execution_id = None
-        self._disable_for_global_execution = False
         self._close_after_result = False
         self._revert_button_to_send_state()
 
@@ -707,68 +668,98 @@ class ExecutionHandler:
 
     def on_execution_result(self, result: ExecutionResult, execution_id: str = ""):
         """Handle execution result for multi-turn conversation."""
+        if execution_id and self._current_execution_id:
+            if execution_id != self._current_execution_id:
+                return
+
         if not self._waiting_for_result:
             return
 
-        if execution_id and self._current_execution_id and execution_id != self._current_execution_id:
+        # If tab is NOT active, store result and defer processing
+        if not self._is_tab_active():
+            self._pending_result = result
+            self._waiting_for_result = False
+            self.disconnect_execution_signal()
+            self.disconnect_streaming_signal()
             return
 
+        # Tab is active - process now
         self._waiting_for_result = False
         self._current_execution_id = None
         self.disconnect_execution_signal()
         self.disconnect_streaming_signal()
         self._revert_button_to_send_state()
 
+        self._finalize_result(result, is_pending=False)
+
+        if self._close_after_result:
+            self._close_after_result = False
+            self.dialog.accept()
+
+    def _process_pending_result(self):
+        """Process a result that was received while tab was inactive."""
+        if not self._pending_result:
+            return
+
+        result = self._pending_result
+        self._pending_result = None
+        self._current_execution_id = None
+        self._revert_button_to_send_state()
+
+        self._finalize_result(result, is_pending=True)
+
+    def _finalize_result(self, result: ExecutionResult, is_pending: bool = False):
+        """Finalize execution result - common logic for active and pending results."""
         dialog = self.dialog
         is_regeneration = self._clear_regeneration_flag()
         is_streaming = result.metadata and result.metadata.get("streaming", False)
 
-        output_text = result.content if result.success else None
+        # Get output text
+        if is_streaming and self._streaming_accumulated:
+            output_text = self._streaming_accumulated
+        else:
+            output_text = result.content if result.success else None
+
+        # Update state
         self._update_turn_with_output(output_text, is_regeneration)
         self._update_tree_with_output(output_text)
-
-        # Sync bubble content to tree before any operations that read from tree
         dialog._sync_bubbles_to_tree()
-
         self._update_version_ui(output_text)
         self._finalize_execution_ui()
 
-        # Only rebuild for non-streaming execution (streaming already has live bubbles)
-        # For streaming, bubbles were created in execute_with_message() and have been
-        # receiving updates via _flush_streaming_update(). No need to rebuild.
-        if not is_streaming and dialog._conversation_tree and not dialog._conversation_tree.is_empty():
+        # Rebuild bubbles if needed
+        # - For pending results: always rebuild (restored from old state)
+        # - For active results: only for non-streaming
+        should_rebuild = is_pending or not is_streaming
+        if should_rebuild and dialog._conversation_tree and not dialog._conversation_tree.is_empty():
             dialog._rebuild_message_bubbles_from_tree()
 
+        # Update output text widget
         output_edit = self._get_current_output_edit()
-
-        if not is_streaming or not result.success:
-            if result.success and result.content:
-                output_edit.setPlainText(result.content)
+        if is_pending or not is_streaming or not result.success:
+            if result.success and output_text:
+                output_edit.setPlainText(output_text)
             elif result.error:
                 output_edit.setPlainText(f"Error: {result.error}")
             else:
                 output_edit.setPlainText("No output received")
 
-        if dialog._current_turn_number == 1 or not dialog._output_sections:
-            if not dialog.output_header.is_wrapped():
-                content_height = get_text_edit_content_height(dialog.output_edit)
-                dialog.output_edit.setMinimumHeight(content_height)
-        else:
-            section = dialog._output_sections[-1]
-            if not section.header.is_wrapped():
-                content_height = get_text_edit_content_height(section.text_edit)
-                section.text_edit.setMinimumHeight(content_height)
+        # Adjust height for legacy sections
+        if not is_pending:
+            if dialog._current_turn_number == 1 or not dialog._output_sections:
+                if not dialog.output_header.is_wrapped():
+                    content_height = get_text_edit_content_height(dialog.output_edit)
+                    dialog.output_edit.setMinimumHeight(content_height)
+            else:
+                section = dialog._output_sections[-1]
+                if not section.header.is_wrapped():
+                    content_height = get_text_edit_content_height(section.text_edit)
+                    section.text_edit.setMinimumHeight(content_height)
 
         dialog._scroll_to_bottom()
 
-        # Save conversation to history after successful execution
         if result.success:
             dialog._save_to_history()
-
-        # Close dialog if it was hidden (Ctrl+Enter flow)
-        if self._close_after_result:
-            self._close_after_result = False
-            dialog.accept()
 
     # --- Button State Management ---
 
@@ -798,23 +789,31 @@ class ExecutionHandler:
         self.stop_execution()
 
     def _revert_button_to_send_state(self):
-        """Revert stop button back to send button."""
+        """Revert stop button back to send button.
+
+        Only updates the actual button widgets if this handler's tab is active.
+        Always clears the handler's internal stop_button_active state.
+        """
         dialog = self.dialog
 
-        if self._stop_button_active == "alt":
-            with contextlib.suppress(TypeError):
-                dialog.send_show_btn.clicked.disconnect()
-            dialog.send_show_btn.clicked.connect(dialog._on_send_show)
-            dialog.send_show_btn.setIcon(create_icon("send-horizontal", "#444444", 16))
-            dialog.send_show_btn.setToolTip("Send & Show Result (Alt+Enter)")
-        elif self._stop_button_active == "ctrl":
-            with contextlib.suppress(TypeError):
-                dialog.send_copy_btn.clicked.disconnect()
-            dialog.send_copy_btn.clicked.connect(dialog._on_send_copy)
-            dialog.send_copy_btn.setIcon(create_icon("copy", "#444444", 16))
-            dialog.send_copy_btn.setToolTip("Send & Copy to Clipboard (Ctrl+Enter)")
+        # Only touch the actual buttons if this tab is active
+        if self._is_tab_active():
+            if self._stop_button_active == "alt":
+                with contextlib.suppress(TypeError):
+                    dialog.send_show_btn.clicked.disconnect()
+                dialog.send_show_btn.clicked.connect(dialog._on_send_show)
+                dialog.send_show_btn.setIcon(create_icon("send-horizontal", "#444444", 16))
+                dialog.send_show_btn.setToolTip("Send & Show Result (Alt+Enter)")
+            elif self._stop_button_active == "ctrl":
+                with contextlib.suppress(TypeError):
+                    dialog.send_copy_btn.clicked.disconnect()
+                dialog.send_copy_btn.clicked.connect(dialog._on_send_copy)
+                dialog.send_copy_btn.setIcon(create_icon("copy", "#444444", 16))
+                dialog.send_copy_btn.setToolTip("Send & Copy to Clipboard (Ctrl+Enter)")
+            dialog._update_send_buttons_state()
+
+        # Always clear the handler's internal state
         self._stop_button_active = None
-        dialog._update_send_buttons_state()
 
     def cleanup(self):
         """Clean up handler on dialog close."""
