@@ -41,7 +41,6 @@ class ContextMenuProvider:
                 "clipboard_manager": self.clipboard_manager,
             },
             enabled=True,
-            separator_after=True,
         )
         items.append(context_section_item)
 

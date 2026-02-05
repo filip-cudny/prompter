@@ -24,6 +24,7 @@ from modules.utils.config import ConfigService
 from .panels import (
     GeneralPanel,
     KeymapsPanel,
+    MenuOrderPanel,
     ModelsPanel,
     NotificationsPanel,
     PromptsPanel,
@@ -63,6 +64,7 @@ CATEGORIES = [
     ("notifications", "Notifications"),
     ("speech", "Speech"),
     ("keymaps", "Keymaps"),
+    ("menu_order", "Menu Order"),
 ]
 
 
@@ -114,6 +116,7 @@ class SettingsDialog(BaseDialog):
         self._panels["notifications"] = NotificationsPanel()
         self._panels["speech"] = SpeechPanel()
         self._panels["keymaps"] = KeymapsPanel()
+        self._panels["menu_order"] = MenuOrderPanel()
 
         for panel in self._panels.values():
             self._stack.addWidget(panel)

@@ -32,7 +32,6 @@ class LastInteractionMenuProvider:
                 "prompt_store_service": self.prompt_store_service,
             },
             enabled=True,
-            separator_after=True,
         )
         return [last_interaction_item]
 

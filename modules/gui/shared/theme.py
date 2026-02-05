@@ -328,7 +328,7 @@ SECTION_TITLE_STYLE = f"""
     QLabel {{
         color: {COLOR_TEXT_SECONDARY};
         font-size: 11px;
-        font-weight: bold;
+        font-weight: normal;
     }}
 """
 

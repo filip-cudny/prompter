@@ -504,8 +504,10 @@ def create_text_edit(
             QTextEdit {{
                 background-color: {COLOR_BUBBLE_TEXT_EDIT_BG};
                 color: {COLOR_TEXT};
-                border: 1px solid {COLOR_BUBBLE_BORDER};
-                border-radius: 4px;
+                border: none;
+                border-top: 1px solid {COLOR_BUBBLE_BORDER};
+                border-bottom: 1px solid {COLOR_BUBBLE_BORDER};
+                border-radius: 0px;
                 padding: 8px;
                 margin-right: 14px;
                 selection-background-color: {COLOR_SELECTION};

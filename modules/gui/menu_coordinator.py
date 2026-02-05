@@ -54,19 +54,10 @@ class PyQtMenuCoordinator(QObject):
         # Menu state
         self.last_menu_items: list[MenuItem] = []
 
-        # Providers whose items appear at TOP of menu (before prompts)
-        self._top_dynamic_provider_classes = {
-            "LastInteractionMenuProvider",
-            "ContextMenuProvider",
-        }
-
-        # Providers whose items appear at BOTTOM of menu (after prompts)
-        self._bottom_dynamic_provider_classes = {
-            "SpeechMenuProvider",
-        }
-
-        # All dynamic provider classes
-        self._dynamic_provider_classes = self._top_dynamic_provider_classes | self._bottom_dynamic_provider_classes
+        # Load menu section order from config
+        self._config_service = ConfigService()
+        self._menu_section_order = self._config_service.get_menu_section_order()
+        self._config_service.register_on_save_callback(self._on_settings_saved)
 
         # Connect internal signals
         self.execution_completed.connect(self._handle_execution_result)
@@ -127,6 +118,10 @@ class PyQtMenuCoordinator(QObject):
     def _on_context_changed(self):
         """Handle context changes."""
         logger.debug("Context changed")
+
+    def _on_settings_saved(self):
+        """Handle settings save event - reload menu section order."""
+        self._menu_section_order = self._config_service.get_menu_section_order()
 
     def add_provider(self, provider) -> None:
         """Add a menu provider."""
@@ -194,27 +189,27 @@ class PyQtMenuCoordinator(QObject):
         self.providers.clear()
 
     def _get_all_menu_items(self) -> list[MenuItem]:
-        """Get all menu items from providers."""
+        """Get all menu items from providers based on configured section order."""
         try:
             all_items = []
+            section_order = self._menu_section_order
+            total_sections = len(section_order)
 
-            # Build top dynamic items (Context, Last Interaction)
-            all_items.extend(self._build_dynamic_items())
+            for section_index, section_id in enumerate(section_order):
+                section_items = []
+                is_last_section = section_index == total_sections - 1
 
-            # Build static provider items (prompts)
-            for provider in self.providers:
-                if provider.__class__.__name__ not in self._dynamic_provider_classes:
-                    try:
-                        items = provider.get_menu_items()
-                        if items:
-                            wrapped_items = self._wrap_provider_items(items)
-                            all_items.extend(wrapped_items)
-                    except (RuntimeError, Exception) as e:
-                        logger.error(f"Error getting items from provider {provider.__class__.__name__}: {e}")
-                        continue
+                if section_id == "prompts":
+                    section_items = self._build_prompt_items()
+                elif section_id == "settings":
+                    section_items = self._build_settings_items()
+                else:
+                    section_items = self._build_provider_items(section_id)
 
-            # Build bottom dynamic items (Speech, Settings, Active Prompt)
-            all_items.extend(self._build_bottom_dynamic_items())
+                if section_items:
+                    all_items.extend(section_items)
+                    if not is_last_section and all_items:
+                        all_items[-1].separator_after = True
 
             return all_items
 
@@ -300,44 +295,41 @@ class PyQtMenuCoordinator(QObject):
         """Get the number of registered providers."""
         return len(self.providers)
 
-    def _build_dynamic_items(self) -> list[MenuItem]:
-        """Build TOP dynamic menu items (Context, Last Interaction - appear before prompts)."""
-        dynamic_items = []
-
-        # Get items from TOP dynamic providers only
+    def _build_provider_items(self, provider_class_name: str) -> list[MenuItem]:
+        """Build menu items from a specific provider by class name."""
         for provider in self.providers:
-            if provider.__class__.__name__ in self._top_dynamic_provider_classes:
+            if provider.__class__.__name__ == provider_class_name:
+                try:
+                    items = provider.get_menu_items()
+                    if items:
+                        return self._wrap_provider_items(items)
+                except (RuntimeError, Exception) as e:
+                    logger.error(f"Error getting items from provider {provider_class_name}: {e}")
+        return []
+
+    def _build_prompt_items(self) -> list[MenuItem]:
+        """Build prompt menu items from non-dynamic providers."""
+        prompt_items = []
+        dynamic_providers = {"LastInteractionMenuProvider", "ContextMenuProvider", "SpeechMenuProvider"}
+
+        for provider in self.providers:
+            if provider.__class__.__name__ not in dynamic_providers:
                 try:
                     items = provider.get_menu_items()
                     if items:
                         wrapped_items = self._wrap_provider_items(items)
-                        dynamic_items.extend(wrapped_items)
+                        prompt_items.extend(wrapped_items)
                 except (RuntimeError, Exception) as e:
-                    print(f"Error getting items from dynamic provider {provider.__class__.__name__}: {e}")
+                    logger.error(f"Error getting items from provider {provider.__class__.__name__}: {e}")
                     continue
 
-        return dynamic_items
+        return prompt_items
 
-    def _build_bottom_dynamic_items(self) -> list[MenuItem]:
-        """Build BOTTOM dynamic menu items (Speech, Settings, Active Prompt - appear after prompts)."""
-        bottom_items = []
-
-        # Get items from BOTTOM dynamic providers
-        for provider in self.providers:
-            if provider.__class__.__name__ in self._bottom_dynamic_provider_classes:
-                try:
-                    items = provider.get_menu_items()
-                    if items:
-                        wrapped_items = self._wrap_provider_items(items)
-                        bottom_items.extend(wrapped_items)
-                except (RuntimeError, Exception) as e:
-                    print(f"Error getting items from dynamic provider {provider.__class__.__name__}: {e}")
-                    continue
-
-        # Add active prompt info (Settings, Active Prompt)
-        self._add_active_prompt_info(bottom_items)
-
-        return bottom_items
+    def _build_settings_items(self) -> list[MenuItem]:
+        """Build settings section items."""
+        settings_items = []
+        self._add_active_prompt_info(settings_items)
+        return settings_items
 
     def _open_settings_dialog(self):
         """Open the settings dialog."""
@@ -350,7 +342,6 @@ class PyQtMenuCoordinator(QObject):
         if not self.prompt_store_service:
             return
 
-        # Get default model display name
         config = ConfigService().get_config()
         default_model_display_name = config.default_model
         if config.models and config.default_model:
@@ -359,22 +350,12 @@ class PyQtMenuCoordinator(QObject):
                     default_model_display_name = model.get("display_name", config.default_model)
                     break
 
-        # Get active prompt display name
         active_prompt_display_name = "None"
         if self.prompt_store_service.active_prompt_service.has_active_prompt():
             active_name = self.prompt_store_service.active_prompt_service.get_active_prompt_display_name()
             if active_name:
-                # Truncate long names
                 active_prompt_display_name = active_name[:27] + "..." if len(active_name) > 30 else active_name
 
-        # Add separator before settings section if there are other items
-        if all_items:
-            if hasattr(all_items[-1], "separator_after"):
-                all_items[-1].separator_after = True
-            else:
-                all_items[-1].separator_after = True
-
-        # Create settings section item
         settings_section_item = MenuItem(
             id="settings_section",
             label="Settings",
