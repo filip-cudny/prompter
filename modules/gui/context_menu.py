@@ -5,7 +5,7 @@ import os
 import subprocess
 from collections.abc import Callable
 
-from modules.utils.system import is_linux, is_macos, is_windows
+from modules.utils.system import is_linux, is_macos, is_wayland_session, is_windows
 
 from PySide6.QtCore import QEvent, QObject, QPoint, Qt, QTimer
 from PySide6.QtGui import QAction, QCursor
@@ -139,6 +139,8 @@ class InvisibleFocusWindow(QWidget):
 
     def _activate_linux(self):
         """Activate application on Linux."""
+        if is_wayland_session():
+            return
         with contextlib.suppress(Exception):
             subprocess.run(
                 ["wmctrl", "-a", str(os.getpid())],
@@ -307,46 +309,29 @@ class PyQtContextMenu(QObject):
             print(f"Menu show error: {e}")
 
     def _calculate_anchor_offset(self) -> int:
-        """Calculate Y offset to anchor menu at Prompts section.
-
-        This calculates the total height of Context and LastInteraction widgets
-        that appear before the prompts, so the menu can be positioned with
-        the cursor at the prompts section.
-        """
         if not self.menu:
             return 0
 
-        from modules.gui.shared.context_widgets import (
-            ContextSectionWidget,
-            LastInteractionSectionWidget,
-        )
-
         offset = 0
+        found_prompts = False
         for action in self.menu.actions():
-            # Only QWidgetAction has defaultWidget(), not regular QAction
-            if not isinstance(action, QWidgetAction):
-                if action.isSeparator():
-                    offset += 9
-                else:
-                    # Regular action (submenu), stop counting
-                    break
+            if action.isSeparator():
+                offset += 9
                 continue
 
-            widget = action.defaultWidget()
-            if not widget:
-                # QWidgetAction without widget, stop counting
+            if not isinstance(action, QWidgetAction):
+                continue
+
+            if action.property("section_id") == "prompts":
+                found_prompts = True
                 break
 
-            # Check if it's Context or LastInteraction widget
-            if isinstance(widget, (ContextSectionWidget, LastInteractionSectionWidget)):
-                # Force layout calculation for accurate size
+            widget = action.defaultWidget()
+            if widget:
                 widget.adjustSize()
                 offset += widget.sizeHint().height()
-            else:
-                # Reached prompts section, stop counting
-                break
 
-        return offset
+        return offset if found_prompts else 0
 
     def get_cursor_position(self) -> tuple[int, int]:
         """Get current cursor position."""
@@ -488,19 +473,22 @@ class PyQtContextMenu(QObject):
         """Add menu items to a QMenu."""
         for item in items:
             if item.item_type == MenuItemType.CONTEXT:
-                # Create context section widget
                 action = self._create_context_section_item(menu, item)
                 if action:
+                    if item.section_id:
+                        action.setProperty("section_id", item.section_id)
                     menu.addAction(action)
             elif item.item_type == MenuItemType.LAST_INTERACTION:
-                # Create last interaction section widget
                 action = self._create_last_interaction_section_item(menu, item)
                 if action:
+                    if item.section_id:
+                        action.setProperty("section_id", item.section_id)
                     menu.addAction(action)
             elif item.item_type == MenuItemType.SETTINGS_SECTION:
-                # Create settings section widget with chips
                 action = self._create_settings_section_item(menu, item)
                 if action:
+                    if item.section_id:
+                        action.setProperty("section_id", item.section_id)
                     menu.addAction(action)
             elif hasattr(item, "submenu_items") and item.submenu_items:
                 # Create submenu with consistent styling
@@ -1050,8 +1038,9 @@ class PyQtContextMenu(QObject):
         action = QWidgetAction(menu)
         action.setDefaultWidget(widget)
 
-        # Keep action enabled so buttons can be clicked
-        # Disabling is handled at widget level via set_disabled_state()
+        if item.section_id:
+            action.setProperty("section_id", item.section_id)
+
         action.setEnabled(True)
 
         return action
@@ -1319,61 +1308,58 @@ class PyQtContextMenu(QObject):
                         "path": app_info[1] if len(app_info) > 1 else None,
                     }
             elif is_linux():
-                # Use xdotool to get the active window
-                try:
-                    # Get active window ID
-                    result = subprocess.run(
-                        ["xdotool", "getactivewindow"],
-                        capture_output=True,
-                        text=True,
-                        timeout=1,
-                    )
-                    if result.returncode == 0:
-                        window_id = result.stdout.strip()
-
-                        # Get window info
+                if is_wayland_session():
+                    self.original_active_window = None
+                else:
+                    try:
                         result = subprocess.run(
-                            ["xdotool", "getwindowname", window_id],
+                            ["xdotool", "getactivewindow"],
                             capture_output=True,
                             text=True,
                             timeout=1,
                         )
-                        window_name = result.stdout.strip() if result.returncode == 0 else "Unknown"
+                        if result.returncode == 0:
+                            window_id = result.stdout.strip()
 
-                        # Get process info
-                        result = subprocess.run(
-                            ["xdotool", "getwindowpid", window_id],
-                            capture_output=True,
-                            text=True,
-                            timeout=1,
-                        )
-                        pid = result.stdout.strip() if result.returncode == 0 else None
+                            result = subprocess.run(
+                                ["xdotool", "getwindowname", window_id],
+                                capture_output=True,
+                                text=True,
+                                timeout=1,
+                            )
+                            window_name = result.stdout.strip() if result.returncode == 0 else "Unknown"
 
-                        self.original_active_window = {
-                            "window_id": window_id,
-                            "name": window_name,
-                            "pid": pid,
-                        }
-                except FileNotFoundError:
-                    # xdotool not available, try xprop as fallback
-                    result = subprocess.run(
-                        ["xprop", "-root", "_NET_ACTIVE_WINDOW"],
-                        capture_output=True,
-                        text=True,
-                        timeout=1,
-                    )
-                    if result.returncode == 0:
-                        # Extract window ID from xprop output
-                        import re
+                            result = subprocess.run(
+                                ["xdotool", "getwindowpid", window_id],
+                                capture_output=True,
+                                text=True,
+                                timeout=1,
+                            )
+                            pid = result.stdout.strip() if result.returncode == 0 else None
 
-                        match = re.search(r"0x[0-9a-fA-F]+", result.stdout)
-                        if match:
-                            window_id = match.group()
                             self.original_active_window = {
                                 "window_id": window_id,
-                                "name": "Unknown",
-                                "pid": None,
+                                "name": window_name,
+                                "pid": pid,
                             }
+                    except FileNotFoundError:
+                        result = subprocess.run(
+                            ["xprop", "-root", "_NET_ACTIVE_WINDOW"],
+                            capture_output=True,
+                            text=True,
+                            timeout=1,
+                        )
+                        if result.returncode == 0:
+                            import re
+
+                            match = re.search(r"0x[0-9a-fA-F]+", result.stdout)
+                            if match:
+                                window_id = match.group()
+                                self.original_active_window = {
+                                    "window_id": window_id,
+                                    "name": "Unknown",
+                                    "pid": None,
+                                }
         except Exception:
             self.original_active_window = None
 
@@ -1434,11 +1420,10 @@ class PyQtContextMenu(QObject):
                             )
                     except Exception as e:
                         print(f"Error restoring macOS focus to {app_name}: {e}")
-            elif is_linux():
+            elif is_linux() and not is_wayland_session():
                 window_id = self.original_active_window.get("window_id")
                 if window_id:
                     try:
-                        # Try xdotool first
                         subprocess.run(
                             ["xdotool", "windowactivate", window_id],
                             capture_output=True,
@@ -1446,7 +1431,6 @@ class PyQtContextMenu(QObject):
                             timeout=1,
                         )
                     except FileNotFoundError:
-                        # xdotool not available, try wmctrl as fallback
                         try:
                             subprocess.run(
                                 ["wmctrl", "-ia", window_id],
@@ -1455,7 +1439,6 @@ class PyQtContextMenu(QObject):
                                 timeout=1,
                             )
                         except FileNotFoundError:
-                            # Neither tool available, try xprop method
                             subprocess.run(
                                 [
                                     "xprop",

@@ -55,6 +55,7 @@ class MenuItem:
     tooltip: str | None = None
     submenu_items: list[MenuItem] | None = None
     icon: str | None = None  # Icon name from icons.py (e.g., "mic", "copy")
+    section_id: str | None = None
 
 
 @dataclass

@@ -17,6 +17,7 @@ from core.openai_service import OpenAiService
 from modules.context.context_menu_provider import ContextMenuProvider
 from modules.gui.hotkey_manager import PyQtHotkeyManager
 from modules.gui.menu_coordinator import PyQtMenuCoordinator, PyQtMenuEventHandler
+from modules.ipc.socket_server import IPCSocketServer
 from modules.gui.shared import MENU_STYLESHEET, TOOLTIP_STYLE
 from modules.history.history_execution_handler import HistoryExecutionHandler
 from modules.history.last_interaction_menu_provider import LastInteractionMenuProvider
@@ -133,6 +134,9 @@ class PromtheusApp(QObject):
         self.menu_coordinator: PyQtMenuCoordinator | None = None
         self.event_handler: PyQtMenuEventHandler | None = None
         self.notification_manager: PyQtNotificationManager | None = None
+
+        # IPC server
+        self.ipc_server: IPCSocketServer | None = None
 
         # Speech service
         self.speech_service = None
@@ -400,6 +404,10 @@ class PromtheusApp(QObject):
         # Connect context manager for cache invalidation
         self.menu_coordinator.set_context_manager(self.context_manager)
 
+        # Initialize IPC server for CLI commands
+        self.ipc_server = IPCSocketServer()
+        self.ipc_server.signals.action_requested.connect(self._on_ipc_action_requested)
+
     def _initialize_system_tray(self) -> None:
         """Initialize system tray icon if enabled in settings."""
         config_service = ConfigService()
@@ -579,6 +587,24 @@ class PromtheusApp(QObject):
         # Use QTimer.singleShot to ensure execution on main Qt thread
         QTimer.singleShot(0, self._speech_to_text)
 
+    def _on_ipc_action_requested(self, action: str, x: int, y: int) -> None:
+        if action == "open_context_menu":
+            if self.menu_coordinator:
+                position = (x, y) if x or y else None
+                if not position:
+                    from modules.utils.system import get_cursor_position
+
+                    position = get_cursor_position()
+                self.menu_coordinator.show_menu(position=position)
+        elif action == "execute_active_prompt":
+            self._execute_active_prompt()
+        elif action == "speech_to_text_toggle":
+            self._speech_to_text()
+        else:
+            from modules.utils.keymap_actions import execute_keymap_action
+
+            execute_keymap_action(action)
+
     def _execute_menu_item(self, item) -> None:
         """Execute a menu item (placeholder for provider callbacks)."""
         return
@@ -665,6 +691,10 @@ class PromtheusApp(QObject):
             if self.hotkey_manager:
                 self.hotkey_manager.start()
 
+            # Start IPC server for CLI commands
+            if self.ipc_server:
+                self.ipc_server.start()
+
             # Run the Qt event loop
             return self.app.exec()
 
@@ -717,6 +747,10 @@ class PromtheusApp(QObject):
         # Stop interrupt timer
         if hasattr(self, "interrupt_timer"):
             self.interrupt_timer.stop()
+
+        # Stop IPC server
+        if self.ipc_server:
+            self.ipc_server.stop()
 
         # Stop hotkey manager
         if self.hotkey_manager:

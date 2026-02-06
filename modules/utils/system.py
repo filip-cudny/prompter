@@ -1,5 +1,6 @@
 """System-specific utilities and platform detection."""
 
+import os
 import platform
 import subprocess
 import sys
@@ -25,6 +26,27 @@ def is_linux() -> bool:
 def is_windows() -> bool:
     """Check if running on Windows."""
     return platform.system() == "Windows"
+
+
+def is_wayland_session() -> bool:
+    return os.environ.get("XDG_SESSION_TYPE", "").lower() == "wayland"
+
+
+def is_x11_session() -> bool:
+    return os.environ.get("XDG_SESSION_TYPE", "").lower() == "x11"
+
+
+def get_wayland_compositor() -> str:
+    if os.environ.get("HYPRLAND_INSTANCE_SIGNATURE"):
+        return "hyprland"
+    if os.environ.get("SWAYSOCK"):
+        return "sway"
+    desktop = os.environ.get("XDG_CURRENT_DESKTOP", "").lower()
+    if "gnome" in desktop:
+        return "gnome"
+    if "kde" in desktop or "plasma" in desktop:
+        return "kde"
+    return "unknown"
 
 
 def get_cursor_position() -> tuple[int, int]:
