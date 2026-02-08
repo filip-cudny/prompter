@@ -87,81 +87,9 @@ def setup_logging(debug: bool = False) -> None:
     logging.getLogger("openai").setLevel(logging.WARNING)
 
 
-IPC_ACTIONS = {
-    "toggle_menu": "open_context_menu",
-    "execute_active": "execute_active_prompt",
-    "speech_toggle": "speech_to_text_toggle",
-    "set_context": "set_context_value",
-    "append_context": "append_context_value",
-    "clear_context": "clear_context",
-}
-
-
-def _handle_ipc_command(args) -> int | None:
-    for attr, action in IPC_ACTIONS.items():
-        value = getattr(args, attr, None)
-        if value is None:
-            continue
-        if isinstance(value, bool) and not value:
-            continue
-
-        from modules.ipc.socket_client import send_ipc_command
-        from modules.utils.cursor import get_cursor_position_for_ipc
-
-        cursor_pos = get_cursor_position_for_ipc()
-
-        payload = None
-        if isinstance(value, str):
-            payload = value
-
-        if payload:
-            pass
-
-        success = send_ipc_command(action, cursor_pos)
-        return 0 if success else 1
-
-    return None
-
-
 def main():
     """Main entry point."""
     import argparse
-
-    parser = argparse.ArgumentParser(description="Promptheus Application")
-    parser.add_argument("--config", "-c", help="Configuration file path")
-    parser.add_argument("--debug", "-d", action="store_true", help="Enable debug mode with detailed logging")
-
-    ipc_group = parser.add_argument_group("IPC commands (send to running instance)")
-    ipc_group.add_argument(
-        "--toggle-menu", "--menu", dest="toggle_menu", action="store_true", default=None,
-        help="Open the context menu at cursor position",
-    )
-    ipc_group.add_argument(
-        "--execute-active", dest="execute_active", action="store_true", default=None,
-        help="Execute the active prompt",
-    )
-    ipc_group.add_argument(
-        "--speech-toggle", dest="speech_toggle", action="store_true", default=None,
-        help="Toggle speech-to-text recording",
-    )
-    ipc_group.add_argument(
-        "--set-context", dest="set_context", action="store_true", default=None,
-        help="Set context value",
-    )
-    ipc_group.add_argument(
-        "--append-context", dest="append_context", action="store_true", default=None,
-        help="Append to context value",
-    )
-    ipc_group.add_argument(
-        "--clear-context", dest="clear_context", action="store_true", default=None,
-        help="Clear context value",
-    )
-
-    args = parser.parse_args()
-
-    ipc_result = _handle_ipc_command(args)
-    if ipc_result is not None:
-        return ipc_result
 
     if is_macos():
         from AppKit import NSBundle
@@ -169,10 +97,16 @@ def main():
         info = NSBundle.mainBundle().infoDictionary()
         info["LSUIElement"] = "1"
 
+    # Prevent multiple instances using file lock
     lock = acquire_instance_lock()
     if lock is None:
         print("Another instance of Promptheus is already running")
         return 0
+
+    parser = argparse.ArgumentParser(description="Promptheus Application")
+    parser.add_argument("--config", "-c", help="Configuration file path")
+    parser.add_argument("--debug", "-d", action="store_true", help="Enable debug mode with detailed logging")
+    args = parser.parse_args()
 
     debug_enabled = (
         args.debug
@@ -194,6 +128,7 @@ def main():
         print(f"Service error: {e}")
         return 1
     finally:
+        # Release the lock when done
         if lock:
             try:
                 fcntl.flock(lock, fcntl.LOCK_UN)

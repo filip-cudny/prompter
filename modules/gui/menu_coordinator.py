@@ -148,8 +148,8 @@ class PyQtMenuCoordinator(QObject):
         """Set debounce delay for number input in milliseconds."""
         self.context_menu.set_number_input_debounce_ms(debounce_ms)
 
-    def show_menu(self, position: tuple[int, int] | None = None) -> None:
-        """Show the context menu at cursor position or at a specific position."""
+    def show_menu(self) -> None:
+        """Show the context menu at cursor position."""
         if self.context_menu.menu and self.context_menu.menu.isVisible():
             self.context_menu.menu.close()
         try:
@@ -159,27 +159,10 @@ class PyQtMenuCoordinator(QObject):
                 return
 
             self.last_menu_items = items
-            if position:
-                self.context_menu.show_at_position(items, position)
-            else:
-                self.context_menu.show_at_cursor(items)
+            self.context_menu.show_at_cursor(items)
 
         except (RuntimeError, Exception) as e:
             self._handle_error(f"Failed to show menu: {str(e)}")
-
-    def show_menu_at_position(self, position: tuple[int, int]) -> None:
-        """Show the context menu at specific position."""
-        try:
-            items = self._get_all_menu_items()
-            if not items:
-                self._handle_error("No menu items available")
-                return
-
-            self.last_menu_items = items
-            self.context_menu.show_at_position(items, position)
-
-        except (RuntimeError, Exception) as e:
-            self._handle_error(f"Failed to show menu at position: {str(e)}")
 
     def cleanup(self) -> None:
         """Clean up resources."""
