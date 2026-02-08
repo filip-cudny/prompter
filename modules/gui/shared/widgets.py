@@ -26,6 +26,7 @@ from modules.gui.shared.theme import (
     COLOR_BUTTON_BG,
     COLOR_BUTTON_HOVER,
     COLOR_TEXT,
+    HEADER_ICON_SIZE,
     ICON_BTN_STYLE,
     SECTION_HINT_STYLE,
     SECTION_TITLE_STYLE,
@@ -42,6 +43,9 @@ T = TypeVar("T")
 # Minimum height for text edit widgets in dialogs
 TEXT_EDIT_MIN_HEIGHT = 300
 
+# Minimum height for text edits in chat message bubbles (approximately 1 line with padding)
+BUBBLE_TEXT_EDIT_MIN_HEIGHT = 36
+
 
 class CollapsibleSectionHeader(QWidget):
     """Header widget for collapsible sections with title, collapse toggle, and optional buttons."""
@@ -54,6 +58,7 @@ class CollapsibleSectionHeader(QWidget):
     wrap_requested = Signal()
     version_prev_requested = Signal()
     version_next_requested = Signal()
+    regenerate_requested = Signal()
 
     def __init__(
         self,
@@ -63,12 +68,14 @@ class CollapsibleSectionHeader(QWidget):
         show_delete_button: bool = False,
         show_wrap_button: bool = False,
         show_version_nav: bool = False,
+        show_regenerate_button: bool = False,
         hint_text: str = "",
         parent: QWidget | None = None,
     ):
         super().__init__(parent)
         self._collapsed = False
         self._title = title
+        self._has_content = False
 
         # Ensure transparent background
         self.setAttribute(Qt.WA_StyledBackground, True)
@@ -104,6 +111,15 @@ class CollapsibleSectionHeader(QWidget):
         btn_layout = QHBoxLayout(btn_container)
         btn_layout.setContentsMargins(0, 0, 0, 0)
         btn_layout.setSpacing(2)
+
+        # Regenerate button (optional) - for re-running AI generation
+        self.regenerate_btn = None
+        if show_regenerate_button:
+            self.regenerate_btn = IconButton("refresh-cw", size=16)
+            self.regenerate_btn.setToolTip("Regenerate response")
+            self.regenerate_btn.setStyleSheet(ICON_BTN_STYLE)
+            self.regenerate_btn.clicked.connect(lambda: self.regenerate_requested.emit())
+            btn_layout.addWidget(self.regenerate_btn)
 
         # Version navigation (optional) - shown only when multiple versions exist
         self.version_container = None
@@ -193,6 +209,21 @@ class CollapsibleSectionHeader(QWidget):
         self.toggle_btn._icon_name = icon_name
         self.toggle_btn._update_icon(ICON_COLOR_NORMAL)
         self.toggle_btn.setToolTip("Expand section" if collapsed else "Collapse section")
+        self._update_title_style()
+
+    def set_has_content(self, has_content: bool):
+        """Highlight title when section has content (visible when collapsed)."""
+        self._has_content = has_content
+        self._update_title_style()
+
+    def _update_title_style(self):
+        """Update title style based on collapsed + has_content state."""
+        from modules.gui.shared.theme import SECTION_TITLE_ACTIVE_STYLE, SECTION_TITLE_STYLE
+
+        if self._collapsed and self._has_content:
+            self.title_label.setStyleSheet(SECTION_TITLE_ACTIVE_STYLE)
+        else:
+            self.title_label.setStyleSheet(SECTION_TITLE_STYLE)
 
     def set_title(self, title: str):
         """Update the section title."""
@@ -257,6 +288,16 @@ class CollapsibleSectionHeader(QWidget):
         self.version_label.setText(f"{current} of {total}")
         self.version_prev_btn.setEnabled(current > 1)
         self.version_next_btn.setEnabled(current < total)
+
+    def set_regenerate_button_visible(self, visible: bool):
+        """Show or hide the regenerate button."""
+        if self.regenerate_btn:
+            self.regenerate_btn.setVisible(visible)
+
+    def set_regenerate_button_enabled(self, enabled: bool):
+        """Enable or disable the regenerate button."""
+        if self.regenerate_btn:
+            self.regenerate_btn.setEnabled(enabled)
 
 
 class ImageChipWidget(QWidget):
@@ -429,6 +470,7 @@ def create_text_edit(
     placeholder: str = "",
     min_height: int = TEXT_EDIT_MIN_HEIGHT,
     font_size: int = 12,
+    is_bubble: bool = False,
 ) -> QTextEdit:
     """Create a pre-configured QTextEdit with standard styling.
 
@@ -436,6 +478,7 @@ def create_text_edit(
         placeholder: Placeholder text
         min_height: Minimum height in pixels (default: TEXT_EDIT_MIN_HEIGHT)
         font_size: Font size for monospace font
+        is_bubble: If True, apply gentler bubble styling for conversation inputs
 
     Returns:
         Configured QTextEdit widget
@@ -448,7 +491,55 @@ def create_text_edit(
         text_edit.setMinimumHeight(min_height)
     if placeholder:
         text_edit.setPlaceholderText(placeholder)
+
+    if is_bubble:
+        from modules.gui.shared.theme import (
+            COLOR_BUBBLE_BORDER,
+            COLOR_BUBBLE_TEXT_EDIT_BG,
+            COLOR_SELECTION,
+            COLOR_TEXT,
+        )
+
+        text_edit.setStyleSheet(f"""
+            QTextEdit {{
+                background-color: {COLOR_BUBBLE_TEXT_EDIT_BG};
+                color: {COLOR_TEXT};
+                border: none;
+                border-top: 1px solid {COLOR_BUBBLE_BORDER};
+                border-bottom: 1px solid {COLOR_BUBBLE_BORDER};
+                border-radius: 0px;
+                padding: 8px;
+                margin-right: 14px;
+                selection-background-color: {COLOR_SELECTION};
+            }}
+        """)
+
     return text_edit
+
+
+def create_header_button(
+    icon_name: str,
+    tooltip: str,
+    on_click: Callable[[], None],
+    enabled: bool = True,
+) -> IconButton:
+    """Create a styled header/toolbar button with consistent appearance.
+
+    Args:
+        icon_name: Name of the icon to display
+        tooltip: Tooltip text for the button
+        on_click: Callback function when button is clicked
+        enabled: Whether button is initially enabled (default: True)
+
+    Returns:
+        Configured IconButton widget
+    """
+    btn = IconButton(icon_name, size=HEADER_ICON_SIZE)
+    btn.setToolTip(tooltip)
+    btn.setStyleSheet(ICON_BTN_STYLE)
+    btn.clicked.connect(on_click)
+    btn.setEnabled(enabled)
+    return btn
 
 
 class ExpandableTextSection(QWidget):

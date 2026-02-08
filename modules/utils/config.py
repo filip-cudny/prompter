@@ -15,6 +15,14 @@ from core.exceptions import ConfigurationError
 from .keymap import KeymapManager
 from .paths import get_env_file, get_settings_file
 
+DEFAULT_MENU_SECTION_ORDER = [
+    "ContextMenuProvider",
+    "LastInteractionMenuProvider",
+    "prompts",
+    "SpeechMenuProvider",
+    "settings",
+]
+
 
 def safe_load_json(file_path: Path) -> dict[str, Any]:
     """Load JSON file with optional comment support."""
@@ -445,6 +453,31 @@ class ConfigService:
             self._settings_data["description_generator"] = {}
 
         self._settings_data["description_generator"].update(config)
+        if persist:
+            self.save_settings()
+
+    def get_menu_section_order(self) -> list[str]:
+        """Get the menu section order.
+
+        Returns:
+            List of section identifiers in display order
+        """
+        if self._settings_data is None:
+            raise ConfigurationError("ConfigService not initialized. Call initialize() first.")
+
+        return self._settings_data.get("menu_section_order", DEFAULT_MENU_SECTION_ORDER.copy())
+
+    def update_menu_section_order(self, order: list[str], persist: bool = True) -> None:
+        """Update the menu section order.
+
+        Args:
+            order: List of section identifiers in desired display order
+            persist: Whether to save settings to file immediately
+        """
+        if self._settings_data is None:
+            raise ConfigurationError("ConfigService not initialized. Call initialize() first.")
+
+        self._settings_data["menu_section_order"] = order
         if persist:
             self.save_settings()
 

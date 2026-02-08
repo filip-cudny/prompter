@@ -82,6 +82,10 @@ def setup_logging(debug: bool = False) -> None:
     for handler in handlers:
         root_logger.addHandler(handler)
 
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
+    logging.getLogger("openai").setLevel(logging.WARNING)
+
 
 def main():
     """Main entry point."""

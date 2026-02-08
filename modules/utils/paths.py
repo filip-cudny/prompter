@@ -127,6 +127,17 @@ def get_error_log_path() -> Path:
     return config_dir / "error.log"
 
 
+def get_temp_images_dir() -> Path:
+    """Get temp directory for conversation images.
+
+    Returns platform-appropriate temp location and ensures directory exists.
+    Images stored here are cleared on app startup.
+    """
+    temp_dir = get_user_config_dir() / "temp" / "conversation_images"
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    return temp_dir
+
+
 def _initialize_user_settings(config_dir: Path) -> None:
     """Copy settings_example to user config directory on first run.
 

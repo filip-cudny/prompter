@@ -19,11 +19,18 @@ from modules.gui.icons import create_composite_icon, create_icon
 from modules.gui.prompt_execute_dialog.conversation_manager import ConversationManager
 from modules.gui.prompt_execute_dialog.data import (
     ContextSectionState,
+    ConversationNode,
+    ConversationTree,
     ConversationTurn,
     OutputState,
     OutputVersionState,
     PromptInputState,
     TabState,
+    create_node,
+)
+from modules.gui.prompt_execute_dialog.message_widgets import (
+    AssistantBubble,
+    UserMessageBubble,
 )
 from modules.gui.prompt_execute_dialog.execution_handler import ExecutionHandler
 from modules.gui.prompt_execute_dialog.tab_bar import ConversationTabBar
@@ -67,6 +74,8 @@ def show_prompt_execute_dialog(
     context_manager: ContextManager | None = None,
     clipboard_manager=None,
     notification_manager=None,
+    history_service=None,
+    history_entry_id: str | None = None,
 ):
     """Show the prompt execute dialog.
 
@@ -76,8 +85,20 @@ def show_prompt_execute_dialog(
         prompt_store_service: The prompt store service for execution
         context_manager: The context manager for loading/saving context
         notification_manager: The notification manager for UI notifications
+        history_service: The history service for conversation persistence
+        history_entry_id: If provided, restore conversation from this history entry
     """
     window_key = _generate_window_key(menu_item)
+
+    # If restoring from history and dialog already exists, create new tab
+    if history_entry_id and window_key in _open_dialogs:
+        dialog = _open_dialogs[window_key]
+        dialog.raise_()
+        dialog.activateWindow()
+        # Create new tab and restore from history
+        dialog._on_add_tab_clicked()
+        dialog.restore_from_history(history_entry_id)
+        return
 
     # Check if dialog for THIS prompt already exists
     if window_key in _open_dialogs:
@@ -89,8 +110,12 @@ def show_prompt_execute_dialog(
     def create_and_show():
         # Double-check after timer delay
         if window_key in _open_dialogs:
-            _open_dialogs[window_key].raise_()
-            _open_dialogs[window_key].activateWindow()
+            existing = _open_dialogs[window_key]
+            existing.raise_()
+            existing.activateWindow()
+            if history_entry_id:
+                existing._on_add_tab_clicked()
+                existing.restore_from_history(history_entry_id)
             return
 
         dialog = PromptExecuteDialog(
@@ -100,12 +125,17 @@ def show_prompt_execute_dialog(
             context_manager,
             clipboard_manager,
             notification_manager,
+            history_service=history_service,
         )
         _open_dialogs[window_key] = dialog
         dialog.finished.connect(lambda: _open_dialogs.pop(window_key, None))
         dialog.show()
         dialog.raise_()
         dialog.activateWindow()
+
+        # Restore from history if entry_id provided
+        if history_entry_id:
+            dialog.restore_from_history(history_entry_id)
 
     QTimer.singleShot(DIALOG_SHOW_DELAY_MS, create_and_show)
 
@@ -123,6 +153,7 @@ class PromptExecuteDialog(BaseDialog):
         context_manager: ContextManager | None = None,
         clipboard_manager=None,
         notification_manager=None,
+        history_service=None,
         parent=None,
     ):
         super().__init__(parent)
@@ -132,6 +163,8 @@ class PromptExecuteDialog(BaseDialog):
         self.context_manager = context_manager
         self.clipboard_manager = clipboard_manager
         self.notification_manager = notification_manager
+        self._history_service = history_service
+        self._history_entry_id: str | None = None
 
         # Working state for context section
         self._current_images: list[ContextItem] = []
@@ -144,11 +177,15 @@ class PromptExecuteDialog(BaseDialog):
         # Track if output section has been shown
         self._output_section_shown = False
 
-        # Multi-turn conversation state
+        # Multi-turn conversation state (legacy linear format)
         self._conversation_turns: list[ConversationTurn] = []
         self._current_turn_number: int = 0
         self._dynamic_sections: list[QWidget] = []  # Reply input sections
         self._output_sections: list[QWidget] = []  # Output sections for each turn
+
+        # Tree-based conversation state (new)
+        self._conversation_tree: ConversationTree | None = None
+        self._message_bubbles: list = []  # UserMessageBubble and AssistantBubble widgets
 
         # Separate undo/redo stacks for each section
         self._context_undo_stack: list[ContextSectionState] = []
@@ -181,7 +218,6 @@ class PromptExecuteDialog(BaseDialog):
         self._tab_counter: int = 0
         self._tab_bar: ConversationTabBar | None = None
         self._tab_scroll: QScrollArea | None = None
-        self._max_tabs: int = 10
 
         # Extract prompt name for title
         prompt_name = menu_item.data.get("prompt_name", "Prompt") if menu_item.data else "Prompt"
@@ -191,9 +227,6 @@ class PromptExecuteDialog(BaseDialog):
         self.apply_dialog_styles()
         self._load_context()
         self._restore_ui_state()
-
-        # Connect to global execution signals for cross-dialog awareness
-        self._execution_handler.connect_global_execution_signals()
 
         # Focus message input for immediate typing
         self.input_edit.setFocus()
@@ -212,45 +245,49 @@ class PromptExecuteDialog(BaseDialog):
     def _current_execution_id(self) -> str | None:
         return self._execution_handler.current_execution_id
 
-    @property
-    def _disable_for_global_execution(self) -> bool:
-        return self._execution_handler.is_disabled_for_global
-
     # --- UI Setup ---
 
     def _setup_ui(self):
-        """Set up the dialog UI with three collapsible sections."""
+        """Set up the dialog UI with sticky context/input and scrollable messages."""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 10, 0, 10)  # No right margin - scrollbar sticks to edge
         layout.setSpacing(8)
 
-        # Scroll area for scrolling when many sections
+        # Section 1: Context (STICKY TOP - outside scroll area)
+        self.context_section = self._create_context_section()
+        layout.addWidget(self.context_section)
+
+        # Scroll area for conversation messages only
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.scroll_area.setFrameShape(QFrame.NoFrame)
 
-        # Container widget with layout for all sections
+        # Container widget for messages
         self.sections_container = QWidget()
         self.sections_layout = QVBoxLayout(self.sections_container)
         self.sections_layout.setContentsMargins(*SCROLL_CONTENT_MARGINS)
         self.sections_layout.setSpacing(SCROLL_CONTENT_SPACING)
 
-        # Section 1: Context (with save button)
-        self.context_section = self._create_context_section()
-        self.sections_layout.addWidget(self.context_section)
+        # Add stretch to push messages to top when few
+        self.sections_layout.addStretch()
 
-        # Section 2: Prompt Input (no save button)
+        self.scroll_area.setWidget(self.sections_container)
+        layout.addWidget(self.scroll_area, 1)  # stretch factor 1 for scroll area
+
+        # Section 2: Prompt Input (STICKY BOTTOM - outside scroll area)
         self.input_section = self._create_input_section()
-        self.sections_layout.addWidget(self.input_section)
+        layout.addWidget(self.input_section)
 
-        # Section 3: Output (no save button) - NOT added initially
+        # Section 3: Output (legacy - kept for backward compatibility)
+        # In new tree-based flow, output sections are created as AssistantBubble widgets
         self.output_section = self._create_output_section()
         # Output section is hidden until user clicks Alt+Enter
 
-        self.scroll_area.setWidget(self.sections_container)
-        layout.addWidget(self.scroll_area)
+        # Initialize conversation tree
+        self._conversation_tree = ConversationTree()
+        self._message_bubbles: list[UserMessageBubble | AssistantBubble] = []
 
         # Button bar (includes tabs inline)
         self._create_button_bar(layout)
@@ -313,7 +350,7 @@ class PromptExecuteDialog(BaseDialog):
 
         # Header with collapse toggle, wrap button, and undo/redo (NO save button)
         self.input_header = CollapsibleSectionHeader(
-            "Message #1",
+            "Message",
             show_save_button=False,
             show_undo_redo=True,
             show_wrap_button=True,
@@ -440,14 +477,6 @@ class PromptExecuteDialog(BaseDialog):
 
         button_bar.addStretch()
 
-        # Reply button (hidden until output received)
-        self.reply_btn = QPushButton()
-        self.reply_btn.setIcon(create_icon("message-square-reply", "#444444", 16))
-        self.reply_btn.setToolTip("Reply to continue conversation")
-        self.reply_btn.clicked.connect(self._on_reply)
-        self.reply_btn.setVisible(False)
-        button_bar.addWidget(self.reply_btn)
-
         # Send & Show button (Alt+Enter)
         self.send_show_btn = QPushButton()
         self.send_show_btn.setIcon(create_icon("send-horizontal", "#444444", 16))
@@ -527,6 +556,7 @@ class PromptExecuteDialog(BaseDialog):
 
         if not self._current_images:
             self.context_images_container.hide()
+            self._update_context_header_highlight()
             return
 
         self.context_images_container.show()
@@ -544,6 +574,7 @@ class PromptExecuteDialog(BaseDialog):
             self.context_images_layout.addWidget(chip)
 
         self.context_images_layout.addStretch()
+        self._update_context_header_highlight()
 
     def _on_image_delete(self, index: int):
         """Handle image chip delete request."""
@@ -650,6 +681,12 @@ class PromptExecuteDialog(BaseDialog):
         else:
             self.context_section.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
         self.save_section_state("context_collapsed", is_visible)
+        self._update_context_header_highlight()
+
+    def _update_context_header_highlight(self):
+        """Update context header highlight based on content presence."""
+        has_content = bool(self._current_images) or bool(self.context_text_edit.toPlainText().strip())
+        self.context_header.set_has_content(has_content)
 
     def _toggle_input_section(self):
         """Toggle input section visibility."""
@@ -758,7 +795,12 @@ class PromptExecuteDialog(BaseDialog):
 
     def closeEvent(self, event):
         """Save geometry on close and disconnect signals."""
-        # Clean up execution handler
+        # Clean up all tab handlers
+        for state in self._tabs.values():
+            if state.execution_handler:
+                state.execution_handler.cleanup()
+
+        # Clean up current execution handler (may not be in tabs dict if no tabs created)
         self._execution_handler.cleanup()
 
         # BaseDialog handles geometry save
@@ -1152,14 +1194,12 @@ class PromptExecuteDialog(BaseDialog):
             has_message
             and not has_conversation_error
             and not self._waiting_for_result
-            and not self._disable_for_global_execution
         )
 
         can_act = (
             (has_message or is_regenerate)
             and not has_conversation_error
             and not self._waiting_for_result
-            and not self._disable_for_global_execution
         )
 
         # Enable buttons (stop button should stay enabled)
@@ -1188,6 +1228,7 @@ class PromptExecuteDialog(BaseDialog):
         if not self.context_header.is_wrapped():
             content_height = get_text_edit_content_height(self.context_text_edit)
             self.context_text_edit.setMinimumHeight(content_height)
+        self._update_context_header_highlight()
 
     def _on_input_text_changed(self):
         """Handle input text changes - debounce state saving and update buttons."""
@@ -1256,11 +1297,192 @@ class PromptExecuteDialog(BaseDialog):
         if turn1.output_versions:
             turn1.output_versions[turn1.current_version_index] = self.output_edit.toPlainText()
 
-        # Sync dynamic output sections (turns > 1)
-        for section in self._output_sections:
-            turn = self._find_turn_for_output_section(section)
-            if turn and turn.output_versions:
-                turn.output_versions[turn.current_version_index] = section.text_edit.toPlainText()
+    # --- Conversation Tree Helpers ---
+
+    def _capture_conversation_tree(self) -> ConversationTree | None:
+        """Capture the current conversation tree state."""
+        if not self._conversation_tree or self._conversation_tree.is_empty():
+            return None
+        # Sync bubble contents to tree nodes before capture
+        self._sync_bubbles_to_tree()
+        # Create deep copy
+        tree_copy = ConversationTree(
+            nodes={
+                nid: ConversationNode(
+                    node_id=node.node_id,
+                    parent_id=node.parent_id,
+                    role=node.role,
+                    content=node.content,
+                    images=[
+                        ContextItem(item_type=img.item_type, data=img.data, media_type=img.media_type)
+                        for img in node.images
+                    ],
+                    timestamp=node.timestamp,
+                    children=list(node.children),
+                    undo_stack=list(node.undo_stack),
+                    redo_stack=list(node.redo_stack),
+                    last_text=node.last_text,
+                )
+                for nid, node in self._conversation_tree.nodes.items()
+            },
+            root_node_id=self._conversation_tree.root_node_id,
+            current_path=list(self._conversation_tree.current_path),
+        )
+        return tree_copy
+
+    def _sync_bubbles_to_tree(self):
+        """Sync content from message bubbles back to tree nodes."""
+        if not self._conversation_tree:
+            return
+        for bubble in self._message_bubbles:
+            node = self._conversation_tree.get_node(bubble.node_id)
+            if node:
+                # Skip syncing empty assistant content (preserves streaming content in tree)
+                if node.role == "assistant" and not bubble.get_content().strip():
+                    continue
+                node.content = bubble.get_content()
+                if hasattr(bubble, "get_images"):
+                    node.images = bubble.get_images()
+
+    def _restore_conversation_tree(self, tree: ConversationTree | None):
+        """Restore conversation tree and rebuild message bubbles."""
+        self._clear_message_bubbles()
+        if not tree:
+            self._conversation_tree = ConversationTree()
+            return
+        self._conversation_tree = tree
+        self._rebuild_message_bubbles_from_tree()
+
+    def _clear_message_bubbles(self):
+        """Remove all message bubble widgets from layout."""
+        for bubble in self._message_bubbles:
+            self.sections_layout.removeWidget(bubble)
+            bubble.setParent(None)
+            bubble.deleteLater()
+        self._message_bubbles.clear()
+
+    def _rebuild_message_bubbles_from_tree(self):
+        """Rebuild message bubble widgets from the conversation tree."""
+        self._clear_message_bubbles()
+
+        if not self._conversation_tree or self._conversation_tree.is_empty():
+            return
+
+        pairs = self._conversation_tree.get_message_pairs()
+        for i, (user_node, assistant_node) in enumerate(pairs):
+            message_number = i + 1
+
+            # Create user message bubble
+            user_bubble = UserMessageBubble(
+                node_id=user_node.node_id,
+                message_number=message_number,
+                content=user_node.content,
+                images=list(user_node.images),
+                show_delete_button=False,
+            )
+            user_bubble.text_changed.connect(self._on_bubble_text_changed)
+            user_bubble.images_changed.connect(self._update_send_buttons_state)
+            user_bubble.text_edit.installEventFilter(self)
+            self._message_bubbles.append(user_bubble)
+            # Insert before stretch
+            insert_idx = self.sections_layout.count() - 1
+            self.sections_layout.insertWidget(insert_idx, user_bubble)
+
+            # Create assistant bubble if response exists
+            if assistant_node:
+                assistant_bubble = AssistantBubble(
+                    node_id=assistant_node.node_id,
+                    output_number=message_number,
+                    content=assistant_node.content,
+                    show_delete_button=False,
+                )
+                assistant_bubble.text_changed.connect(self._on_bubble_text_changed)
+                assistant_bubble.regenerate_requested.connect(self._on_regenerate_from_bubble)
+                assistant_bubble.branch_prev_requested.connect(self._on_branch_prev)
+                assistant_bubble.branch_next_requested.connect(self._on_branch_next)
+                assistant_bubble.text_edit.installEventFilter(self)
+                self._message_bubbles.append(assistant_bubble)
+                insert_idx = self.sections_layout.count() - 1
+                self.sections_layout.insertWidget(insert_idx, assistant_bubble)
+
+                # Update branch navigation
+                siblings, idx = self._conversation_tree.get_siblings(assistant_node.node_id)
+                assistant_bubble.set_branch_info(idx + 1, len(siblings))
+
+        self._update_delete_button_visibility()
+
+        # Ensure focus stays on sticky input for next message
+        self.input_edit.setFocus()
+
+    def _on_bubble_text_changed(self):
+        """Handle text change in any message bubble."""
+        self._update_send_buttons_state()
+
+    def _on_regenerate_from_bubble(self, node_id: str):
+        """Handle regenerate request from an assistant bubble."""
+        if not self._conversation_tree:
+            return
+        node = self._conversation_tree.get_node(node_id)
+        if not node or node.role != "assistant":
+            return
+        # Regenerate creates a new sibling branch
+        self._regenerate_at_node(node_id)
+
+    def _on_branch_prev(self, node_id: str):
+        """Navigate to previous branch."""
+        if not self._conversation_tree:
+            return
+        siblings, idx = self._conversation_tree.get_siblings(node_id)
+        if idx > 0:
+            node = self._conversation_tree.get_node(node_id)
+            if node and node.parent_id:
+                self._conversation_tree.switch_branch(node.parent_id, idx - 1)
+                self._rebuild_message_bubbles_from_tree()
+
+    def _on_branch_next(self, node_id: str):
+        """Navigate to next branch."""
+        if not self._conversation_tree:
+            return
+        siblings, idx = self._conversation_tree.get_siblings(node_id)
+        if idx < len(siblings) - 1:
+            node = self._conversation_tree.get_node(node_id)
+            if node and node.parent_id:
+                self._conversation_tree.switch_branch(node.parent_id, idx + 1)
+                self._rebuild_message_bubbles_from_tree()
+
+    def _regenerate_at_node(self, node_id: str):
+        """Regenerate response at a specific assistant node, creating a new branch."""
+        if not self._conversation_tree:
+            return
+
+        old_node = self._conversation_tree.get_node(node_id)
+        if not old_node or old_node.role != "assistant":
+            return
+
+        user_node_id = old_node.parent_id
+        if not user_node_id:
+            return
+
+        user_node = self._conversation_tree.get_node(user_node_id)
+        if not user_node:
+            return
+
+        self._sync_bubbles_to_tree()
+
+        new_assistant = self._conversation_manager.regenerate_response_in_tree(node_id)
+        if not new_assistant:
+            return
+
+        self._execution_handler._pending_user_node_id = user_node_id
+        self._execution_handler._pending_assistant_node_id = new_assistant.node_id
+
+        self._pending_is_regeneration = True
+
+        self._rebuild_message_bubbles_from_tree()
+
+        self._execution_handler.execute_with_message(
+            user_node.content, keep_open=True, regenerate=True
+        )
 
     # --- Tab Management ---
 
@@ -1322,7 +1544,9 @@ class PromptExecuteDialog(BaseDialog):
             output_undo_stack=list(self._output_undo_stack),
             output_redo_stack=list(self._output_redo_stack),
             last_output_text=self._last_output_text,
-            # Multi-turn conversation
+            # Tree-based conversation (new)
+            conversation_tree=self._capture_conversation_tree(),
+            # Legacy: Multi-turn conversation
             conversation_turns=list(self._conversation_turns),
             current_turn_number=self._current_turn_number,
             dynamic_sections_data=dynamic_sections_data,
@@ -1331,6 +1555,12 @@ class PromptExecuteDialog(BaseDialog):
             waiting_for_result=self._waiting_for_result,
             is_streaming=self._is_streaming,
             streaming_accumulated=self._execution_handler._streaming_accumulated,
+            current_execution_id=self._execution_handler._current_execution_id,
+            stop_button_active=self._execution_handler._stop_button_active,
+            pending_user_node_id=self._execution_handler._pending_user_node_id,
+            pending_assistant_node_id=self._execution_handler._pending_assistant_node_id,
+            # History tracking
+            history_entry_id=self._history_entry_id,
             # UI collapsed/wrapped states
             context_collapsed=self.context_header.is_collapsed(),
             input_collapsed=self.input_header.is_collapsed(),
@@ -1338,6 +1568,8 @@ class PromptExecuteDialog(BaseDialog):
             context_wrapped=self.context_header.is_wrapped(),
             input_wrapped=self.input_header.is_wrapped(),
             output_wrapped=self.output_header.is_wrapped(),
+            # Per-tab execution handler
+            execution_handler=self._execution_handler,
         )
 
     def _restore_state(self, state: TabState):
@@ -1357,6 +1589,7 @@ class PromptExecuteDialog(BaseDialog):
         self._context_undo_stack = list(state.context_undo_stack)
         self._context_redo_stack = list(state.context_redo_stack)
         self._last_context_text = state.last_context_text
+        self._update_context_header_highlight()
 
         # Restore message/input section
         self._message_images = [
@@ -1389,11 +1622,21 @@ class PromptExecuteDialog(BaseDialog):
             self.output_section.setParent(None)
             self._output_section_shown = False
 
-        # Restore multi-turn conversation state
+        # Restore multi-turn conversation state (legacy)
         self._conversation_turns = list(state.conversation_turns)
         self._current_turn_number = state.current_turn_number
 
-        # Restore dynamic sections
+        # Restore tree-based conversation (new)
+        if state.conversation_tree:
+            self._restore_conversation_tree(state.conversation_tree)
+        else:
+            self._conversation_tree = ConversationTree()
+            self._clear_message_bubbles()
+
+        # Restore history tracking
+        self._history_entry_id = state.history_entry_id
+
+        # Restore dynamic sections (legacy - for backward compatibility)
         self._conversation_manager.restore_dynamic_sections(state.dynamic_sections_data, state.output_sections_data)
 
         # Restore version display for Output #1
@@ -1404,15 +1647,13 @@ class PromptExecuteDialog(BaseDialog):
         # Restore UI collapsed/wrapped states
         self._restore_section_ui_states(state)
 
+        # Note: Execution handler is switched in _on_tab_selected, not restored here
+        # The handler reference is stored in state.execution_handler
+
         # Update button states
         self._update_undo_redo_buttons()
         self._update_send_buttons_state()
         self._update_delete_button_visibility()
-
-        # Show reply button if needed
-        has_output = self._output_section_shown or bool(self._output_sections)
-        has_pending_reply = bool(self._dynamic_sections)
-        self.reply_btn.setVisible(has_output and not self._waiting_for_result and not has_pending_reply)
 
     def _clear_dynamic_sections(self):
         """Remove all dynamic reply and output sections from layout."""
@@ -1507,9 +1748,16 @@ class PromptExecuteDialog(BaseDialog):
         self._output_redo_stack.clear()
         self._last_output_text = ""
 
-        # Reset multi-turn conversation state
+        # Reset multi-turn conversation state (legacy)
         self._conversation_turns.clear()
         self._current_turn_number = 0
+
+        # Reset tree-based conversation (new)
+        self._conversation_tree = ConversationTree()
+        self._clear_message_bubbles()
+
+        # Reset history tracking (new tab = new conversation)
+        self._history_entry_id = None
 
         # Reset version display for Output #1
         self.output_header.set_version_info(0, 0)
@@ -1519,7 +1767,17 @@ class PromptExecuteDialog(BaseDialog):
         self.context_header.set_collapsed(False)
         self.input_edit.show()
         self.input_header.set_collapsed(False)
-        self.reply_btn.setVisible(False)
+
+        # Note: When called from _on_add_tab_clicked, handler is already fresh.
+        # When called from _on_tab_close_requested (last tab), reset handler state.
+        if not self._tabs:
+            self._execution_handler._waiting_for_result = False
+            self._execution_handler._is_streaming = False
+            self._execution_handler._streaming_accumulated = ""
+            self._execution_handler._current_execution_id = None
+            self._execution_handler._stop_button_active = None
+            self._execution_handler._pending_user_node_id = None
+            self._execution_handler._pending_assistant_node_id = None
 
         # Update button states
         self._update_undo_redo_buttons()
@@ -1535,40 +1793,49 @@ class PromptExecuteDialog(BaseDialog):
 
     def _on_add_tab_clicked(self):
         """Handle add tab button click."""
-        if len(self._tabs) >= self._max_tabs:
-            return
-
         # If this is the first tab creation, create Tab 1 for current state
         if not self._active_tab_id:
             self._tab_counter += 1
             first_tab_id = f"tab_{self._tab_counter}"
             first_tab_name = f"Tab {self._tab_counter}"
 
-            # Capture current state as Tab 1
+            # Current handler becomes Tab 1's handler
+            self._execution_handler._tab_id = first_tab_id
             first_state = self._capture_current_state()
             first_state.tab_id = first_tab_id
             first_state.tab_name = first_tab_name
+            first_state.execution_handler = self._execution_handler
             self._tabs[first_tab_id] = first_state
             self._active_tab_id = first_tab_id
 
             # Add first tab to tab bar
             self._tab_bar.add_tab(first_tab_id, first_tab_name)
         else:
-            # Save current tab state
+            # Save current tab state (including current handler)
             self._tabs[self._active_tab_id] = self._capture_current_state()
+
+        # Revert button state from old handler before switching
+        if self._execution_handler._stop_button_active:
+            self._execution_handler._revert_button_to_send_state()
 
         # Increment tab counter and generate new tab ID
         self._tab_counter += 1
         new_tab_id = f"tab_{self._tab_counter}"
         new_tab_name = f"Tab {self._tab_counter}"
 
+        # Create fresh handler for new tab (no global signal connection - tabs execute independently)
+        new_handler = ExecutionHandler(self)
+        new_handler._tab_id = new_tab_id
+        self._execution_handler = new_handler
+
         # Reset dialog to initial state
         self._reset_to_initial_state()
 
-        # Create and store new tab state
+        # Create and store new tab state with new handler
         new_state = self._capture_current_state()
         new_state.tab_id = new_tab_id
         new_state.tab_name = new_tab_name
+        new_state.execution_handler = new_handler
         self._tabs[new_tab_id] = new_state
         self._active_tab_id = new_tab_id
 
@@ -1585,9 +1852,13 @@ class PromptExecuteDialog(BaseDialog):
         if tab_id == self._active_tab_id:
             return
 
-        # Save current tab state
+        # Save current tab state (including current handler reference)
         if self._active_tab_id:
             self._tabs[self._active_tab_id] = self._capture_current_state()
+
+        # Revert button state from old handler (if it had stop button active)
+        if self._execution_handler._stop_button_active:
+            self._execution_handler._revert_button_to_send_state()
 
         # Switch to new tab
         self._active_tab_id = tab_id
@@ -1595,13 +1866,40 @@ class PromptExecuteDialog(BaseDialog):
 
         # Restore state from selected tab
         if tab_id in self._tabs:
-            self._restore_state(self._tabs[tab_id])
+            state = self._tabs[tab_id]
+
+            # Switch to tab's handler
+            if state.execution_handler:
+                self._execution_handler = state.execution_handler
+
+            self._restore_state(state)
+
+            # Restore button state for this tab's handler
+            if self._execution_handler._stop_button_active:
+                self._execution_handler._transform_button_to_stop(
+                    is_alt_enter=(self._execution_handler._stop_button_active == "alt")
+                )
+
+            # If handler is streaming, sync accumulated content to restored tree/bubbles
+            if self._execution_handler._is_streaming and self._execution_handler._streaming_accumulated:
+                if self._conversation_tree and self._execution_handler._pending_assistant_node_id:
+                    node = self._conversation_tree.get_node(self._execution_handler._pending_assistant_node_id)
+                    if node:
+                        node.content = self._execution_handler._streaming_accumulated
+                self._rebuild_message_bubbles_from_tree()
+
+            # If handler has pending result (completed while inactive), process it now
+            if self._execution_handler._pending_result:
+                self._execution_handler._process_pending_result()
 
     def _on_tab_close_requested(self, tab_id: str):
         """Handle tab close request."""
         if self._tab_bar.get_tab_count() <= 1:
             self._reset_to_initial_state()
             return
+
+        # Get the tab being closed
+        closing_state = self._tabs.get(tab_id)
 
         # If closing active tab, switch to another first
         if tab_id == self._active_tab_id:
@@ -1610,6 +1908,15 @@ class PromptExecuteDialog(BaseDialog):
             new_idx = current_idx - 1 if current_idx > 0 else current_idx + 1
             new_tab_id = tab_ids[new_idx]
             self._on_tab_selected(new_tab_id)
+
+        # Clean up the closed tab's handler
+        if closing_state and closing_state.execution_handler:
+            handler = closing_state.execution_handler
+            # Cancel any active execution
+            if handler._current_execution_id:
+                handler.stop_execution()
+            # Disconnect signals to avoid memory leaks
+            handler.disconnect_all_signals()
 
         self._tabs.pop(tab_id, None)
         self._tab_bar.remove_tab(tab_id)
@@ -1680,8 +1987,174 @@ class PromptExecuteDialog(BaseDialog):
                 turn.message_text = section.text_edit.toPlainText()
                 turn.message_images = list(section.turn_images)
 
+    def set_history_service(self, service) -> None:
+        """Set the history service for conversation persistence."""
+        self._history_service = service
+
+    def restore_from_history(self, entry_id: str) -> bool:
+        """Restore full conversation state from history entry.
+
+        Args:
+            entry_id: ID of the history entry to restore
+
+        Returns:
+            True if restoration successful, False otherwise
+        """
+        if not self._history_service:
+            return False
+
+        conv_data = self._history_service.get_conversation_data(entry_id)
+        if not conv_data:
+            return False
+
+        # Clear current state
+        self._clear_dynamic_sections()
+        if self._output_section_shown:
+            self.sections_layout.removeWidget(self.output_section)
+            self.output_section.setParent(None)
+            self._output_section_shown = False
+
+        # Restore context
+        self._current_images = self._history_service.load_images_from_paths(conv_data.context_image_paths)
+        self._rebuild_image_chips()
+        self.context_text_edit.blockSignals(True)
+        self.context_text_edit.setPlainText(conv_data.context_text)
+        self.context_text_edit.blockSignals(False)
+        self._last_context_text = conv_data.context_text
+
+        # Clear undo stacks since we're loading saved state
+        self._context_undo_stack.clear()
+        self._context_redo_stack.clear()
+        self._input_undo_stack.clear()
+        self._input_redo_stack.clear()
+        self._output_undo_stack.clear()
+        self._output_redo_stack.clear()
+
+        # Restore conversation turns
+        self._conversation_turns.clear()
+        self._current_turn_number = 0
+
+        for serialized_turn in conv_data.turns:
+            turn_images = self._history_service.load_images_from_paths(serialized_turn.message_image_paths)
+            turn = ConversationTurn(
+                turn_number=serialized_turn.turn_number,
+                message_text=serialized_turn.message_text,
+                message_images=turn_images,
+                output_text=serialized_turn.output_text,
+                is_complete=serialized_turn.is_complete,
+                output_versions=list(serialized_turn.output_versions),
+                current_version_index=serialized_turn.current_version_index,
+            )
+            self._conversation_turns.append(turn)
+            self._current_turn_number = max(self._current_turn_number, turn.turn_number)
+
+        # Restore tree-based conversation if available
+        tree = self._history_service.deserialize_tree_nodes(conv_data)
+        if tree:
+            self._conversation_tree = tree
+            self._rebuild_message_bubbles_from_tree()
+        else:
+            # Legacy: Rebuild UI from turns
+            self._restore_conversation_ui()
+
+        # Store entry ID for future updates
+        self._history_entry_id = entry_id
+
+        # Update buttons
+        self._update_undo_redo_buttons()
+        self._update_send_buttons_state()
+        self._update_delete_button_visibility()
+
+        return True
+
+    def _restore_conversation_ui(self):
+        """Rebuild UI sections from conversation turns."""
+        if not self._conversation_turns:
+            return
+
+        # First turn goes to main input/output sections
+        turn1 = self._conversation_turns[0]
+        self._message_images = list(turn1.message_images)
+        self._rebuild_message_image_chips()
+        self.input_edit.blockSignals(True)
+        self.input_edit.setPlainText(turn1.message_text)
+        self.input_edit.blockSignals(False)
+        self._last_input_text = turn1.message_text
+
+        if turn1.is_complete and turn1.output_text:
+            self._expand_output_section()
+            self.output_edit.blockSignals(True)
+            self.output_edit.setPlainText(turn1.output_text)
+            self.output_edit.blockSignals(False)
+            self._last_output_text = turn1.output_text
+            if turn1.output_versions:
+                self.output_header.set_version_info(turn1.current_version_index + 1, len(turn1.output_versions))
+
+        # Subsequent turns create output sections only
+        for turn in self._conversation_turns[1:]:
+            if turn.is_complete and turn.output_text:
+                output_section = self._conversation_manager.create_dynamic_output_section(turn.turn_number)
+                output_section.text_edit.setPlainText(turn.output_text)
+                output_section.last_text = turn.output_text
+                if turn.output_versions:
+                    output_section.header.set_version_info(turn.current_version_index + 1, len(turn.output_versions))
+                self._output_sections.append(output_section)
+                self.sections_layout.addWidget(output_section)
+                output_section.text_edit.installEventFilter(self)
+
+        self._renumber_sections()
+
+    def _save_to_history(self):
+        """Save or update conversation state to history service."""
+        if not self._history_service:
+            return
+
+        # Don't save if no completed turns (legacy) and no completed tree nodes
+        has_completed_turns = any(t.is_complete for t in self._conversation_turns)
+        has_completed_tree = (
+            self._conversation_tree
+            and not self._conversation_tree.is_empty()
+            and any(n.role == "assistant" and n.content for n in self._conversation_tree.nodes.values())
+        )
+        if not has_completed_turns and not has_completed_tree:
+            return
+
+        # Sync UI to turn data before saving
+        self._sync_ui_to_conversation_turns()
+        self._sync_all_outputs_to_versions()
+        self._sync_bubbles_to_tree()
+
+        prompt_id = self.menu_item.data.get("prompt_id") if self.menu_item.data else None
+        prompt_name = self.menu_item.data.get("prompt_name") if self.menu_item.data else None
+
+        if self._history_entry_id:
+            # Update existing entry
+            self._history_service.update_conversation_entry(
+                self._history_entry_id,
+                self._conversation_turns,
+                self.context_text_edit.toPlainText(),
+                self._current_images,
+                conversation_tree=self._conversation_tree,
+            )
+        else:
+            # Create new entry
+            self._history_entry_id = self._history_service.add_conversation_entry(
+                self._conversation_turns,
+                self.context_text_edit.toPlainText(),
+                self._current_images,
+                prompt_id=prompt_id,
+                prompt_name=prompt_name,
+                conversation_tree=self._conversation_tree,
+            )
+
     def _regenerate_last_output(self):
         """Regenerate the last AI output by re-executing the last message."""
+        # Handle tree-based regeneration
+        if self._conversation_tree and not self._conversation_tree.is_empty():
+            self._regenerate_from_tree()
+            return
+
+        # Legacy: linear conversation handling
         if not self._conversation_turns:
             return
 
@@ -1733,9 +2206,6 @@ class PromptExecuteDialog(BaseDialog):
         if turn_number == 1:
             self._current_turn_number = 0
 
-        # Hide reply button during regeneration
-        self.reply_btn.setVisible(False)
-
         # Store version history with NEW version already added
         self._pending_version_history = existing_versions
         self._pending_version_undo_states = existing_version_undo_states
@@ -1744,39 +2214,72 @@ class PromptExecuteDialog(BaseDialog):
 
         self._execution_handler.execute_with_message(message_text, keep_open=True, regenerate=True)
 
-    def _on_reply(self):
-        """Add new input section for reply."""
-        self._current_turn_number += 1
-        visual_number = len(self._dynamic_sections) + 2
-        section = self._conversation_manager.create_reply_section(visual_number)
-        section.turn_number = self._current_turn_number
-        self._dynamic_sections.append(section)
-        self.sections_layout.addWidget(section)
-        section.text_edit.installEventFilter(self)
-        self.reply_btn.setVisible(False)
-        section.text_edit.setFocus()
-        self._renumber_sections()
-        self._update_delete_button_visibility()
-        self._update_send_buttons_state()
-        self._scroll_to_bottom()
+    def _regenerate_from_tree(self):
+        """Regenerate response using tree-based branching."""
+        if not self._conversation_tree:
+            return
 
-    def _create_reply_section(self, turn_number: int) -> QWidget:
-        """Create input section for a reply turn (displayed as Message)."""
-        return self._conversation_manager.create_reply_section(turn_number)
+        leaf = self._conversation_tree.get_current_leaf()
+        if not leaf or leaf.role != "assistant":
+            return
+
+        # Find the parent user message
+        user_node_id = leaf.parent_id
+        if not user_node_id:
+            return
+
+        user_node = self._conversation_tree.get_node(user_node_id)
+        if not user_node:
+            return
+
+        # Sync current bubble content to tree
+        self._sync_bubbles_to_tree()
+
+        # Create new assistant node as sibling branch
+        new_assistant = create_node(
+            role="assistant",
+            content="",
+            parent_id=user_node_id,
+        )
+        self._conversation_tree.add_node(new_assistant)
+
+        # Update current path to new branch
+        try:
+            old_idx = self._conversation_tree.current_path.index(leaf.node_id)
+            self._conversation_tree.current_path = self._conversation_tree.current_path[:old_idx]
+            self._conversation_tree.current_path.append(new_assistant.node_id)
+        except ValueError:
+            self._conversation_tree.current_path.append(new_assistant.node_id)
+
+        # Set pending node for execution handler
+        self._execution_handler._pending_user_node_id = user_node_id
+        self._execution_handler._pending_assistant_node_id = new_assistant.node_id
+
+        self._pending_is_regeneration = True
+
+        # Rebuild bubbles to show the new branch
+        self._rebuild_message_bubbles_from_tree()
+
+        # Execute using tree-based conversation data
+        self._execution_handler.execute_with_message(
+            user_node.content, keep_open=True, regenerate=True
+        )
 
     def _create_dynamic_output_section(self, turn_number: int) -> QWidget:
         """Create output section for a conversation turn."""
         return self._conversation_manager.create_dynamic_output_section(turn_number)
 
-    def _rebuild_reply_image_chips(self, section: QWidget):
-        """Rebuild image chips for a reply section."""
-        self._conversation_manager.rebuild_reply_image_chips(section)
-
-    def _paste_image_to_reply(self, section: QWidget) -> bool:
-        """Paste image to reply section."""
-        return self._conversation_manager.paste_image_to_reply(section)
-
     # --- Event handling ---
+
+    def _trigger_send_from_text_edit(self):
+        """Trigger send action when Enter is pressed in a text edit."""
+        if self._is_regenerate_mode():
+            self._regenerate_last_output()
+            return
+
+        has_content = bool(self.input_edit.toPlainText().strip()) or bool(self._message_images)
+        if has_content and not self._waiting_for_result:
+            self._on_send_show()
 
     def keyPressEvent(self, event):
         """Handle key press events."""
@@ -1810,6 +2313,17 @@ class PromptExecuteDialog(BaseDialog):
             event.accept()
             return
 
+        # Plain Enter: Send & show (chat-like behavior, fallback for non-filtered events)
+        if key in (Qt.Key_Return, Qt.Key_Enter) and not (modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.ShiftModifier)):
+            if self._waiting_for_result and self._execution_handler._stop_button_active == "alt":
+                self._execution_handler.stop_execution()
+            elif is_regenerate and not self._waiting_for_result:
+                self._regenerate_last_output()
+            elif has_content and not self._waiting_for_result:
+                self._on_send_show()
+            event.accept()
+            return
+
         # Escape to close
         if key == Qt.Key_Escape:
             self.close()
@@ -1818,10 +2332,22 @@ class PromptExecuteDialog(BaseDialog):
         super().keyPressEvent(event)
 
     def eventFilter(self, obj, event):
-        """Filter events to intercept Ctrl+Z/Ctrl+Shift+Z on text edits."""
+        """Filter events to intercept key presses on text edits."""
         if event.type() == QEvent.KeyPress:
             key = event.key()
             modifiers = event.modifiers()
+
+            # Handle Enter key on text edits (chat-like behavior)
+            if key in (Qt.Key_Return, Qt.Key_Enter):
+                # Shift+Enter: Insert newline (let default handle it)
+                if modifiers & Qt.ShiftModifier:
+                    return False
+
+                # Plain Enter: Trigger send (like in chat apps)
+                # Don't consume if there are other modifiers (Ctrl, Alt handled elsewhere)
+                if not (modifiers & (Qt.ControlModifier | Qt.AltModifier)):
+                    self._trigger_send_from_text_edit()
+                    return True
 
             # Ctrl+Z for undo
             if key == Qt.Key_Z and (modifiers & Qt.ControlModifier):
@@ -1873,11 +2399,6 @@ class PromptExecuteDialog(BaseDialog):
 
             # Ctrl+V for paste image (if clipboard has image)
             if key == Qt.Key_V and (modifiers & Qt.ControlModifier):
-                # Check reply sections first
-                for section in self._dynamic_sections:
-                    if obj == section.text_edit and self._paste_image_to_reply(section):
-                        return True  # Event handled, don't paste as text
-
                 if obj == self.context_text_edit:
                     if self._paste_image_from_clipboard():
                         return True  # Event handled, don't paste as text

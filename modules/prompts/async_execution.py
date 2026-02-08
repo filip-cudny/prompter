@@ -60,7 +60,7 @@ from core.context_manager import ContextManager
 from core.exceptions import ClipboardUnavailableError
 from core.interfaces import ClipboardManager
 from core.models import ErrorCode, ExecutionResult, MenuItem
-from core.openai_service import OpenAiService
+from core.openai_service import OpenAiService, truncate_base64_for_logging
 from core.placeholder_service import PlaceholderService
 from modules.utils.notification_config import is_notification_enabled
 from modules.utils.notifications import PyQtNotificationManager, format_execution_time
@@ -414,8 +414,23 @@ class PromptExecutionWorker(QThread):
         return processed
 
     def _execute_prompt_streaming(self) -> ExecutionResult:
-        """Execute the prompt with streaming (runs in worker thread)."""
+        """Execute the prompt with streaming (runs in worker thread).
+
+        Creates a dedicated OpenAI client for this streaming session to ensure
+        complete isolation between concurrent streaming requests. This prevents
+        issues where multiple workers sharing a client can cause streams to be
+        terminated with GeneratorExit exceptions.
+        """
+        from openai import (
+            APIConnectionError,
+            APIStatusError,
+            AuthenticationError,
+            OpenAI,
+            RateLimitError,
+        )
+
         start_time = time.time()
+        streaming_client = None
 
         try:
             if not self.item or not self.item.data:
@@ -435,7 +450,6 @@ class PromptExecutionWorker(QThread):
                     metadata={"action": "execute_prompt", "streaming": True},
                 )
 
-            # Get model from MenuItem.data.model
             model_name = self.item.data.get("model")
             if not model_name:
                 model_name = self.config.default_model
@@ -483,7 +497,6 @@ class PromptExecutionWorker(QThread):
                     metadata={"action": "execute_prompt", "streaming": True},
                 )
 
-            # Check for multi-turn conversation data
             conversation_data = self.item.data.get("conversation_data")
 
             try:
@@ -509,16 +522,32 @@ class PromptExecutionWorker(QThread):
                     metadata={"action": "execute_prompt", "streaming": True},
                 )
 
-            # Stream response using complete_stream
-            accumulated = ""
-            for chunk_text, accumulated in self.openai_service.complete_stream(
-                model_key=model_name,
-                messages=processed_messages,
-            ):
-                # Emit chunk signal (Qt handles thread safety)
-                self.chunk_received.emit(chunk_text, accumulated, False, self.execution_id)
+            model_config = self.openai_service.get_model_config(model_name)
 
-            # Emit final signal
+            streaming_client = OpenAI(
+                api_key=model_config.get("api_key"),
+                base_url=model_config.get("base_url"),
+            )
+
+            completion_params = {
+                "model": model_config["model"],
+                "messages": processed_messages,
+                "stream": True,
+            }
+
+            for param_name, param_value in model_config.get("parameters", {}).items():
+                completion_params[param_name] = param_value
+
+            logger.debug("Sending streaming request: %s", truncate_base64_for_logging(completion_params))
+            accumulated = ""
+            response = streaming_client.chat.completions.create(**completion_params)
+
+            for chunk in response:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    chunk_text = chunk.choices[0].delta.content
+                    accumulated += chunk_text
+                    self.chunk_received.emit(chunk_text, accumulated, False, self.execution_id)
+
             self.chunk_received.emit("", accumulated, True, self.execution_id)
 
             return ExecutionResult(
@@ -528,6 +557,34 @@ class PromptExecutionWorker(QThread):
                 metadata={"action": "execute_prompt", "streaming": True},
             )
 
+        except AuthenticationError as e:
+            return ExecutionResult(
+                success=False,
+                error="API key is invalid or expired. Please check your API key configuration.",
+                execution_time=time.time() - start_time,
+                metadata={"action": "execute_prompt", "streaming": True},
+            )
+        except APIConnectionError as e:
+            return ExecutionResult(
+                success=False,
+                error="Connection failed. Please check your internet connection and try again.",
+                execution_time=time.time() - start_time,
+                metadata={"action": "execute_prompt", "streaming": True},
+            )
+        except RateLimitError as e:
+            return ExecutionResult(
+                success=False,
+                error="Rate limit exceeded. Please wait a moment and try again.",
+                execution_time=time.time() - start_time,
+                metadata={"action": "execute_prompt", "streaming": True},
+            )
+        except APIStatusError as e:
+            return ExecutionResult(
+                success=False,
+                error=f"API error (status {e.status_code}): {e.message}",
+                execution_time=time.time() - start_time,
+                metadata={"action": "execute_prompt", "streaming": True},
+            )
         except Exception as e:
             return ExecutionResult(
                 success=False,
@@ -535,6 +592,10 @@ class PromptExecutionWorker(QThread):
                 execution_time=time.time() - start_time,
                 metadata={"action": "execute_prompt", "streaming": True},
             )
+        finally:
+            if streaming_client:
+                with contextlib.suppress(Exception):
+                    streaming_client.close()
 
 
 class AsyncPromptExecutionManager:
@@ -701,9 +762,12 @@ class AsyncPromptExecutionManager:
                 self.clipboard_manager.set_content(result.content)
 
             # Add to history using prompt store service which has proper logic
+            # Skip for dialog executions - dialog handles its own conversation history
             if self.prompt_store_service and current_item:
-                input_content = original_input or ""
-                self.prompt_store_service.add_history_entry(current_item, input_content, result)
+                is_dialog_execution = current_item.data and current_item.data.get("is_from_dialog", False)
+                if not is_dialog_execution:
+                    input_content = original_input or ""
+                    self.prompt_store_service.add_history_entry(current_item, input_content, result)
 
             # Get model configuration for display name
             model_config = None

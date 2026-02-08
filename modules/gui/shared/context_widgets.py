@@ -1038,12 +1038,14 @@ class LastInteractionSectionWidget(QWidget):
         history_service,
         notification_manager=None,
         clipboard_manager=None,
+        prompt_store_service=None,
         parent: QWidget | None = None,
     ):
         super().__init__(parent)
         self.history_service = history_service
         self.notification_manager = notification_manager
         self.clipboard_manager = clipboard_manager
+        self.prompt_store_service = prompt_store_service
         self._chips = []
 
         self.setObjectName("lastInteractionSection")
@@ -1167,6 +1169,58 @@ class LastInteractionSectionWidget(QWidget):
         show_history_dialog(
             history_service=self.history_service,
             clipboard_manager=self.clipboard_manager,
+            prompt_store_service=self.prompt_store_service,
+            notification_manager=self.notification_manager,
+        )
+
+    def _on_open_conversation(self, entry_id: str, prompt_id: str):
+        """Handle opening a conversation from history."""
+        if not self.prompt_store_service:
+            logger.warning("Cannot open conversation: prompt_store_service is None")
+            return
+
+        if not entry_id:
+            logger.warning("Cannot open conversation: entry_id is empty")
+            return
+
+        # Find the menu item for the prompt
+        menu_item = None
+        all_items = self.prompt_store_service.get_all_available_prompts()
+
+        if prompt_id:
+            for item in all_items:
+                item_prompt_id = item.data.get("prompt_id") if item.data else None
+                if item_prompt_id == prompt_id:
+                    menu_item = item
+                    break
+
+        # Fallback to first available prompt if exact match not found
+        if not menu_item and all_items:
+            menu_item = all_items[0]
+            logger.info(f"Using fallback prompt for conversation {entry_id} (original prompt_id={prompt_id})")
+
+        if not menu_item:
+            logger.warning(f"Cannot open conversation: no prompts available")
+            return
+
+        logger.debug(f"Opening conversation {entry_id} for prompt {prompt_id}")
+
+        # Open the prompt execute dialog with history restoration
+        from modules.gui.prompt_execute_dialog import show_prompt_execute_dialog
+
+        context_manager = None
+        if hasattr(self.prompt_store_service, "context_manager"):
+            context_manager = self.prompt_store_service.context_manager
+
+        show_prompt_execute_dialog(
+            menu_item,
+            lambda item, shift: None,  # Execution callback - not needed for restore
+            prompt_store_service=self.prompt_store_service,
+            context_manager=context_manager,
+            clipboard_manager=self.clipboard_manager,
+            notification_manager=self.notification_manager,
+            history_service=self.history_service,
+            history_entry_id=entry_id,
         )
 
     def cleanup(self):

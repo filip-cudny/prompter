@@ -11,10 +11,12 @@ class LastInteractionMenuProvider:
         history_service,
         notification_manager=None,
         clipboard_manager=None,
+        prompt_store_service=None,
     ):
         self.history_service = history_service
         self.notification_manager = notification_manager
         self.clipboard_manager = clipboard_manager
+        self.prompt_store_service = prompt_store_service
 
     def get_menu_items(self) -> list[MenuItem]:
         """Return menu items for the last interaction section."""
@@ -27,9 +29,9 @@ class LastInteractionMenuProvider:
                 "history_service": self.history_service,
                 "notification_manager": self.notification_manager,
                 "clipboard_manager": self.clipboard_manager,
+                "prompt_store_service": self.prompt_store_service,
             },
             enabled=True,
-            separator_after=True,
         )
         return [last_interaction_item]
 

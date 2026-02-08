@@ -1,8 +1,12 @@
 """OpenAI service for managing multiple OpenAI client instances."""
 
+import logging
 import os
+import re
 from collections.abc import Generator
 from typing import Any, BinaryIO
+
+logger = logging.getLogger(__name__)
 
 from openai import (
     APIConnectionError,
@@ -14,6 +18,19 @@ from openai import (
 from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
 
 from core.exceptions import ConfigurationError
+
+BASE64_PATTERN = re.compile(r"(data:[^;]+;base64,)[A-Za-z0-9+/=]{50,}")
+
+
+def truncate_base64_for_logging(obj: Any) -> Any:
+    """Recursively truncate base64 data in nested structures for logging."""
+    if isinstance(obj, str):
+        return BASE64_PATTERN.sub(r"\1<base64 truncated>", obj)
+    if isinstance(obj, dict):
+        return {k: truncate_base64_for_logging(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [truncate_base64_for_logging(item) for item in obj]
+    return obj
 
 
 class OpenAiService:
@@ -128,6 +145,7 @@ class OpenAiService:
             for param_name, param_value in parameters.items():
                 completion_params[param_name] = param_value
 
+            logger.debug("Sending completion request: %s", truncate_base64_for_logging(completion_params))
             response = client.chat.completions.create(**completion_params)
             return response.choices[0].message.content.strip()
         except AuthenticationError as e:
@@ -183,6 +201,7 @@ class OpenAiService:
             for param_name, param_value in parameters.items():
                 completion_params[param_name] = param_value
 
+            logger.debug("Sending streaming request: %s", truncate_base64_for_logging(completion_params))
             accumulated = ""
             response = client.chat.completions.create(**completion_params)
 

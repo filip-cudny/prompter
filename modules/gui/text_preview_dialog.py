@@ -5,8 +5,9 @@ from PySide6.QtWidgets import QApplication, QFrame, QHBoxLayout, QScrollArea, QV
 
 from core.interfaces import ClipboardManager
 from modules.gui.shared.base_dialog import BaseDialog
-from modules.gui.shared.context_widgets import IconButton
 from modules.gui.shared.theme import (
+    HEADER_BUTTON_SPACING,
+    HEADER_RIGHT_MARGIN,
     SCROLL_CONTENT_MARGINS,
     SCROLL_CONTENT_SPACING,
     SMALL_DIALOG_SIZE,
@@ -15,7 +16,7 @@ from modules.gui.shared.theme import (
     create_singleton_dialog_manager,
 )
 from modules.gui.shared.undo_redo import TextEditUndoHelper
-from modules.gui.shared.widgets import ICON_BTN_STYLE, create_text_edit
+from modules.gui.shared.widgets import create_header_button, create_text_edit
 
 # Singleton dialog manager for this module
 _show_dialog = create_singleton_dialog_manager()
@@ -79,35 +80,21 @@ class TextPreviewDialog(BaseDialog):
 
         # Toolbar - compact, right-aligned
         toolbar = QHBoxLayout()
-        toolbar.setContentsMargins(0, 0, 0, 0)
-        toolbar.setSpacing(2)
+        toolbar.setContentsMargins(0, 0, HEADER_RIGHT_MARGIN, 0)
+        toolbar.setSpacing(HEADER_BUTTON_SPACING)
         toolbar.addStretch()
 
         # Wrap toggle button (before undo/redo)
-        self.wrap_btn = IconButton("chevrons-down-up", size=18)
-        self.wrap_btn.setToolTip("Toggle wrap/expand")
-        self.wrap_btn.setStyleSheet(ICON_BTN_STYLE)
-        self.wrap_btn.clicked.connect(self._toggle_wrap)
+        self.wrap_btn = create_header_button("chevrons-down-up", "Toggle wrap/expand", self._toggle_wrap)
         toolbar.addWidget(self.wrap_btn)
 
-        self.undo_btn = IconButton("undo", size=18)
-        self.undo_btn.setToolTip("Undo (Ctrl+Z)")
-        self.undo_btn.setStyleSheet(ICON_BTN_STYLE)
-        self.undo_btn.clicked.connect(self._undo)
-        self.undo_btn.setEnabled(False)
+        self.undo_btn = create_header_button("undo", "Undo (Ctrl+Z)", self._undo, enabled=False)
         toolbar.addWidget(self.undo_btn)
 
-        self.redo_btn = IconButton("redo", size=18)
-        self.redo_btn.setToolTip("Redo (Ctrl+Shift+Z)")
-        self.redo_btn.setStyleSheet(ICON_BTN_STYLE)
-        self.redo_btn.clicked.connect(self._redo)
-        self.redo_btn.setEnabled(False)
+        self.redo_btn = create_header_button("redo", "Redo (Ctrl+Shift+Z)", self._redo, enabled=False)
         toolbar.addWidget(self.redo_btn)
 
-        self.copy_btn = IconButton("copy", size=18)
-        self.copy_btn.setToolTip("Copy all (Ctrl+Shift+C)")
-        self.copy_btn.setStyleSheet(ICON_BTN_STYLE)
-        self.copy_btn.clicked.connect(self._copy_all)
+        self.copy_btn = create_header_button("copy", "Copy all (Ctrl+Shift+C)", self._copy_all)
         toolbar.addWidget(self.copy_btn)
 
         content_layout.addLayout(toolbar)

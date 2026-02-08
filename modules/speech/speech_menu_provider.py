@@ -40,7 +40,6 @@ class SpeechMenuProvider:
                 action=self.speech_callback,
                 data={"type": "speech_to_text"},
                 enabled=speech_enabled,
-                separator_after=True,
                 icon="mic",
             )
             items.append(speech_item)

@@ -23,6 +23,11 @@ SCROLL_CONTENT_SPACING = 8
 # Button layout constants
 BUTTON_ROW_SPACING = 8
 
+# Header/toolbar layout constants
+HEADER_RIGHT_MARGIN = 12
+HEADER_ICON_SIZE = 16
+HEADER_BUTTON_SPACING = 2
+
 # Window size defaults
 DEFAULT_DIALOG_SIZE = (600, 500)
 MIN_DIALOG_SIZE = (500, 400)
@@ -36,6 +41,8 @@ SMALL_MIN_DIALOG_SIZE = (400, 300)
 # Background colors
 COLOR_DIALOG_BG = "#2b2b2b"
 COLOR_TEXT_EDIT_BG = "#1e1e1e"
+COLOR_BUBBLE_TEXT_EDIT_BG = "#1a1a1a"  # Slightly darker than main text edit
+COLOR_BUBBLE_BORDER = "#444444"  # Subtler border for bubbles
 
 # Text colors
 COLOR_TEXT = "#f0f0f0"
@@ -320,6 +327,14 @@ CHIP_LABEL_DISABLED_STYLE = f"""
 SECTION_TITLE_STYLE = f"""
     QLabel {{
         color: {COLOR_TEXT_SECONDARY};
+        font-size: 11px;
+        font-weight: normal;
+    }}
+"""
+
+SECTION_TITLE_ACTIVE_STYLE = f"""
+    QLabel {{
+        color: {COLOR_TEXT_LIGHT_GRAY};
         font-size: 11px;
         font-weight: bold;
     }}
