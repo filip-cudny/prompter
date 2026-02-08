@@ -209,6 +209,7 @@ class PromtheusApp(QObject):
             # Register callback to invalidate prompt cache when settings are saved
             config_service = ConfigService()
             config_service.register_on_save_callback(self.prompt_store_service.invalidate_cache)
+            config_service.register_on_save_callback(self._reload_hotkeys)
 
             # Initialize GUI components
             self._initialize_gui()
@@ -378,9 +379,7 @@ class PromtheusApp(QObject):
 
         # Initialize hotkey manager
         self.hotkey_manager = PyQtHotkeyManager(keymap_manager=self.config.keymap_manager)
-        self.hotkey_manager.connect_context_menu_callback(self._on_show_menu_hotkey_pressed)
-        self.hotkey_manager.connect_re_execute_callback(self._on_active_prompt_hotkey_pressed)
-        self.hotkey_manager.connect_speech_toggle_callback(self._on_speech_to_text_hotkey_pressed)
+        self.hotkey_manager.connect_action_callback(self._on_hotkey_action)
 
         # Initialize menu coordinator
         self.menu_coordinator = PyQtMenuCoordinator(self.prompt_store_service, self.app)
@@ -558,6 +557,16 @@ class PromtheusApp(QObject):
         self.interrupt_timer = QTimer()
         self.interrupt_timer.timeout.connect(lambda: None)  # Just process events
         self.interrupt_timer.start(100)  # Check every 100ms
+
+    def _on_hotkey_action(self, action_name: str) -> None:
+        action_handlers = {
+            "open_context_menu": self._on_show_menu_hotkey_pressed,
+            "execute_active_prompt": self._on_active_prompt_hotkey_pressed,
+            "speech_to_text_toggle": self._on_speech_to_text_hotkey_pressed,
+        }
+        handler = action_handlers.get(action_name)
+        if handler:
+            handler()
 
     def _on_active_prompt_hotkey_pressed(self) -> None:
         """Handle F1 hotkey press event for executing active prompt."""
@@ -828,6 +837,19 @@ class PromtheusApp(QObject):
         except Exception as e:
             print(f"Failed to set primary prompt provider: {e}")
             return False
+
+    def _reload_hotkeys(self) -> None:
+        from modules.utils.keymap import KeymapManager
+
+        config_service = ConfigService()
+        settings_data = config_service.get_settings_data()
+        keymap_manager = KeymapManager(settings_data.get("keymaps", []))
+
+        if self.config:
+            self.config.keymap_manager = keymap_manager
+        if self.hotkey_manager:
+            self.hotkey_manager.keymap_manager = keymap_manager
+            self.hotkey_manager.reload_config()
 
     def reload_config(self, config_file: str | None = None) -> None:
         """Reload configuration and reinitialize components."""

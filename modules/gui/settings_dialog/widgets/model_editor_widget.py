@@ -423,12 +423,16 @@ class ModelEditorWidget(QWidget):
         self._setup_ui()
 
     def _setup_ui(self):
-        """Set up the widget UI."""
         self.setStyleSheet(FORM_STYLE)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(12)
+        layout.setSpacing(0)
+
+        self._form_container = QWidget()
+        container_layout = QVBoxLayout(self._form_container)
+        container_layout.setContentsMargins(0, 0, 0, 0)
+        container_layout.setSpacing(12)
 
         title = QLabel("Model Configuration")
         title.setStyleSheet(f"""
@@ -438,7 +442,7 @@ class ModelEditorWidget(QWidget):
                 font-weight: bold;
             }}
         """)
-        layout.addWidget(title)
+        container_layout.addWidget(title)
 
         form_layout = QFormLayout()
         form_layout.setSpacing(12)
@@ -478,16 +482,17 @@ class ModelEditorWidget(QWidget):
         self._base_url_edit.setToolTip("API base URL (optional)")
         form_layout.addRow("Base URL:", self._base_url_edit)
 
-        layout.addLayout(form_layout)
+        container_layout.addLayout(form_layout)
 
-        self._setup_parameters_section(layout)
+        self._setup_parameters_section(container_layout)
 
-        layout.addStretch()
+        container_layout.addStretch()
 
-        self.setEnabled(False)
+        layout.addWidget(self._form_container)
+
+        self._form_container.hide()
 
     def _setup_parameters_section(self, parent_layout: QVBoxLayout):
-        """Set up the parameters section with dynamic add/remove."""
         header_layout = QHBoxLayout()
         header_layout.setSpacing(8)
 
@@ -580,10 +585,9 @@ class ModelEditorWidget(QWidget):
         self._no_params_label.show()
 
     def load_model(self, model_id: str, config: dict[str, Any]):
-        """Load a model configuration into the editor."""
         self._model_id = model_id
         self._is_new = False
-        self.setEnabled(True)
+        self._form_container.show()
 
         self._display_name_edit.setText(config.get("display_name", ""))
         self._model_edit.setText(config.get("model", ""))
@@ -615,10 +619,9 @@ class ModelEditorWidget(QWidget):
             return "string"
 
     def clear(self):
-        """Clear the editor and disable it."""
         self._model_id = None
         self._is_new = False
-        self.setEnabled(False)
+        self._form_container.hide()
 
         self._display_name_edit.clear()
         self._model_edit.clear()
@@ -678,10 +681,9 @@ class ModelEditorWidget(QWidget):
         return self._model_id
 
     def set_new_mode(self):
-        """Set the editor to new model mode with a new UUID."""
         self._model_id = str(uuid.uuid4())
         self._is_new = True
-        self.setEnabled(True)
+        self._form_container.show()
 
         self._display_name_edit.clear()
         self._model_edit.clear()

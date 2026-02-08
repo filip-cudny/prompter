@@ -77,13 +77,13 @@ class SettingsPanelBase(QWidget):
         """)
 
         content_widget = QWidget()
-        content_layout = QVBoxLayout(content_widget)
-        content_layout.setContentsMargins(0, 0, 12, 0)
-        content_layout.setSpacing(12)
+        self._content_layout = QVBoxLayout(content_widget)
+        self._content_layout.setContentsMargins(0, 0, 12, 0)
+        self._content_layout.setSpacing(12)
 
-        self._setup_content(content_layout)
+        self._setup_content(self._content_layout)
 
-        content_layout.addStretch()
+        self._content_layout.addStretch()
         scroll_area.setWidget(content_widget)
         main_layout.addWidget(scroll_area)
 
