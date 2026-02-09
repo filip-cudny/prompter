@@ -20,11 +20,6 @@ def _safe_decode_bytes(data: bytes) -> str:
     return text
 
 
-def _safe_encode_string(text: str) -> bytes:
-    """Encode string to UTF-8 bytes."""
-    return text.encode("utf-8")
-
-
 class SystemClipboardManager(ClipboardManager):
     """Cross-platform clipboard manager implementation."""
 
@@ -374,16 +369,25 @@ class SystemClipboardManager(ClipboardManager):
             return None
 
     def _get_content_macos(self) -> str:
-        """Get clipboard content on macOS."""
-        result = subprocess.run(["pbpaste"], capture_output=True, timeout=5)
-        if result.returncode != 0:
-            raise ClipboardError(f"pbpaste failed: {_safe_decode_bytes(result.stderr)}")
-        return _safe_decode_bytes(result.stdout)
+        """Get clipboard content on macOS using NSPasteboard."""
+        from AppKit import NSPasteboard
+
+        pb = NSPasteboard.generalPasteboard()
+        data = pb.dataForType_("public.utf8-plain-text")
+        if data:
+            return bytes(data).decode("utf-8")
+        return ""
 
     def _set_content_macos(self, content: str) -> bool:
-        """Set clipboard content on macOS."""
-        result = subprocess.run(["pbcopy"], input=_safe_encode_string(content), capture_output=True, timeout=5)
-        return result.returncode == 0
+        """Set clipboard content on macOS using NSPasteboard."""
+        from AppKit import NSPasteboard
+        from Foundation import NSData
+
+        pb = NSPasteboard.generalPasteboard()
+        pb.clearContents()
+        utf8_bytes = content.encode("utf-8")
+        ns_data = NSData.dataWithBytes_length_(utf8_bytes, len(utf8_bytes))
+        return pb.setData_forType_(ns_data, "public.utf8-plain-text")
 
     def _get_content_linux(self) -> str:
         """Get clipboard content on Linux."""
@@ -445,7 +449,7 @@ class SystemClipboardManager(ClipboardManager):
         try:
             subprocess.run(
                 ["xclip", "-selection", "clipboard", "-in"],
-                input=_safe_encode_string(content),
+                input=content.encode("utf-8"),
                 timeout=3,
                 check=True,
             )
@@ -461,7 +465,7 @@ class SystemClipboardManager(ClipboardManager):
         try:
             subprocess.run(
                 ["xsel", "--clipboard", "--input"],
-                input=_safe_encode_string(content),
+                input=content.encode("utf-8"),
                 timeout=3,
                 check=True,
             )
