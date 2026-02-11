@@ -2,7 +2,6 @@
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
-    QComboBox,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -17,6 +16,7 @@ from core.interfaces import ClipboardManager
 from core.models import HistoryEntry, HistoryEntryType
 from modules.gui.icons import ICON_COLOR_NORMAL, create_icon_pixmap
 from modules.gui.shared.base_dialog import BaseDialog
+from modules.gui.shared.widgets import NoScrollComboBox
 from modules.gui.shared.context_widgets import IconButton
 from modules.gui.shared.theme import (
     COLOR_BORDER,
@@ -513,7 +513,7 @@ class HistoryDialog(BaseDialog):
         page_size_label.setStyleSheet("QLabel { color: #888888; }")
         pagination.addWidget(page_size_label)
 
-        self.page_size_combo = QComboBox()
+        self.page_size_combo = NoScrollComboBox()
         self.page_size_combo.setStyleSheet(COMBOBOX_STYLE)
         for size in self.VALID_PAGE_SIZES:
             self.page_size_combo.addItem(str(size), size)

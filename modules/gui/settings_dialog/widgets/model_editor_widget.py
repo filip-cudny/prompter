@@ -6,7 +6,6 @@ from typing import Any
 from PySide6.QtCore import QLocale, Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
-    QComboBox,
     QDialog,
     QDoubleSpinBox,
     QFormLayout,
@@ -22,6 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 from modules.gui.icons import create_icon
+from modules.gui.shared.widgets import NoScrollComboBox
 from modules.gui.shared.theme import (
     COLOR_BORDER,
     COLOR_BUTTON_BG,
@@ -322,7 +322,7 @@ class AddParameterDialog(QDialog):
         form_layout = QFormLayout()
         form_layout.setSpacing(12)
 
-        self._name_combo = QComboBox()
+        self._name_combo = NoScrollComboBox()
         self._name_combo.setEditable(True)
         available_presets = [name for name, _ in PARAMETER_PRESETS if name not in self._existing_params]
         self._name_combo.addItems(available_presets)
@@ -330,7 +330,7 @@ class AddParameterDialog(QDialog):
         self._name_combo.currentTextChanged.connect(self._on_name_changed)
         form_layout.addRow("Name:", self._name_combo)
 
-        self._type_combo = QComboBox()
+        self._type_combo = NoScrollComboBox()
         self._type_combo.addItems(["Number", "String", "Boolean"])
         self._type_combo.currentTextChanged.connect(self._on_type_changed)
         form_layout.addRow("Type:", self._type_combo)
@@ -458,7 +458,7 @@ class ModelEditorWidget(QWidget):
         self._model_edit.setToolTip("Model ID sent to the API")
         form_layout.addRow("Model ID:", self._model_edit)
 
-        self._api_key_source_combo = QComboBox()
+        self._api_key_source_combo = NoScrollComboBox()
         self._api_key_source_combo.addItems(["Environment Variable", "Direct"])
         self._api_key_source_combo.currentIndexChanged.connect(self._on_api_key_source_changed)
         self._api_key_source_combo.setToolTip("How the API key is provided")

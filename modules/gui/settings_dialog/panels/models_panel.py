@@ -125,7 +125,7 @@ class ModelsPanel(SettingsPanelBase):
         splitter.addWidget(right_container)
 
         splitter.setSizes([200, 400])
-        layout.addWidget(splitter)
+        layout.addWidget(splitter, 1)
 
         self._load_models()
 

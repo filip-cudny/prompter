@@ -12,6 +12,7 @@ if TYPE_CHECKING:
 from PySide6.QtGui import QFont, QImage
 from PySide6.QtWidgets import (
     QApplication,
+    QComboBox,
     QHBoxLayout,
     QLabel,
     QTextEdit,
@@ -36,6 +37,11 @@ from modules.gui.shared.undo_redo import TextEditUndoHelper
 from modules.utils.notification_config import is_notification_enabled
 
 logger = logging.getLogger(__name__)
+
+
+class NoScrollComboBox(QComboBox):
+    def wheelEvent(self, event):
+        event.ignore()
 
 # Type variable for generic undo/redo manager
 T = TypeVar("T")

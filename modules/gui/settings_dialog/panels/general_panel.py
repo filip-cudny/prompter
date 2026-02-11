@@ -3,7 +3,6 @@
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
-    QComboBox,
     QFormLayout,
     QLabel,
     QSpinBox,
@@ -20,6 +19,7 @@ from modules.gui.shared.theme import (
     SVG_CHEVRON_DOWN_PATH,
     SVG_CHEVRON_UP_PATH,
 )
+from modules.gui.shared.widgets import NoScrollComboBox
 from modules.utils.config import ConfigService
 
 from ..settings_panel_base import SettingsPanelBase
@@ -101,7 +101,7 @@ class GeneralPanel(SettingsPanelBase):
         form_layout.setSpacing(16)
         form_layout.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
 
-        self._model_combo = QComboBox()
+        self._model_combo = NoScrollComboBox()
         self._populate_model_combo()
         self._model_combo.currentIndexChanged.connect(self._on_model_changed)
 

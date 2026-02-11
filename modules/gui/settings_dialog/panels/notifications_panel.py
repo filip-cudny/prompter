@@ -2,6 +2,7 @@
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QApplication,
     QCheckBox,
     QColorDialog,
     QFormLayout,
@@ -22,6 +23,7 @@ from modules.gui.shared.theme import (
 )
 from modules.utils.config import ConfigService
 from modules.utils.notification_config import DEFAULT_NOTIFICATION_SETTINGS
+from modules.utils.notifications import EnhancedNotificationManager
 
 from ..settings_panel_base import SettingsPanelBase
 
@@ -186,6 +188,23 @@ class NotificationsPanel(SettingsPanelBase):
             icon_label.setStyleSheet(f"color: {COLOR_TEXT};")
             row_layout.addWidget(icon_label)
             row_layout.addWidget(icon_btn)
+
+            test_btn = QPushButton("Test")
+            test_btn.setFixedSize(60, 28)
+            test_btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {COLOR_BUTTON_BG};
+                    color: {COLOR_TEXT};
+                    border: 1px solid {COLOR_BORDER};
+                    border-radius: 4px;
+                }}
+                QPushButton:hover {{
+                    background-color: {COLOR_BUTTON_HOVER};
+                }}
+            """)
+            test_btn.clicked.connect(lambda checked, t=color_type: self._test_notification(t))
+            row_layout.addWidget(test_btn)
+
             row_layout.addStretch()
 
             label = QLabel(f"{color_type.capitalize()}")
@@ -282,9 +301,16 @@ class NotificationsPanel(SettingsPanelBase):
         self.mark_dirty()
 
     def _on_opacity_changed(self, value: int):
-        """Handle opacity slider change."""
         self._opacity_value_label.setText(f"{value}%")
         self.mark_dirty()
+
+    def _test_notification(self, notification_type: str):
+        self.save_changes()
+        manager = EnhancedNotificationManager(QApplication.instance())
+        title = f"Test {notification_type.capitalize()}"
+        message = "This is a test notification"
+        method = getattr(manager, f"show_{notification_type}_notification")
+        method(title, message)
 
     def save_changes(self) -> bool:
         """Save notification settings to config."""

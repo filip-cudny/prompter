@@ -184,7 +184,7 @@ class MenuOrderPanel(SettingsPanelBase):
             "Configure the order of sections in the context menu. "
             "Use the up/down buttons to reorder."
         )
-        description.setStyleSheet(f"color: {COLOR_TEXT};")
+        description.setStyleSheet("color: #888888; margin-bottom: 16px;")
         description.setWordWrap(True)
         layout.addWidget(description)
 

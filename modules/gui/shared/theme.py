@@ -80,6 +80,9 @@ COLOR_TOOLTIP_BORDER = "#444444"
 # ComboBox colors
 COLOR_COMBOBOX_ARROW = "#cccccc"
 
+# Syntax highlighting colors
+COLOR_PLACEHOLDER = "#d19a66"
+
 # Error state colors
 COLOR_ERROR_BG = "#3a2a2a"
 COLOR_ERROR_BG_HOVER = "#453535"

@@ -6,8 +6,8 @@ import uuid
 from typing import Any
 
 from PySide6.QtCore import Qt, QThread, Signal
+from PySide6.QtGui import QColor, QFont, QSyntaxHighlighter, QTextCharFormat, QTextDocument
 from PySide6.QtWidgets import (
-    QComboBox,
     QDialog,
     QFrame,
     QHBoxLayout,
@@ -22,11 +22,13 @@ from PySide6.QtWidgets import (
 )
 
 from modules.gui.shared.context_widgets import IconButton
+from modules.gui.shared.widgets import NoScrollComboBox
 from modules.gui.shared.theme import (
     COLOR_BORDER,
     COLOR_BUTTON_BG,
     COLOR_BUTTON_HOVER,
     COLOR_DIALOG_BG,
+    COLOR_PLACEHOLDER,
     COLOR_TEXT,
     COLOR_TEXT_EDIT_BG,
     SCROLL_CONTENT_MARGINS,
@@ -38,6 +40,23 @@ from modules.gui.shared.theme import (
 logger = logging.getLogger(__name__)
 
 MIN_CONTENT_LENGTH = 10
+
+_PLACEHOLDER_PATTERN = re.compile(r"\{\{(\w+)\}\}")
+
+
+class PlaceholderHighlighter(QSyntaxHighlighter):
+
+    def __init__(self, valid_names: set[str], parent: QTextDocument):
+        super().__init__(parent)
+        self._valid_names = valid_names
+        self._format = QTextCharFormat()
+        self._format.setForeground(QColor(COLOR_PLACEHOLDER))
+        self._format.setFontWeight(QFont.DemiBold)
+
+    def highlightBlock(self, text: str):
+        for match in _PLACEHOLDER_PATTERN.finditer(text):
+            if match.group(1) in self._valid_names:
+                self.setFormat(match.start(), match.end() - match.start(), self._format)
 
 
 class DescriptionGeneratorWorker(QThread):
@@ -213,7 +232,7 @@ class PromptEditorDialog(QDialog):
         model_row = QHBoxLayout()
         model_label = QLabel("Model (optional):")
         model_label.setFixedWidth(100)
-        self._model_combo = QComboBox()
+        self._model_combo = NoScrollComboBox()
         self._model_combo.addItem("Use Default", "")
         self._populate_models()
         model_row.addWidget(model_label)
@@ -248,6 +267,10 @@ class PromptEditorDialog(QDialog):
         )
         self._user_edit.setMinimumHeight(100)
         form_layout.addWidget(self._user_edit)
+
+        valid_names = set(self._get_placeholder_info().keys())
+        PlaceholderHighlighter(valid_names, self._system_edit.document())
+        PlaceholderHighlighter(valid_names, self._user_edit.document())
 
         description_label = QLabel("Description:")
         form_layout.addWidget(description_label)

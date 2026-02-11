@@ -2,7 +2,6 @@
 
 from PySide6.QtCore import QEvent, Qt, Signal
 from PySide6.QtWidgets import (
-    QComboBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -26,6 +25,7 @@ from modules.gui.shared.theme import (
     SVG_CHEVRON_DOWN_PATH,
     TOOLTIP_STYLE,
 )
+from modules.gui.shared.widgets import NoScrollComboBox
 from modules.utils.config import ConfigService
 from modules.utils.system import is_macos
 
@@ -393,10 +393,8 @@ class KeymapsPanel(SettingsPanelBase):
 
         return tab
 
-    def _create_action_combo(self) -> QComboBox:
-        action_combo = QComboBox()
-        action_combo.setFocusPolicy(Qt.StrongFocus)
-        action_combo.wheelEvent = lambda e: e.ignore()
+    def _create_action_combo(self) -> NoScrollComboBox:
+        action_combo = NoScrollComboBox()
         action_combo.setStyleSheet(f"""
             QComboBox {{
                 background-color: {COLOR_TEXT_EDIT_BG};
