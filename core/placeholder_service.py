@@ -43,6 +43,8 @@ class ClipboardPlaceholderProcessor(PlaceholderProcessor):
     def process(self, context: str | None = None) -> str:
         """Get clipboard content or use provided context."""
         if context is not None:
+            if not context.strip():
+                raise ClipboardUnavailableError("Clipboard is empty")
             return context
 
         try:

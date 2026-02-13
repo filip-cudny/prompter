@@ -602,7 +602,7 @@ class PyQtMenuEventHandler:
                     )
             elif result.error_code == ErrorCode.CLIPBOARD_ERROR:
                 self.notification_manager.show_warning_notification(
-                    "Clipboard Unavailable",
+                    "Clipboard unavailable",
                     "Copy some text to clipboard and try again",
                 )
             else:

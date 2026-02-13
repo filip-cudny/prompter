@@ -1,6 +1,6 @@
 import logging
 
-from core.exceptions import DataError
+from core.exceptions import ClipboardError, DataError
 from core.interfaces import PromptStoreServiceProtocol
 from core.models import (
     ErrorCode,
@@ -82,23 +82,27 @@ class PromptStoreService(PromptStoreServiceProtocol):
     def execute_item(self, item: MenuItem) -> ExecutionResult:
         """Execute a menu item and track in history."""
         try:
+            if item.item_type == MenuItemType.SPEECH:
+                return self.execution_service.execute_item(item, None)
+
             if item.data and item.data.get("alternative_execution", False):
-                # Alternative execution triggers speech-to-text
-                # Don't add history here - ExecutionService._on_transcription_complete will handle it
                 return self.execution_service.execute_item(item, None, use_speech=True)
-            else:
-                input_content = self.clipboard_manager.get_content()
-                result = self.execution_service.execute_item(item, input_content)
-                # Only add history for non-async executions and non-speech actions
-                # Async executions will add history when they complete
-                # Speech actions should not be added to history (only final prompt results should be)
-                should_skip_history = (result.success and result.content == "Execution started asynchronously") or (
-                    result.metadata
-                    and result.metadata.get("action") in ["speech_recording_started", "speech_recording_stopped"]
-                )
-                if not should_skip_history:
-                    self.add_history_entry(item, input_content, result)
-                return result
+
+            input_content = self.clipboard_manager.get_content()
+            result = self.execution_service.execute_item(item, input_content)
+            should_skip_history = (result.success and result.content == "Execution started asynchronously") or (
+                result.metadata
+                and result.metadata.get("action") in ["speech_recording_started", "speech_recording_stopped"]
+            )
+            if not should_skip_history:
+                self.add_history_entry(item, input_content, result)
+            return result
+        except ClipboardError:
+            return ExecutionResult(
+                success=False,
+                error="Clipboard content is not available",
+                error_code=ErrorCode.CLIPBOARD_ERROR,
+            )
         except Exception as e:
             return ExecutionResult(success=False, error=str(e))
 

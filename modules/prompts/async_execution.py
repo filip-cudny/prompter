@@ -134,7 +134,6 @@ class PromptExecutionWorker(QThread):
     def run(self):
         """Execute the prompt in the worker thread."""
         if not self.item:
-            # Ensure error callback is called for early return so cleanup happens
             logger.warning("Worker run() called with no item - triggering error callback")
             if self.error_callback:
                 self.error_callback("No item to execute", "Unknown", 0, self.execution_id)
@@ -146,20 +145,16 @@ class PromptExecutionWorker(QThread):
         )
 
         try:
-            # Call started callback
             if self.started_callback:
                 self.started_callback(prompt_name, self.execution_id)
 
-            # Check if streaming is enabled via conversation_data
             use_streaming = False
             if self.item and self.item.data:
                 conv_data = self.item.data.get("conversation_data", {})
                 use_streaming = conv_data.get("use_streaming", False)
 
-            # Execute the prompt (streaming or sync)
             result = self._execute_prompt_streaming() if use_streaming else self._execute_prompt_sync()
 
-            # Attach execution_id to result
             result.execution_id = self.execution_id
             execution_time = time.time() - self.start_time
 
@@ -173,6 +168,7 @@ class PromptExecutionWorker(QThread):
                         prompt_name,
                         execution_time,
                         self.execution_id,
+                        error_code=result.error_code,
                     )
 
         except Exception as e:
@@ -810,15 +806,22 @@ class AsyncPromptExecutionManager:
         prompt_name: str,
         execution_time: float,
         execution_id: str = "",
+        error_code=None,
     ):
         """Handle execution error."""
-        self.notification_manager.show_error_notification(f"{prompt_name} failed", f"Error: {error_message}")
+        if error_code == ErrorCode.CLIPBOARD_ERROR:
+            self.notification_manager.show_warning_notification(
+                "Clipboard unavailable",
+                "Copy some text to clipboard and try again",
+            )
+        else:
+            self.notification_manager.show_error_notification(f"{prompt_name} failed", f"Error: {error_message}")
 
-        # Emit execution error signal for GUI updates
         if self.prompt_store_service:
             error_result = ExecutionResult(
                 success=False,
                 error=error_message,
+                error_code=error_code,
                 metadata={"action": "execute_prompt"},
                 execution_id=execution_id,
             )
