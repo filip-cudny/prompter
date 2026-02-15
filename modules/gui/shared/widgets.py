@@ -13,6 +13,7 @@ from PySide6.QtGui import QFont, QImage
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
+    QGraphicsOpacityEffect,
     QHBoxLayout,
     QLabel,
     QTextEdit,
@@ -20,7 +21,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from modules.gui.icons import ICON_COLOR_NORMAL
+from modules.gui.icons import DISABLED_OPACITY, ICON_COLOR_NORMAL
 from modules.gui.shared.context_widgets import IconButton
 from modules.gui.shared.theme import (
     COLOR_BORDER,
@@ -75,6 +76,7 @@ class CollapsibleSectionHeader(QWidget):
         show_wrap_button: bool = False,
         show_version_nav: bool = False,
         show_regenerate_button: bool = False,
+        show_info_button: bool = False,
         hint_text: str = "",
         parent: QWidget | None = None,
     ):
@@ -109,6 +111,28 @@ class CollapsibleSectionHeader(QWidget):
             hint_label = QLabel(hint_text)
             hint_label.setStyleSheet(SECTION_HINT_STYLE)
             layout.addWidget(hint_label)
+
+        # Info button (hidden by default, shown via set_info_tooltip)
+        self.info_btn = None
+        if show_info_button:
+            self.info_btn = IconButton("info", size=16)
+            info_effect = QGraphicsOpacityEffect(self.info_btn)
+            info_effect.setOpacity(DISABLED_OPACITY)
+            self.info_btn.setGraphicsEffect(info_effect)
+            self.info_btn.setStyleSheet("""
+                QPushButton {
+                    background: transparent;
+                    border: none;
+                    padding: 2px;
+                    min-width: 20px;
+                    max-width: 20px;
+                    min-height: 20px;
+                    max-height: 20px;
+                }
+            """)
+            self.info_btn.setCursor(Qt.ArrowCursor)
+            self.info_btn.hide()
+            layout.addWidget(self.info_btn)
 
         layout.addStretch()
 
@@ -222,6 +246,13 @@ class CollapsibleSectionHeader(QWidget):
         self._has_content = has_content
         self._update_title_style()
 
+    def set_info_tooltip(self, text: str):
+        """Show the info button with the given tooltip text."""
+        if self.info_btn and text:
+            wrapped_text = f'<div style="max-width: 800px;">{text}</div>'
+            self.info_btn.setToolTip(wrapped_text)
+            self.info_btn.show()
+
     def _update_title_style(self):
         """Update title style based on collapsed + has_content state."""
         from modules.gui.shared.theme import SECTION_TITLE_ACTIVE_STYLE, SECTION_TITLE_STYLE
@@ -236,8 +267,12 @@ class CollapsibleSectionHeader(QWidget):
         self._title = title
         self.title_label.setText(title)
 
+    def set_all_buttons_enabled(self, enabled: bool):
+        for btn in (self.save_btn, self.undo_btn, self.redo_btn, self.wrap_btn):
+            if btn:
+                btn.setEnabled(enabled)
+
     def set_undo_redo_enabled(self, can_undo: bool, can_redo: bool):
-        """Update undo/redo button enabled states."""
         if self.undo_btn:
             self.undo_btn.setEnabled(can_undo)
         if self.redo_btn:

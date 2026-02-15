@@ -199,6 +199,8 @@ class PyQtContextMenu(QObject):
         self._execution_signal_connected = False
         self._last_menu_position = None
         self._is_rebuilding_menu = False
+        self._navigable_widgets: list = []
+        self._nav_index: int = -1
 
         self._menu_stylesheet = MENU_STYLESHEET + TOOLTIP_STYLE
 
@@ -241,6 +243,14 @@ class PyQtContextMenu(QObject):
         menu.installEventFilter(self)
 
         self._add_menu_items(menu, items)
+
+        self._navigable_widgets = []
+        for action in menu.actions():
+            if isinstance(action, QWidgetAction):
+                widget = action.defaultWidget()
+                if widget and hasattr(widget, "_menu_item"):
+                    self._navigable_widgets.append(widget)
+        self._nav_index = -1
 
         # Connect menu aboutToHide signal to cleanup number timer
         menu.aboutToHide.connect(self._on_menu_about_to_hide)
@@ -586,7 +596,6 @@ class PyQtContextMenu(QObject):
                 self.setAttribute(Qt.WA_StyledBackground, True)
                 self._menu_item = menu_item
                 self._context_menu = context_menu
-                self._is_highlighted = False
                 self._disable_reason = None
                 self._is_recording_action = False
                 self._is_executing_action = False
@@ -969,31 +978,29 @@ class PyQtContextMenu(QObject):
                         self._context_menu.execution_callback(self._menu_item, shift_pressed)
                         self._context_menu._close_and_restore_focus()
 
+            @property
+            def _is_interactive(self):
+                return self._menu_item.enabled or self._is_recording_action or self._is_executing_action
+
             def enterEvent(self, event):
-                if self._menu_item.enabled or self._is_recording_action or self._is_executing_action:
-                    self._is_highlighted = True
+                if self._is_interactive:
                     self._update_style(True)
                     self._context_menu.hovered_widgets.add(self)
                 super().enterEvent(event)
 
             def leaveEvent(self, event):
-                if (
-                    self._menu_item.enabled or self._is_recording_action or self._is_executing_action
-                ) and not self.hasFocus():
-                    self._is_highlighted = False
+                if self._is_interactive and not self.hasFocus():
                     self._update_style(False)
                     self._context_menu.hovered_widgets.discard(self)
                 super().leaveEvent(event)
 
             def focusInEvent(self, event):
-                if self._menu_item.enabled or self._is_recording_action or self._is_executing_action:
-                    self._is_highlighted = True
+                if self._is_interactive:
                     self._update_style(True)
                 super().focusInEvent(event)
 
             def focusOutEvent(self, event):
-                if self._menu_item.enabled or self._is_recording_action or self._is_executing_action:
-                    self._is_highlighted = False
+                if self._is_interactive:
                     self._update_style(False)
                 super().focusOutEvent(event)
 
@@ -1071,14 +1078,17 @@ class PyQtContextMenu(QObject):
                     # Cancel number input on Escape
                     self._cancel_number_input()
                     return False
-                elif event.key() in (
-                    Qt.Key_Up,
-                    Qt.Key_Down,
-                    Qt.Key_Return,
-                    Qt.Key_Enter,
-                    Qt.Key_Space,
-                ):
-                    # Let QMenu handle these keys natively
+                elif event.key() in (Qt.Key_Down, Qt.Key_Up):
+                    if self._navigable_widgets:
+                        if self._nav_index == -1:
+                            new_index = self._first_prompt_index()
+                        elif event.key() == Qt.Key_Down:
+                            new_index = (self._nav_index + 1) % len(self._navigable_widgets)
+                        else:
+                            new_index = (self._nav_index - 1) % len(self._navigable_widgets)
+                        self._navigate_to(new_index)
+                    return True
+                elif event.key() in (Qt.Key_Return, Qt.Key_Enter, Qt.Key_Space):
                     return False
                 elif event.key() >= Qt.Key_0 and event.key() <= Qt.Key_9:
                     # Handle number key presses for prompt execution (including 0 for multi-digait)
@@ -1132,6 +1142,21 @@ class PyQtContextMenu(QObject):
 
         return False
 
+    def _first_prompt_index(self) -> int:
+        return next(
+            (
+                i
+                for i, w in enumerate(self._navigable_widgets)
+                if w._menu_item.item_type == MenuItemType.PROMPT
+            ),
+            0,
+        )
+
+    def _navigate_to(self, index: int):
+        if self._navigable_widgets:
+            self._nav_index = index
+            self._navigable_widgets[index].setFocus(Qt.OtherFocusReason)
+
     def _handle_number_input(self, menu, digit, is_alternative):
         """Handle number input with debouncing for multi-digit numbers."""
         # Add digit to buffer
@@ -1183,6 +1208,8 @@ class PyQtContextMenu(QObject):
         self.number_timer.stop()
         self.number_input_buffer = ""
         self.shift_pressed = False
+        self._nav_index = -1
+        self._navigable_widgets = []
 
         # Switch back to accessory mode if no dialogs are open
         from modules.utils import system

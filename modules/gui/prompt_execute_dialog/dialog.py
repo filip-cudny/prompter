@@ -223,9 +223,16 @@ class PromptExecuteDialog(BaseDialog):
         prompt_name = menu_item.data.get("prompt_name", "Prompt") if menu_item.data else "Prompt"
         self.setWindowTitle(f"Message to: {prompt_name}")
 
+        self._context_supported = True
+
         self._setup_ui()
         self.apply_dialog_styles()
         self._load_context()
+
+        if not self._prompt_supports_context():
+            self._context_supported = False
+            self._disable_context_section()
+
         self._restore_ui_state()
 
         # Focus message input for immediate typing
@@ -311,6 +318,7 @@ class PromptExecuteDialog(BaseDialog):
             show_save_button=True,
             show_undo_redo=True,
             show_wrap_button=True,
+            show_info_button=True,
             hint_text="",
         )
         self.context_header.toggle_requested.connect(self._toggle_context_section)
@@ -525,9 +533,38 @@ class PromptExecuteDialog(BaseDialog):
         self._context_redo_stack.clear()
         self._update_undo_redo_buttons()
 
+    def _prompt_supports_context(self) -> bool:
+        """Check if the current prompt uses the {{context}} placeholder."""
+        try:
+            if not self._prompt_store_service or not self.menu_item.data:
+                return True
+            prompt_id = self.menu_item.data.get("prompt_id")
+            if not prompt_id:
+                return True
+            provider = self._prompt_store_service.primary_provider
+            if not provider:
+                return True
+            messages = provider.get_prompt_messages(prompt_id)
+            if not messages:
+                return True
+            return any("{{context}}" in msg.get("content", "") for msg in messages)
+        except Exception:
+            return True
+
+    def _disable_context_section(self):
+        """Disable context section for prompts that don't use {{context}}."""
+        self.context_header.set_info_tooltip(
+            "Context is only available for prompts that use the {{context}} placeholder"
+        )
+
+        self.context_header.set_all_buttons_enabled(False)
+
+        self.context_text_edit.setReadOnly(True)
+        self.context_text_edit.setStyleSheet("QTextEdit { color: #666666; }")
+
     def _save_context(self):
         """Save context changes to context_manager."""
-        if not self.context_manager:
+        if not self._context_supported or not self.context_manager:
             return
 
         self.context_manager.clear_context()
@@ -1224,6 +1261,8 @@ class PromptExecuteDialog(BaseDialog):
 
     def _on_context_text_changed(self):
         """Handle context text changes - debounce state saving."""
+        if not self._context_supported:
+            return
         self._text_change_timer.start()
         if not self.context_header.is_wrapped():
             content_height = get_text_edit_content_height(self.context_text_edit)
