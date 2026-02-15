@@ -88,6 +88,12 @@ COLOR_ERROR_BG = "#3a2a2a"
 COLOR_ERROR_BG_HOVER = "#453535"
 COLOR_ERROR_BORDER = "#775555"
 
+# Conversation turn accent colors
+COLOR_ACCENT_USER = "#4a9eff"
+COLOR_ACCENT_USER_DIM = "rgba(74, 158, 255, 0.12)"
+COLOR_ACCENT_ASSISTANT = "#a855f7"
+COLOR_ACCENT_ASSISTANT_DIM = "rgba(168, 85, 247, 0.12)"
+
 # =============================================================================
 # SVG Paths
 # =============================================================================
@@ -347,6 +353,36 @@ SECTION_HINT_STYLE = f"""
     QLabel {{
         color: {COLOR_TEXT_HINT};
         font-size: 11px;
+    }}
+"""
+
+ROLE_BADGE_USER_STYLE = f"""
+    QLabel {{
+        color: {COLOR_ACCENT_USER};
+        background-color: {COLOR_ACCENT_USER_DIM};
+        font-size: 9px;
+        font-weight: bold;
+        padding: 1px 5px;
+        border-radius: 4px;
+    }}
+"""
+
+ROLE_BADGE_ASSISTANT_STYLE = f"""
+    QLabel {{
+        color: {COLOR_ACCENT_ASSISTANT};
+        background-color: {COLOR_ACCENT_ASSISTANT_DIM};
+        font-size: 9px;
+        font-weight: bold;
+        padding: 1px 5px;
+        border-radius: 4px;
+    }}
+"""
+
+TURN_NUMBER_STYLE = f"""
+    QLabel {{
+        color: {COLOR_TEXT_HINT};
+        font-size: 11px;
+        font-family: "Menlo", "Monaco", "Consolas", monospace;
     }}
 """
 

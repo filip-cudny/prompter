@@ -78,6 +78,7 @@ class CollapsibleSectionHeader(QWidget):
         show_regenerate_button: bool = False,
         show_info_button: bool = False,
         hint_text: str = "",
+        badge_widget: QWidget | None = None,
         parent: QWidget | None = None,
     ):
         super().__init__(parent)
@@ -97,6 +98,7 @@ class CollapsibleSectionHeader(QWidget):
         self.toggle_btn = IconButton("chevron-down", size=16)
         self.toggle_btn.setToolTip("Collapse section")
         # Remove padding so chevron aligns with text edit border
+        self.toggle_btn.setFixedSize(16, 16)
         self.toggle_btn.setStyleSheet("QPushButton { background: transparent; border: none; padding: 0px; }")
         self.toggle_btn.clicked.connect(lambda: self.toggle_requested.emit())
         layout.addWidget(self.toggle_btn)
@@ -104,7 +106,12 @@ class CollapsibleSectionHeader(QWidget):
         # Title label after chevron
         self.title_label = QLabel(title)
         self.title_label.setStyleSheet(SECTION_TITLE_STYLE)
+        if not title:
+            self.title_label.hide()
         layout.addWidget(self.title_label)
+
+        if badge_widget:
+            layout.addWidget(badge_widget)
 
         # Optional hint text (e.g., "Paste image: Ctrl+V")
         if hint_text:

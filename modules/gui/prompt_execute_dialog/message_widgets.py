@@ -2,13 +2,18 @@
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QTimer, Signal
-from PySide6.QtWidgets import QHBoxLayout, QSizePolicy, QVBoxLayout, QWidget
+from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
 
 from core.context_manager import ContextItem, ContextItemType
 from modules.gui.shared.theme import (
+    COLOR_ACCENT_ASSISTANT,
+    COLOR_ACCENT_USER,
     QWIDGETSIZE_MAX,
+    ROLE_BADGE_ASSISTANT_STYLE,
+    ROLE_BADGE_USER_STYLE,
     TEXT_CHANGE_DEBOUNCE_MS,
+    TURN_NUMBER_STYLE,
     get_text_edit_content_height,
 )
 from modules.gui.shared.widgets import (
@@ -20,6 +25,26 @@ from modules.gui.shared.widgets import (
 
 if TYPE_CHECKING:
     from modules.gui.prompt_execute_dialog.dialog import PromptExecuteDialog
+
+
+def _create_role_badge_container(role: str, turn_number: int) -> tuple[QWidget, QLabel]:
+    container = QWidget()
+    container.setStyleSheet("background: transparent;")
+    layout = QHBoxLayout(container)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(6)
+
+    badge = QLabel(role.upper())
+    badge.setAttribute(Qt.WA_StyledBackground, True)
+    badge_style = ROLE_BADGE_USER_STYLE if role == "user" else ROLE_BADGE_ASSISTANT_STYLE
+    badge.setStyleSheet(badge_style)
+    layout.addWidget(badge)
+
+    turn_label = QLabel(f"# {turn_number}")
+    turn_label.setStyleSheet(TURN_NUMBER_STYLE)
+    layout.addWidget(turn_label)
+
+    return container, turn_label
 
 
 class UserMessageBubble(QWidget):
@@ -63,16 +88,29 @@ class UserMessageBubble(QWidget):
         self._setup_ui(content, show_delete_button)
 
     def _setup_ui(self, content: str, show_delete_button: bool):
+        self.setObjectName("userBubble")
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        self.setStyleSheet(f"""
+            QWidget#userBubble {{
+                border-left: 3.5px solid {COLOR_ACCENT_USER};
+                border-radius: 6px;
+                background: transparent;
+            }}
+        """)
+
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(8, 0, 0, 0)
         layout.setSpacing(4)
 
+        badge_container, self._turn_label = _create_role_badge_container("user", self.message_number)
+
         self.header = CollapsibleSectionHeader(
-            f"Message #{self.message_number}",
+            "",
             show_save_button=False,
             show_undo_redo=True,
             show_delete_button=show_delete_button,
             show_wrap_button=True,
+            badge_widget=badge_container,
         )
         layout.addWidget(self.header)
 
@@ -234,7 +272,8 @@ class UserMessageBubble(QWidget):
 
     def set_message_number(self, number: int):
         self.message_number = number
-        self.header.set_title(f"Message #{number}")
+        if hasattr(self, "_turn_label"):
+            self._turn_label.setText(f"# {number}")
 
     def set_delete_button_visible(self, visible: bool):
         self.header.set_delete_button_visible(visible)
@@ -281,18 +320,31 @@ class AssistantBubble(QWidget):
         self._setup_ui(content, show_delete_button)
 
     def _setup_ui(self, content: str, show_delete_button: bool):
+        self.setObjectName("assistantBubble")
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        self.setStyleSheet(f"""
+            QWidget#assistantBubble {{
+                border-left: 3.5px solid {COLOR_ACCENT_ASSISTANT};
+                border-radius: 6px;
+                background: transparent;
+            }}
+        """)
+
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(8, 0, 0, 0)
         layout.setSpacing(4)
 
+        badge_container, self._turn_label = _create_role_badge_container("assistant", self.output_number)
+
         self.header = CollapsibleSectionHeader(
-            f"Output #{self.output_number}",
+            "",
             show_save_button=False,
             show_undo_redo=True,
             show_delete_button=show_delete_button,
             show_wrap_button=True,
             show_version_nav=True,
             show_regenerate_button=True,
+            badge_widget=badge_container,
         )
         layout.addWidget(self.header)
 
@@ -399,7 +451,8 @@ class AssistantBubble(QWidget):
 
     def set_output_number(self, number: int):
         self.output_number = number
-        self.header.set_title(f"Output #{number}")
+        if hasattr(self, "_turn_label"):
+            self._turn_label.setText(f"# {number}")
 
     def set_delete_button_visible(self, visible: bool):
         self.header.set_delete_button_visible(visible)

@@ -2,6 +2,7 @@
 
 from typing import TYPE_CHECKING
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QSizePolicy, QVBoxLayout, QWidget
 
 from core.context_manager import ContextItem
@@ -13,8 +14,10 @@ from modules.gui.prompt_execute_dialog.data import (
 from modules.gui.prompt_execute_dialog.message_widgets import (
     AssistantBubble,
     UserMessageBubble,
+    _create_role_badge_container,
 )
 from modules.gui.shared.theme import (
+    COLOR_ACCENT_ASSISTANT,
     apply_section_size_policy,
     get_text_edit_content_height,
 )
@@ -54,9 +57,21 @@ class ConversationManager:
         """
         dialog = self.dialog
         container = QWidget()
+        container.setObjectName("legacyAssistantBubble")
+        container.setAttribute(Qt.WA_StyledBackground, True)
+        container.setStyleSheet(f"""
+            QWidget#legacyAssistantBubble {{
+                border-left: 3.5px solid {COLOR_ACCENT_ASSISTANT};
+                border-radius: 6px;
+                background: transparent;
+            }}
+        """)
+
         layout = QVBoxLayout(container)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(8, 0, 0, 0)
         layout.setSpacing(4)
+
+        badge_container, turn_label = _create_role_badge_container("assistant", turn_number)
 
         header = CollapsibleSectionHeader(
             f"Output #{turn_number}",
@@ -65,6 +80,7 @@ class ConversationManager:
             show_delete_button=True,
             show_wrap_button=True,
             show_version_nav=True,
+            badge_widget=badge_container,
         )
         layout.addWidget(header)
 
@@ -77,6 +93,7 @@ class ConversationManager:
         container.header = header
         container.text_edit = text_edit
         container.turn_number = turn_number
+        container.turn_label = turn_label
 
         # Undo/redo stacks for this section
         container.undo_stack = []
@@ -172,6 +189,8 @@ class ConversationManager:
 
         for idx, section in enumerate(dialog._output_sections):
             section.header.set_title(f"Output #{idx + 2}")
+            if hasattr(section, "turn_label"):
+                section.turn_label.setText(f"# {idx + 2}")
 
     def clear_dynamic_sections(self):
         """Remove all dynamic reply and output sections from layout."""
