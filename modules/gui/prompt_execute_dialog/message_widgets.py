@@ -34,7 +34,8 @@ def _create_role_badge_container(role: str, turn_number: int) -> tuple[QWidget, 
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(6)
 
-    badge = QLabel(role.upper())
+    badge_text = "Me" if role == "user" else role.upper()
+    badge = QLabel(badge_text)
     badge.setAttribute(Qt.WA_StyledBackground, True)
     badge_style = ROLE_BADGE_USER_STYLE if role == "user" else ROLE_BADGE_ASSISTANT_STYLE
     badge.setStyleSheet(badge_style)
